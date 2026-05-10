@@ -1,0 +1,21 @@
+# 系统 / 编辑器
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Sisyphus 工作目录
+.sisyphus/
+
+# 临时测试文件
+/tmp/
+
+# Go 编译缓存
+*.test
+
+# 编译产物
+bin/
+
+# 压缩包
+*.zip
