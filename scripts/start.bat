@@ -1,19 +1,44 @@
 @echo off
-setlocal enabledelayedexpansion
+chcp 65001 >nul
 
-:: 切换到包根目录（保证 web/dist 路径正确）
+:: Switch to package root so web/dist resolves correctly
 set DIR=%~dp0..
 cd /d "%DIR%" || exit /b 1
 
 if not exist "logs" mkdir logs
 if not exist "config" mkdir config
 
-echo Starting IEC104 Sim...
-start /B "" "bin\iec104-sim.exe" serve --http :8080 --config-dir config --log-dir logs --log info > logs\output.log 2>&1
+:: Check if already running
+tasklist /FI "IMAGENAME eq iec104-sim.exe" 2>nul | find /I "iec104-sim.exe" >nul
+if not errorlevel 1 (
+    echo IEC104 Sim is already running.
+    echo Web UI: http://localhost:8080
+    pause
+    exit /b 0
+)
+
+echo Starting IEC104 Simulator...
+echo.
+
+:: start /MIN creates a new, independent console window (minimized to taskbar)
+:: The server process is NOT tied to this batch script's console,
+:: so it will keep running after this window closes.
+:: When you close the minimized "IEC104 Sim" window, the server stops.
+start "IEC104 Sim" /MIN "bin\iec104-sim.exe" serve --http :8080 --config-dir config --log-dir logs --log info
+
+:: Wait a moment then check if it started
+timeout /t 2 /nobreak >nul
+tasklist /FI "IMAGENAME eq iec104-sim.exe" 2>nul | find /I "iec104-sim.exe" >nul
 if errorlevel 1 (
-    echo Failed to start IEC104 Sim
+    echo Failed to start IEC104 Sim. Check logs\output.log for details.
     pause
     exit /b 1
 )
-echo IEC104 Sim started
-echo Web UI: http://localhost:8080
+
+echo IEC104 Sim started successfully.
+echo.
+echo   Web UI:      http://localhost:8080
+echo   Server log:  click the "IEC104 Sim" window in the taskbar
+echo   To stop:     run scripts\stop.bat, or close the IEC104 Sim window
+echo.
+pause

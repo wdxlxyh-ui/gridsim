@@ -193,11 +193,12 @@ func (ws *webServer) handleInstances(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		if err := ws.mgr.CreateConfig(req); err != nil {
+		created, err := ws.mgr.CreateConfig(req)
+		if err != nil {
 			writeError(w, http.StatusConflict, err.Error())
 			return
 		}
-		writeJSON(w, http.StatusCreated, req)
+		writeJSON(w, http.StatusCreated, created)
 
 	default:
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")

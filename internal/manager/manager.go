@@ -1,9 +1,12 @@
 package manager
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"net"
+	"os"
 	"path/filepath"
 	"sync"
 
@@ -13,6 +16,12 @@ import (
 	"iec104-sim/pkg/iec104"
 	"iec104-sim/pkg/library"
 )
+
+func generateID() string {
+	b := make([]byte, 6)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
 
 // Instance wraps a running IEC104 server instance.
 type Instance struct {
@@ -56,23 +65,32 @@ func (m *Manager) GetConfig(id string) (model.InstanceConfig, bool) {
 	return m.store.Get(id)
 }
 
-// CreateConfig creates a new instance configuration.
-func (m *Manager) CreateConfig(cfg model.InstanceConfig) error {
+// CreateConfig creates a new instance configuration with an auto-generated ID.
+// Returns the created config with the assigned ID.
+func (m *Manager) CreateConfig(cfg model.InstanceConfig) (model.InstanceConfig, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if m.store.Count() >= MaxInstances {
-		return fmt.Errorf("maximum %d instances allowed", MaxInstances)
+		return model.InstanceConfig{}, fmt.Errorf("maximum %d instances allowed", MaxInstances)
 	}
 
 	// Check port conflict with other configs
 	for _, existing := range m.store.List() {
 		if existing.IEC104Port == cfg.IEC104Port {
-			return fmt.Errorf("port %d already configured for instance %s", cfg.IEC104Port, existing.ID)
+			return model.InstanceConfig{}, fmt.Errorf("port %d already configured for instance %s", cfg.IEC104Port, existing.ID)
 		}
 	}
 
-	return m.store.Add(cfg)
+	// Auto-generate ID if not provided by client
+	if cfg.ID == "" {
+		cfg.ID = generateID()
+	}
+
+	if err := m.store.Add(cfg); err != nil {
+		return model.InstanceConfig{}, err
+	}
+	return cfg, nil
 }
 
 // UpdateConfig updates an instance configuration, stopping it if running.
@@ -131,10 +149,14 @@ func (m *Manager) StartInstance(id string) error {
 	}
 	ln.Close()
 
-	// Resolve xlsx path
+	// Resolve xlsx path:
+	//   1. Try as-is (relative to CWD / package root) → e.g. samples/point.xlsx
+	//   2. Fall back to config directory          → e.g. config/uploaded.xlsx
 	xlsxPath := cfg.XLSXFile
 	if !filepath.IsAbs(xlsxPath) {
-		xlsxPath = filepath.Join(m.cfgDir, xlsxPath)
+		if _, err := os.Stat(xlsxPath); os.IsNotExist(err) {
+			xlsxPath = filepath.Join(m.cfgDir, xlsxPath)
+		}
 	}
 
 	// Load point table

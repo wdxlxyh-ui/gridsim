@@ -140,11 +140,11 @@ async function fetchFiles() {
 function handleEdit(row: InstanceState) {
   editing.value = true
   form.value = {
+    id: row.id,
     name: row.name,
     iec104_port: row.iec104_port,
     xlsx_file: row.xlsx_file,
   }
-  ;(form as any)._id = row.id
   showAddDialog.value = true
 }
 
@@ -155,10 +155,12 @@ async function handleSave() {
   saving.value = true
   try {
     if (editing.value) {
-      await updateInstance((form as any)._id, form.value)
+      await updateInstance(form.value.id!, form.value)
       ElMessage.success('已更新')
     } else {
-      await createInstance(form.value)
+      // Don't send empty id to backend; backend auto-generates
+      const { id, ...createData } = form.value
+      await createInstance(createData)
       ElMessage.success('已创建')
     }
     showAddDialog.value = false
@@ -197,7 +199,12 @@ async function handleDelete(id: string) {
     await deleteInstance(id)
     ElMessage.success('已删除')
     await fetchData()
-  } catch {}
+  } catch (e: any) {
+    // Ignore cancel dialog, show other errors
+    if (e !== 'cancel') {
+      ElMessage.error('删除失败: ' + (e?.response?.data?.error || e.message))
+    }
+  }
 }
 
 function handleFileChange(file: any) {
