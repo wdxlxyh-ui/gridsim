@@ -32,6 +32,9 @@ config/instances.json
 # OpenCode 工作目录
 .opencode/
 
+# Vite 临时文件
+*.timestamp-*.mjs
+
 # 前端依赖
 web/node_modules/
 web/package-lock.json
