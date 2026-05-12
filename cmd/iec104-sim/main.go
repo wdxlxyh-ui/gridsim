@@ -13,11 +13,14 @@ import (
 	"strings"
 	"syscall"
 
+	"strconv"
+
 	"iec104-sim/internal/manager"
 	"iec104-sim/internal/model"
 	"iec104-sim/internal/storage"
 	"iec104-sim/pkg/api"
 	"iec104-sim/pkg/config"
+	"iec104-sim/pkg/firewall"
 	"iec104-sim/pkg/iec104"
 	"iec104-sim/pkg/library"
 
@@ -46,7 +49,7 @@ func runLegacyMode() {
 
 	pflag.IntVarP(&port, "port", "p", 2404, "IEC104 TCP 端口号")
 	pflag.StringVarP(&cfgPath, "config", "c", "", "配置文件路径 (.xlsx)")
-	pflag.StringVarP(&httpAddr, "http", "H", ":8080", "HTTP API 监听地址")
+	pflag.StringVarP(&httpAddr, "http", "H", ":8989", "HTTP API 监听地址")
 	pflag.StringVarP(&logLvl, "log", "l", "info", "日志级别: debug/info/warn/error")
 	pflag.Parse()
 
@@ -82,6 +85,11 @@ func runLegacyMode() {
 	mux := http.NewServeMux()
 	apiHandler.Register(mux)
 
+	if p := parsePort(httpAddr); p > 0 {
+		firewall.EnsurePort(p, "iec104-sim-http")
+	}
+	firewall.EnsurePort(port, "iec104-sim-data")
+
 	httpSrv := &http.Server{Addr: httpAddr, Handler: mux}
 	go func() {
 		slog.Info("HTTP API 已启动", "addr", httpAddr)
@@ -115,7 +123,7 @@ func runServerMode() {
 		logLvl    string
 	)
 
-	pflag.StringVarP(&httpAddr, "http", "H", ":8080", "管理API监听地址")
+	pflag.StringVarP(&httpAddr, "http", "H", ":8989", "管理API监听地址")
 	pflag.StringVarP(&configDir, "config-dir", "c", "./config", "配置文件目录")
 	pflag.StringVarP(&logDir, "log-dir", "L", "./logs", "日志文件目录")
 	pflag.StringVarP(&logLvl, "log", "l", "info", "日志级别: debug/info/warn/error")
@@ -138,6 +146,10 @@ func runServerMode() {
 	mux := http.NewServeMux()
 	ws := &webServer{mgr: mgr}
 	ws.registerRoutes(mux, configDir)
+
+	if p := parsePort(httpAddr); p > 0 {
+		firewall.EnsurePort(p, "iec104-sim-http")
+	}
 
 	// Start HTTP server
 	httpSrv := &http.Server{Addr: httpAddr, Handler: mux}
@@ -442,6 +454,18 @@ func setupLogLevel(level string) {
 	}
 	h := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: lvl})
 	slog.SetDefault(slog.New(h))
+}
+
+func parsePort(addr string) int {
+	_, s, ok := strings.Cut(addr, ":")
+	if !ok {
+		return 0
+	}
+	p, err := strconv.Atoi(s)
+	if err != nil {
+		return 0
+	}
+	return p
 }
 
 func countByType(points []*config.Point) map[string]int {

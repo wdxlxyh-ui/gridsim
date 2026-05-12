@@ -16,6 +16,7 @@ import (
 	"iec104-sim/internal/storage"
 	"iec104-sim/pkg/api"
 	"iec104-sim/pkg/config"
+	"iec104-sim/pkg/firewall"
 	"iec104-sim/pkg/iec104"
 	"iec104-sim/pkg/library"
 )
@@ -127,6 +128,10 @@ func (m *Manager) DeleteConfig(id string) error {
 			inst.HTTPServer.Close()
 			inst.HTTPServer = nil
 		}
+		firewall.RemovePort(inst.Config.IEC104Port)
+		if inst.Config.HttpEnabled && inst.Config.HttpPort > 0 {
+			firewall.RemovePort(inst.Config.HttpPort)
+		}
 		delete(m.instances, id)
 	}
 
@@ -214,6 +219,11 @@ func (m *Manager) StartInstance(id string) error {
 		inst.HTTPServer = httpSrv
 	}
 
+	firewall.EnsurePort(cfg.IEC104Port, "iec104-sim-instance")
+	if cfg.HttpEnabled && cfg.HttpPort > 0 {
+		firewall.EnsurePort(cfg.HttpPort, "iec104-sim-instance")
+	}
+
 	m.instances[id] = inst
 
 	slog.Info("实例已启动", "id", id, "port", cfg.IEC104Port, "name", cfg.Name, "points", len(points))
@@ -235,6 +245,12 @@ func (m *Manager) StopInstance(id string) error {
 		inst.HTTPServer.Close()
 		inst.HTTPServer = nil
 	}
+
+	firewall.RemovePort(inst.Config.IEC104Port)
+	if inst.Config.HttpEnabled && inst.Config.HttpPort > 0 {
+		firewall.RemovePort(inst.Config.HttpPort)
+	}
+
 	delete(m.instances, id)
 
 	slog.Info("实例已停止", "id", id, "name", inst.Config.Name)
