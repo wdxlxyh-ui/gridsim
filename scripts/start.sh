@@ -26,7 +26,7 @@ cd "$DIR"
 
 # Start the simulator
 nohup "$DIR/bin/iec104-sim" serve \
-    --http ":8080" \
+    --http ":8989" \
     --config-dir "$CONFIG_DIR" \
     --log-dir "$LOG_DIR" \
     --log info \
@@ -35,4 +35,4 @@ nohup "$DIR/bin/iec104-sim" serve \
 SIM_PID=$!
 echo $SIM_PID > "$PID_FILE"
 echo "IEC104 Sim started (PID: $SIM_PID)"
-echo "Web UI: http://localhost:8080"
+echo "Web UI: http://localhost:8989"
