@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +14,7 @@ import (
 
 	"iec104-sim/internal/model"
 	"iec104-sim/internal/storage"
+	"iec104-sim/pkg/api"
 	"iec104-sim/pkg/config"
 	"iec104-sim/pkg/iec104"
 	"iec104-sim/pkg/library"
@@ -26,9 +28,10 @@ func generateID() string {
 
 // Instance wraps a running IEC104 server instance.
 type Instance struct {
-	Config model.InstanceConfig
-	Server *iec104.Server
-	Store  *library.Store
+	Config     model.InstanceConfig
+	Server     *iec104.Server
+	Store      *library.Store
+	HTTPServer *http.Server
 }
 
 // MaxInstances is the maximum number of concurrent instances allowed.
@@ -76,10 +79,13 @@ func (m *Manager) CreateConfig(cfg model.InstanceConfig) (model.InstanceConfig, 
 		return model.InstanceConfig{}, fmt.Errorf("maximum %d instances allowed", MaxInstances)
 	}
 
-	// Check port conflict with other configs
+	// Check IEC104 port conflict with other configs
 	for _, existing := range m.store.List() {
 		if existing.IEC104Port == cfg.IEC104Port {
 			return model.InstanceConfig{}, fmt.Errorf("port %d already configured for instance %s", cfg.IEC104Port, existing.ID)
+		}
+		if cfg.HttpEnabled && existing.HttpEnabled && existing.HttpPort == cfg.HttpPort {
+			return model.InstanceConfig{}, fmt.Errorf("http port %d already configured for instance %s", cfg.HttpPort, existing.ID)
 		}
 	}
 
@@ -99,22 +105,28 @@ func (m *Manager) UpdateConfig(cfg model.InstanceConfig) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Stop if running
 	if inst, ok := m.instances[cfg.ID]; ok {
 		inst.Server.Stop()
+		if inst.HTTPServer != nil {
+			inst.HTTPServer.Close()
+			inst.HTTPServer = nil
+		}
 		delete(m.instances, cfg.ID)
 	}
 
 	return m.store.Update(cfg)
 }
 
-// DeleteConfig deletes an instance configuration, stopping it if running.
 func (m *Manager) DeleteConfig(id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if inst, ok := m.instances[id]; ok {
 		inst.Server.Stop()
+		if inst.HTTPServer != nil {
+			inst.HTTPServer.Close()
+			inst.HTTPServer = nil
+		}
 		delete(m.instances, id)
 	}
 
@@ -141,14 +153,24 @@ func (m *Manager) StartInstance(id string) error {
 		if inst.Config.IEC104Port == cfg.IEC104Port {
 			return fmt.Errorf("port %d already in use by instance %s", cfg.IEC104Port, inst.Config.ID)
 		}
+		if cfg.HttpEnabled && inst.Config.HttpEnabled && inst.Config.HttpPort == cfg.HttpPort {
+			return fmt.Errorf("http port %d already in use by instance %s", cfg.HttpPort, inst.Config.ID)
+		}
 	}
 
-	// Quick TCP port check
 	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.IEC104Port))
 	if err != nil {
 		return fmt.Errorf("port %d not available: %w", cfg.IEC104Port, err)
 	}
 	ln.Close()
+
+	if cfg.HttpEnabled && cfg.HttpPort > 0 {
+		ln, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.HttpPort))
+		if err != nil {
+			return fmt.Errorf("http port %d not available: %w", cfg.HttpPort, err)
+		}
+		ln.Close()
+	}
 
 	// Resolve xlsx path:
 	//   1. Try as-is (relative to CWD / package root) → e.g. samples/point.xlsx
@@ -172,11 +194,27 @@ func (m *Manager) StartInstance(id string) error {
 		return fmt.Errorf("start iec104 server: %w", err)
 	}
 
-	m.instances[id] = &Instance{
+	inst := &Instance{
 		Config: cfg,
 		Server: server,
 		Store:  store,
 	}
+
+	if cfg.HttpEnabled && cfg.HttpPort > 0 {
+		apiHandler := api.NewHandler(store, server, server)
+		httpMux := http.NewServeMux()
+		apiHandler.Register(httpMux)
+		httpSrv := &http.Server{Addr: fmt.Sprintf(":%d", cfg.HttpPort), Handler: httpMux}
+		go func() {
+			slog.Info("实例HTTP API已启动", "id", id, "port", cfg.HttpPort)
+			if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				slog.Error("实例HTTP API失败", "id", id, "error", err)
+			}
+		}()
+		inst.HTTPServer = httpSrv
+	}
+
+	m.instances[id] = inst
 
 	slog.Info("实例已启动", "id", id, "port", cfg.IEC104Port, "name", cfg.Name, "points", len(points))
 	return nil
@@ -193,6 +231,10 @@ func (m *Manager) StopInstance(id string) error {
 	}
 
 	inst.Server.Stop()
+	if inst.HTTPServer != nil {
+		inst.HTTPServer.Close()
+		inst.HTTPServer = nil
+	}
 	delete(m.instances, id)
 
 	slog.Info("实例已停止", "id", id, "name", inst.Config.Name)

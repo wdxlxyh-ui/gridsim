@@ -2,11 +2,13 @@ package model
 
 // InstanceConfig represents a persisted instance configuration.
 type InstanceConfig struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	IEC104Port int    `json:"iec104_port"`
-	XLSXFile   string `json:"xlsx_file"`
-	Enabled    bool   `json:"enabled"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	IEC104Port  int    `json:"iec104_port"`
+	XLSXFile    string `json:"xlsx_file"`
+	Enabled     bool   `json:"enabled"`
+	HttpEnabled bool   `json:"http_enabled"`
+	HttpPort    int    `json:"http_port"`
 }
 
 // InstanceStatus represents the runtime status of an instance.
