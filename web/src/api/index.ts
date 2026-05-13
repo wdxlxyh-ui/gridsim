@@ -192,13 +192,17 @@ export async function batchAutoChange(instanceId: string, req: BatchAutoChangeRe
   return res.data
 }
 
-export async function exportAutoConfig(instanceId: string): Promise<any> {
-  const res = await http.get(`/instances/${instanceId}/points/auto-change/export`)
+export async function exportAutoConfig(instanceId: string): Promise<Blob> {
+  const res = await http.get(`/instances/${instanceId}/points/auto-change/export`, { responseType: 'blob' })
   return res.data
 }
 
-export async function importAutoConfig(instanceId: string, data: any): Promise<any> {
-  const res = await http.post(`/instances/${instanceId}/points/auto-change/import`, data)
+export async function importAutoConfig(instanceId: string, file: File): Promise<any> {
+  const form = new FormData()
+  form.append('file', file)
+  const res = await http.post(`/instances/${instanceId}/points/auto-change/import`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
   return res.data
 }
 

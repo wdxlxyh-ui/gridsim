@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -136,6 +137,18 @@ func (h *DetailHandler) listSnapshots(w http.ResponseWriter, r *http.Request) {
 	for _, p := range points {
 		snapshots = append(snapshots, pointToSnapshot(p))
 	}
+	// Sort: AI first, then all by IOA ascending
+	sort.Slice(snapshots, func(i, j int) bool {
+		if snapshots[i].PointType != snapshots[j].PointType {
+			if snapshots[i].PointType == "AI" {
+				return true
+			}
+			if snapshots[j].PointType == "AI" {
+				return false
+			}
+		}
+		return snapshots[i].IOA < snapshots[j].IOA
+	})
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"points":       snapshots,
 		"refreshed_at": time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
@@ -356,21 +369,38 @@ func (h *DetailHandler) exportAutoConfig(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	points := h.store.GetAll()
 	configs := h.engine.AllConfigs()
-	serializable := make(map[string]interface{})
-	for ioa, cfg := range configs {
-		serializable[strconv.FormatUint(uint64(ioa), 10)] = cfg
-	}
 
-	result := map[string]interface{}{
-		"autoChanges": serializable,
-		"exportTime":  time.Now().UTC().Format(time.RFC3339Nano),
-		"instanceId":  h.instID,
-	}
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="auto_changes_%s.csv"`, h.instID))
+	// BOM for Excel UTF-8
+	w.Write([]byte{0xEF, 0xBB, 0xBF})
 
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="auto_changes_%s.json"`, h.instID))
-	json.NewEncoder(w).Encode(result)
+	writer := csv.NewWriter(w)
+	defer writer.Flush()
+
+	// Header
+	writer.Write([]string{"信息体地址", "测点名称", "自动变化模式"})
+	// Legend row
+	writer.Write([]string{"", "", "1=increment 2=random 3=csv 4=max 5=min 6=soc 7=energy 8=aofollow 9=apiupdate"})
+
+	// Sort by IOA ascending for consistent output
+	sort.Slice(points, func(i, j int) bool {
+		return points[i].IOA < points[j].IOA
+	})
+
+	for _, p := range points {
+		code := ""
+		if cfg, ok := configs[p.IOA]; ok && cfg.Enabled {
+			code = strategyToCode(cfg.Strategy)
+		}
+		writer.Write([]string{
+			strconv.FormatUint(uint64(p.IOA), 10),
+			p.Name,
+			code,
+		})
+	}
 }
 
 func (h *DetailHandler) importAutoConfig(w http.ResponseWriter, r *http.Request) {
@@ -379,26 +409,68 @@ func (h *DetailHandler) importAutoConfig(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	var req struct {
-		AutoChanges map[string]json.RawMessage `json:"autoChanges"`
+	r.ParseMultipartForm(32 << 20)
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "no CSV file provided"})
+		return
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON: " + err.Error()})
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	records, err := reader.ReadAll()
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "failed to parse CSV: " + err.Error()})
 		return
 	}
 
+	if len(records) < 3 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "CSV file is empty or missing data rows"})
+		return
+	}
+
+	// Skip header (row 0) and legend (row 1), process data rows
 	configs := make(map[uint32]*model.AutoChangeConfig)
-	for ioaStr, raw := range req.AutoChanges {
-		ioa, err := strconv.ParseUint(ioaStr, 10, 32)
+	success := 0
+	skipped := 0
+	for _, row := range records[2:] {
+		if len(row) < 3 {
+			continue
+		}
+		ioa, err := strconv.ParseUint(strings.TrimSpace(row[0]), 10, 32)
 		if err != nil {
+			skipped++
 			continue
 		}
-		var cfg model.AutoChangeConfig
-		if err := json.Unmarshal(raw, &cfg); err != nil {
+		code := strings.TrimSpace(row[2])
+		if code == "" {
+			// Empty code means no auto-change for this point — don't add to configs
+			// SaveAll replaces all configs, so this effectively removes it
+			skipped++
 			continue
 		}
-		cfg.PointIOA = uint32(ioa)
-		configs[uint32(ioa)] = &cfg
+		strategy := codeToStrategy(code)
+		if strategy == "" {
+			skipped++
+			continue
+		}
+		p, ok := h.store.Get(uint32(ioa))
+		if !ok {
+			skipped++
+			continue
+		}
+		if IsAODO(p.PointType) {
+			skipped++
+			continue
+		}
+		configs[uint32(ioa)] = &model.AutoChangeConfig{
+			PointIOA:  uint32(ioa),
+			Strategy:  strategy,
+			Enabled:   true,
+			Params:    model.StrategyParams{},
+			UpdatedAt: time.Now(),
+		}
+		success++
 	}
 
 	if err := h.engine.SaveAll(configs); err != nil {
@@ -408,7 +480,9 @@ func (h *DetailHandler) importAutoConfig(w http.ResponseWriter, r *http.Request)
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
-		"count":   len(configs),
+		"total":   len(records) - 2,
+		"applied": success,
+		"skipped": skipped,
 	})
 }
 
@@ -506,6 +580,66 @@ func formatPointValueStr(p *config.Point) string {
 	default:
 		return ""
 	}
+}
+
+func strategyToCode(s model.StrategyType) string {
+	m := map[model.StrategyType]string{
+		model.StrategyIncrement: "1",
+		model.StrategyRandom:    "2",
+		model.StrategyCSV:       "3",
+		model.StrategyMax:       "4",
+		model.StrategyMin:       "5",
+		model.StrategySOC:       "6",
+		model.StrategyEnergy:    "7",
+		model.StrategyAOFollow:  "8",
+		model.StrategyAPIUpdate: "9",
+	}
+	return m[s]
+}
+
+func codeToStrategy(code string) model.StrategyType {
+	switch strings.TrimSpace(code) {
+	case "1":
+		return model.StrategyIncrement
+	case "2":
+		return model.StrategyRandom
+	case "3":
+		return model.StrategyCSV
+	case "4":
+		return model.StrategyMax
+	case "5":
+		return model.StrategyMin
+	case "6":
+		return model.StrategySOC
+	case "7":
+		return model.StrategyEnergy
+	case "8":
+		return model.StrategyAOFollow
+	case "9":
+		return model.StrategyAPIUpdate
+	}
+	// Also match by name (case-insensitive)
+	switch strings.ToLower(strings.TrimSpace(code)) {
+	case "increment":
+		return model.StrategyIncrement
+	case "random":
+		return model.StrategyRandom
+	case "csv":
+		return model.StrategyCSV
+	case "max":
+		return model.StrategyMax
+	case "min":
+		return model.StrategyMin
+	case "soc":
+		return model.StrategySOC
+	case "energy":
+		return model.StrategyEnergy
+	case "aofollow":
+		return model.StrategyAOFollow
+	case "apiupdate":
+		return model.StrategyAPIUpdate
+	}
+	return ""
 }
 
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {

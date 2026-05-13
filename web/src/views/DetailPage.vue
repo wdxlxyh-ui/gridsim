@@ -29,7 +29,7 @@
           <el-divider direction="vertical" />
           <el-button size="small" @click="exportAutoConfig">导出配置</el-button>
           <el-button size="small" @click="triggerImport">导入配置</el-button>
-          <input ref="importInputRef" type="file" accept=".json" style="display: none" @change="importAutoConfig" />
+          <input ref="importInputRef" type="file" accept=".csv" style="display: none" @change="importAutoConfig" />
           <el-divider direction="vertical" />
           <el-button size="small" type="primary" @click="exportCSVData">导出 CSV 数据</el-button>
           <span style="font-size: 12px; color: #999; margin-left: auto" id="selectedCount">已选 {{ Object.keys(selectedIoas).length }} 个测点</span>
@@ -559,9 +559,8 @@ function strategyLabel(s: string): string {
 
 async function exportAutoConfig() {
   try {
-    const data = await fetchExport(instanceId.value)
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-    downloadBlob(blob, `auto_changes_${instanceId.value}.json`)
+    const blob = await fetchExport(instanceId.value)
+    downloadBlob(blob, `auto_changes_${instanceId.value}.csv`)
     ElMessage.success('自动变化配置已导出')
   } catch (e: any) {
     ElMessage.error('导出失败: ' + (e?.response?.data?.error || e.message))
@@ -576,14 +575,11 @@ async function importAutoConfig(e: Event) {
   const input = e.target as HTMLInputElement
   if (!input.files?.length) return
   try {
-    const text = await input.files[0].text()
-    const data = JSON.parse(text)
-    await fetchImport(instanceId.value, data)
+    await fetchImport(instanceId.value, input.files[0])
     ElMessage.success(`已导入自动变化配置`)
-    // refresh auto strategy labels
     input.value = ''
   } catch (e: any) {
-    ElMessage.error('导入失败: ' + (e.message || '格式错误'))
+    ElMessage.error('导入失败: ' + (e?.response?.data?.error || e.message))
   }
 }
 

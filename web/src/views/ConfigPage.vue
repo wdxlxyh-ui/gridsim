@@ -43,8 +43,8 @@
             <el-button-group>
               <el-button v-if="row.status === 'running'" type="warning" size="small" @click="handleStop(row.id)">停止</el-button>
               <el-button v-else type="success" size="small" @click="handleStart(row.id)">启动</el-button>
-              <el-button size="small" @click="handleEdit(row)">编辑</el-button>
-              <el-button type="danger" size="small" @click="handleDelete(row.id)">删除</el-button>
+              <el-button size="small" :disabled="row.status === 'running'" @click="handleEdit(row)">编辑</el-button>
+              <el-button type="danger" size="small" :disabled="row.status === 'running'" @click="handleDelete(row.id)">删除</el-button>
             </el-button-group>
           </template>
         </el-table-column>
