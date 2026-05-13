@@ -1,7 +1,7 @@
 <template>
   <el-container style="height: 100vh">
     <el-header style="display: flex; align-items: center; background: #409eff; color: white; padding: 0 20px">
-      <h2 style="margin: 0; font-size: 18px; flex: 1">IEC104 模拟器管理系统 v2.0</h2>
+      <h2 style="margin: 0; font-size: 18px; flex: 1">IEC104 模拟器管理系统 v2.1</h2>
       <el-tag v-if="status" type="" style="margin-right: 12px" effect="dark">
         运行: {{ status.running }} / 总: {{ status.configured }}
       </el-tag>

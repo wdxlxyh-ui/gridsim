@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IEC104 模拟器 v2.1 原型</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; color: #333; }
+
+.app { display: flex; height: 100vh; }
+.sidebar { width: 200px; background: #f5f7fa; border-right: 1px solid #e4e7ed; padding-top: 20px; }
+.sidebar .menu-item { padding: 12px 20px; cursor: pointer; color: #666; font-size: 14px; border-left: 3px solid transparent; }
+.sidebar .menu-item.active { background: #ecf5ff; color: #409eff; border-left-color: #409eff; font-weight: 600; }
+.sidebar .menu-item:hover { background: #f0f2f5; }
+
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.header { height: 50px; background: #409eff; color: #fff; display: flex; align-items: center; padding: 0 20px; font-size: 16px; font-weight: 600; }
+.header .badge { margin-left: auto; font-size: 12px; background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 12px; }
+.content { flex: 1; padding: 20px; overflow-y: auto; }
+
+.breadcrumb { font-size: 13px; color: #999; margin-bottom: 16px; }
+.breadcrumb span { cursor: pointer; }
+.breadcrumb span:hover { color: #409eff; }
+.breadcrumb .sep { margin: 0 8px; color: #ccc; }
+
+.card { background: #fff; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 16px; }
+.card-header { padding: 14px 20px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
+.card-header h3 { font-size: 15px; font-weight: 600; }
+.card-body { padding: 16px 20px; }
+
+.btn { display: inline-flex; align-items: center; gap: 4px; padding: 7px 16px; border: 1px solid #dcdfe6; border-radius: 4px; font-size: 13px; cursor: pointer; background: #fff; color: #333; transition: .2s; }
+.btn:hover { border-color: #409eff; color: #409eff; }
+.btn-primary { background: #409eff; border-color: #409eff; color: #fff; }
+.btn-primary:hover { background: #66b1ff; border-color: #66b1ff; color: #fff; }
+.btn-success { background: #67c23a; border-color: #67c23a; color: #fff; }
+.btn-success:hover { background: #85ce61; }
+.btn-warning { background: #e6a23c; border-color: #e6a23c; color: #fff; }
+.btn-danger { background: #f56c6c; border-color: #f56c6c; color: #fff; }
+.btn-sm { padding: 5px 11px; font-size: 12px; }
+.btn-text { border: none; background: none; color: #409eff; padding: 0; }
+.btn-text:hover { color: #66b1ff; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-group { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { background: #fafafa; padding: 10px 12px; text-align: left; font-weight: 600; color: #666; border-bottom: 2px solid #ebeef5; white-space: nowrap; }
+td { padding: 10px 12px; border-bottom: 1px solid #ebeef5; }
+tr:hover td { background: #f5f7fa; }
+
+.tag { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 12px; }
+.tag-success { background: #e1f3d8; color: #67c23a; }
+.tag-danger { background: #fde2e2; color: #f56c6c; }
+.tag-info { background: #f4f4f5; color: #909399; }
+.tag-warning { background: #faecd8; color: #e6a23c; }
+.tag-primary { background: #ecf5ff; color: #409eff; }
+
+.status-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 4px; }
+.status-dot.green { background: #67c23a; }
+.status-dot.red { background: #f56c6c; }
+.status-dot.gray { background: #909399; }
+
+/* Modal */
+.modal-overlay { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.4); z-index: 1000; display: none; justify-content: center; align-items: center; }
+.modal-overlay.show { display: flex; }
+.modal { background: #fff; border-radius: 6px; width: 600px; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+.modal-sm { width: 460px; }
+.modal-lg { width: 760px; }
+.modal-header { padding: 16px 20px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
+.modal-header h3 { font-size: 16px; }
+.modal-close { cursor: pointer; font-size: 20px; color: #999; line-height: 1; }
+.modal-close:hover { color: #333; }
+.modal-body { padding: 20px; overflow-y: auto; flex: 1; }
+.modal-footer { padding: 12px 20px; border-top: 1px solid #f0f0f0; display: flex; justify-content: flex-end; gap: 8px; }
+
+/* Form */
+.form-group { margin-bottom: 16px; }
+.form-group:last-child { margin-bottom: 0; }
+.form-label { display: block; font-size: 13px; color: #666; margin-bottom: 6px; font-weight: 500; }
+.form-input, .form-select { width: 100%; padding: 8px 12px; border: 1px solid #dcdfe6; border-radius: 4px; font-size: 13px; outline: none; transition: .2s; }
+.form-input:focus, .form-select:focus { border-color: #409eff; }
+.form-input:disabled, .form-select:disabled { background: #f5f7fa; color: #c0c4cc; cursor: not-allowed; }
+.form-row { display: flex; gap: 12px; }
+.form-row .form-group { flex: 1; }
+.form-hint { font-size: 12px; color: #999; margin-top: 4px; }
+
+/* Toggle Switch */
+.toggle-switch { position: relative; display: inline-block; width: 36px; height: 20px; flex-shrink: 0; }
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-switch .slider { position: absolute; cursor: pointer; top:0; left:0; right:0; bottom:0; background: #dcdfe6; border-radius: 20px; transition: .3s; }
+.toggle-switch .slider::before { content: ''; position: absolute; height: 16px; width: 16px; left: 2px; bottom: 2px; background: #fff; border-radius: 50%; transition: .3s; }
+.toggle-switch input:checked + .slider { background: #67c23a; }
+.toggle-switch input:checked + .slider::before { transform: translateX(16px); }
+
+/* Tab */
+.tabs { display: flex; gap: 0; border-bottom: 2px solid #e4e7ed; margin-bottom: 16px; flex-wrap: wrap; }
+.tab-item { padding: 10px 16px; font-size: 13px; cursor: pointer; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: .2s; white-space: nowrap; }
+.tab-item:hover { color: #409eff; }
+.tab-item.active { color: #409eff; border-bottom-color: #409eff; font-weight: 600; }
+
+/* Upload box */
+.upload-box { border: 2px dashed #dcdfe6; border-radius: 6px; padding: 30px; text-align: center; cursor: pointer; transition: .2s; }
+.upload-box:hover { border-color: #409eff; background: #f9fcff; }
+.upload-box .icon { font-size: 28px; color: #c0c4cc; margin-bottom: 8px; }
+.upload-box .text { font-size: 13px; color: #666; }
+
+/* Auto change config panels */
+.auto-config { display: none; }
+.auto-config.show { display: block; }
+
+/* Detail page */
+.detail-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.detail-header .info { flex: 1; }
+.detail-header .info h2 { font-size: 18px; }
+.detail-header .info .meta { font-size: 13px; color: #999; margin-top: 4px; display: flex; gap: 16px; flex-wrap: wrap; }
+.detail-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+.set-value-input { width: 90px; padding: 4px 8px; border: 1px solid #dcdfe6; border-radius: 3px; font-size: 12px; outline: none; }
+.set-value-input:focus { border-color: #409eff; }
+.set-value-display { font-weight: 600; color: #409eff; font-size: 13px; }
+
+.auto-btn { padding: 3px 10px; font-size: 12px; border-radius: 3px; border: 1px solid #409eff; color: #409eff; background: #ecf5ff; cursor: pointer; }
+.auto-btn:hover { background: #409eff; color: #fff; }
+.auto-btn.active { background: #e6a23c; border-color: #e6a23c; color: #fff; }
+.auto-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Refresh bar */
+.refresh-bar { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #999; }
+.refresh-bar .dot { width: 6px; height: 6px; border-radius: 50%; background: #67c23a; animation: pulse 1.5s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* Toast */
+.toast { position: fixed; top: 20px; right: 20px; padding: 10px 20px; border-radius: 4px; font-size: 13px; z-index: 9999; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+.toast-success { background: #67c23a; color: #fff; }
+.toast-error { background: #f56c6c; color: #fff; }
+
+/* Toolbar */
+.toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 12px 20px; border-bottom: 1px solid #f0f0f0; background: #fafafa; }
+.toolbar .sep { width: 1px; height: 24px; background: #dcdfe6; }
+
+/* Checkbox */
+.point-cb { width: 16px; height: 16px; accent-color: #409eff; cursor: pointer; }
+.select-all-cb { width: 16px; height: 16px; accent-color: #409eff; cursor: pointer; }
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-thumb { background: #dcdfe6; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="sidebar">
+    <div class="menu-item active">📋 配置管理</div>
+    <div class="menu-item">📊 运行监控</div>
+  </div>
+
+  <div class="main">
+    <!-- Header -->
+    <div class="header">
+      IEC104 模拟器管理系统 v2.1
+      <span class="badge">运行: 1 / 总: 2</span>
+    </div>
+
+    <!-- ===== Page: Instance List ===== -->
+    <div id="page-list" class="content">
+      <div class="card">
+        <div class="card-header">
+          <h3>实例配置</h3>
+          <div class="btn-group">
+            <button class="btn btn-sm">🔄 刷新</button>
+            <button class="btn btn-sm btn-primary">＋ 添加实例</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th><th>名称</th><th>IEC104 端口</th><th>点表文件</th>
+                  <th>状态</th><th>统计</th><th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>a1b2c3</td><td>变电站A</td>
+                  <td><span class="tag tag-info">8989</span></td>
+                  <td>samples/point.xlsx</td>
+                  <td><span class="tag tag-success"><span class="status-dot green"></span>运行中</span></td>
+                  <td style="font-size:12px;color:#666">测点: 7 | 运行: 2h</td>
+                  <td>
+                    <div class="btn-group">
+                      <button class="btn btn-sm btn-success" disabled>启动</button>
+                      <button class="btn btn-sm btn-warning" disabled>停止</button>
+                      <button class="btn btn-sm" disabled>编辑</button>
+                      <button class="btn btn-sm btn-primary" onclick="showDetail()">详情</button>
+                      <button class="btn btn-sm btn-danger" disabled>删除</button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>d4e5f6</td><td>变电站B</td>
+                  <td><span class="tag tag-info">8990</span></td><td>config/sub_b.xlsx</td>
+                  <td><span class="tag tag-info"><span class="status-dot gray"></span>已停止</span></td>
+                  <td style="font-size:12px;color:#666">-</td>
+                  <td>
+                    <div class="btn-group">
+                      <button class="btn btn-sm btn-success">启动</button>
+                      <button class="btn btn-sm" disabled>停止</button>
+                      <button class="btn btn-sm">编辑</button>
+                      <button class="btn btn-sm btn-primary" disabled>详情</button>
+                      <button class="btn btn-sm btn-danger">删除</button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="margin-top:12px;font-size:12px;color:#999">💡 实例运行中时，「编辑」和「删除」按钮置灰不可点击</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Page: Detail ===== -->
+    <div id="page-detail" class="content" style="display:none">
+      <div class="breadcrumb">
+        <span onclick="showList()">配置管理</span>
+        <span class="sep">/</span>
+        <span style="color:#333;cursor:default">实例详情</span>
+      </div>
+
+      <!-- Detail Header -->
+      <div class="card">
+        <div class="card-body">
+          <div class="detail-header">
+            <div class="info">
+              <h2>变电站A <span class="tag tag-success" style="font-size:12px;vertical-align:middle"><span class="status-dot green"></span>运行中</span></h2>
+              <div class="meta">
+                <span>ID: a1b2c3</span>
+                <span>IEC104: 8989</span>
+                <span>HTTP API: <span class="tag tag-warning" style="font-size:11px">18989</span></span>
+                <span>点表: samples/point.xlsx (10 个测点)</span>
+              </div>
+            </div>
+            <div class="detail-actions">
+              <div class="refresh-bar">
+                <span class="dot"></span>
+                <span id="refreshLabel">实时刷新 (200ms)</span>
+                <select style="font-size:12px;padding:2px 4px;border:1px solid #dcdfe6;border-radius:3px" onchange="changeRefreshRate(this.value)">
+                  <option value="100">100ms</option>
+                  <option value="200" selected>200ms</option>
+                  <option value="500">500ms</option>
+                  <option value="1000">1000ms</option>
+                </select>
+              </div>
+              <button class="btn btn-sm" onclick="showList()">← 返回</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Toolbar: Batch & Import/Export -->
+      <div class="card">
+        <div class="toolbar">
+          <span style="font-size:13px;color:#666;font-weight:500">批量操作：</span>
+          <button class="btn btn-sm" onclick="showToast('请先勾选测点')" id="btnBatch">📦 批量配置</button>
+          <div class="sep"></div>
+          <button class="btn btn-sm" onclick="exportConfig()">📤 导出配置</button>
+          <button class="btn btn-sm" onclick="document.getElementById('importFileInput').click()">📥 导入配置</button>
+          <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="importConfig(this)">
+          <div class="sep"></div>
+          <button class="btn btn-sm btn-primary" onclick="exportData()">📥 导出 CSV 数据</button>
+          <span style="font-size:12px;color:#999;margin-left:auto" id="selectedCount">已选 0 个测点</span>
+        </div>
+      </div>
+
+      <!-- Data Table -->
+      <div class="card">
+        <div class="card-body" style="padding:0">
+          <div class="table-wrap">
+            <table id="pointTable">
+              <thead>
+                <tr>
+                  <th style="width:36px"><input type="checkbox" class="select-all-cb" onchange="toggleSelectAll(this.checked)" title="全选"></th>
+                  <th style="width:80px">信息体地址</th>
+                  <th>测点名称</th>
+                  <th style="width:80px">测点类型</th>
+                  <th style="width:100px">实时值</th>
+                  <th style="width:155px">测点值更新时间</th>
+                  <th style="width:140px">置数</th>
+                  <th style="width:115px">自动变化</th>
+                </tr>
+              </thead>
+              <tbody id="pointTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div style="font-size:12px;color:#999;display:flex;gap:16px;flex-wrap:wrap">
+        <span>🔵 AI (遥测) — 置数/自动变化均可用</span>
+        <span>🟢 DI (遥信) — ON/OFF 开关置数</span>
+        <span>🟡 PI (遥脉) — 自动变化可用</span>
+        <span>🔴 AO/DO — 置数和自动变化均不可用</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Modal: 自动变化配置 ===== -->
+<div id="modal-auto" class="modal-overlay">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3>⚡ 自动变化配置 — <span id="autoPointName">母线电压</span></h3>
+      <span class="modal-close" onclick="closeModal('modal-auto')">×</span>
+    </div>
+    <div class="modal-body">
+      <div class="tabs" id="strategyTabs">
+        <div class="tab-item active" data-strategy="increment" onclick="switchStrategy('increment')">递增</div>
+        <div class="tab-item" data-strategy="random" onclick="switchStrategy('random')">随机</div>
+        <div class="tab-item" data-strategy="csv" onclick="switchStrategy('csv')">CSV</div>
+        <div class="tab-item" data-strategy="max" onclick="switchStrategy('max')">MAX</div>
+        <div class="tab-item" data-strategy="min" onclick="switchStrategy('min')">MIN</div>
+        <div class="tab-item" data-strategy="soc" onclick="switchStrategy('soc')">SOC计算</div>
+        <div class="tab-item" data-strategy="energy" onclick="switchStrategy('energy')">电量计算</div>
+        <div class="tab-item" data-strategy="aofollow" onclick="switchStrategy('aofollow')">AO关联</div>
+        <div class="tab-item" data-strategy="apiupdate" onclick="switchStrategy('apiupdate')">接口更新</div>
+      </div>
+
+      <!-- 递增 -->
+      <div id="cfg-increment" class="auto-config show">
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">起始值</label><input class="form-input" type="number" value="0" step="any"></div>
+          <div class="form-group"><label class="form-label">步长</label><input class="form-input" type="number" value="1" step="0.1"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">变化周期 (ms)</label><input class="form-input" type="number" value="1000" min="100"></div>
+          <div class="form-group"><label class="form-label">最大值</label><input class="form-input" type="number" value="100" step="any"></div>
+        </div>
+        <div class="form-hint">每个周期：最新值 = 上次值 + 步长，达最大值后从起始值重新开始</div>
+      </div>
+
+      <!-- 随机 -->
+      <div id="cfg-random" class="auto-config">
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">最小值</label><input class="form-input" type="number" value="0" step="any"></div>
+          <div class="form-group"><label class="form-label">最大值</label><input class="form-input" type="number" value="100" step="any"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">变化周期 (ms)</label><input class="form-input" type="number" value="1000" min="100"></div>
+          <div class="form-group"><label class="form-label">小数位数</label><select class="form-select"><option value="0">整数</option><option value="1">1 位小数</option></select></div>
+        </div>
+      </div>
+
+      <!-- CSV -->
+      <div id="cfg-csv" class="auto-config">
+        <div class="upload-box" onclick="showToast('选择 CSV 文件')"><div class="icon">📂</div><div class="text">点击上传 CSV 文件</div><div class="form-hint">两列：Time, value</div></div>
+        <div style="height:12px"></div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">时间格式</label>
+            <select class="form-select" id="csvTimeFormat" onchange="onCsvTimeFormatChange()">
+              <option value="absolute">绝对时刻 (hh:mm:ss)</option>
+              <option value="relative">相对时刻</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">时间单位</label>
+            <select class="form-select" id="csvTimeUnit"><option value="s">s (秒)</option><option value="ms">ms (毫秒)</option></select>
+          </div>
+        </div>
+        <div class="form-hint">相对时刻：Time 为整数（ms），持续循环回放。绝对时刻：Time 为 hh:mm:ss（如 08:30:00），播放到末尾停止。</div>
+      </div>
+
+      <!-- MAX -->
+      <div id="cfg-max" class="auto-config">
+        <div class="form-group"><label class="form-label">ParaA：参与比较的 AI 点号（分号间隔）</label><input class="form-input" value="16385;16386"></div>
+        <div class="form-group"><label class="form-label">ParaB：关联 AI 点号（非必填）</label><input class="form-input" placeholder="留空则不启用"></div>
+        <div class="form-hint">取 ParaA 中各点实时值的最大值。若 ParaB 不为空且其值为 0，本点置 0。</div>
+      </div>
+
+      <!-- MIN -->
+      <div id="cfg-min" class="auto-config">
+        <div class="form-group"><label class="form-label">ParaA：参与比较的 AI 点号（分号间隔）</label><input class="form-input" value="16385;16386"></div>
+        <div class="form-group"><label class="form-label">ParaB：关联 AI 点号（非必填）</label><input class="form-input" placeholder="留空则不启用"></div>
+        <div class="form-hint">取 ParaA 中各点实时值的最小值。若 ParaB 不为空且其值为 0，本点置 0。</div>
+      </div>
+
+      <!-- SOC -->
+      <div id="cfg-soc" class="auto-config">
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">ParaA：初始值 (%)</label><input class="form-input" type="number" value="50" min="0" max="100"></div>
+          <div class="form-group"><label class="form-label">ParaB：额定容量 (kWH)</label><input class="form-input" type="number" value="1000" min="0"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">ParaC：功率 AI 点号</label><input class="form-input" value="16385"></div>
+          <div class="form-group"><label class="form-label">ParaT：积分周期 (ms)</label><input class="form-input" type="number" value="1000" min="100"></div>
+        </div>
+        <div class="form-hint">SOC = 上次SOC + 功率×T / 容量×100。功率正=充电，负=放电。范围 0%~100%。</div>
+      </div>
+
+      <!-- 电量 -->
+      <div id="cfg-energy" class="auto-config">
+        <div class="form-group"><label class="form-label">ParaA：初始值 (kWH)</label><input class="form-input" type="number" value="0" step="any"></div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">ParaB：统计类别</label><select class="form-select"><option value="0">0 - 充电量</option><option value="1">1 - 放电量</option></select></div>
+          <div class="form-group"><label class="form-label">ParaC：功率 AI 点号</label><input class="form-input" value="16385"></div>
+        </div>
+        <div class="form-group"><label class="form-label">ParaT：积分周期 (ms)</label><input class="form-input" type="number" value="1000" min="100"></div>
+        <div class="form-hint">当前电量 = 上次电量 + 功率 × T（小时）。功率正=充电，负=放电。</div>
+      </div>
+
+      <!-- AO关联 (新增) -->
+      <div id="cfg-aofollow" class="auto-config">
+        <div class="form-group">
+          <label class="form-label">关联 AO 点号</label>
+          <input class="form-input" placeholder="输入 AO 类型测点的 IOA" value="20">
+          <div class="form-hint">本 AI/DI/PI 点将跟随指定 AO 点的控制值变化，AO 被遥控时同步更新当前点</div>
+        </div>
+      </div>
+
+      <!-- 接口更新 (新增) -->
+      <div id="cfg-apiupdate" class="auto-config">
+        <div class="form-group">
+          <label class="form-label">初始值</label>
+          <input class="form-input" type="number" value="0" step="any">
+          <div class="form-hint">此模式仅能通过 HTTP API（PUT /api/points/{ioa}）更新值。其他类型的自动变化点会拒绝接口写入并返回错误提示。</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div style="margin-right:auto;font-size:12px;color:#999">
+        <label><input type="checkbox" id="batchApplyCheck" style="accent-color:#409eff"> 同时应用到所有已选测点</label>
+      </div>
+      <button class="btn" onclick="closeModal('modal-auto')">取消</button>
+      <button class="btn btn-primary" onclick="confirmAutoChange()">✅ 确认启用</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Toast ===== -->
+<div id="toast" class="toast"></div>
+
+<script>
+// ===== Sample Data =====
+const samplePoints = [
+  { ioa: 16385, name: '母线电压',     type: 'AI', value: '100.50', unit: 'kV',   updated: '2026-05-12 10:00:01.234', setval: '' },
+  { ioa: 16386, name: '母线电流',     type: 'AI', value: '500.20', unit: 'A',    updated: '2026-05-12 10:00:01.234', setval: '' },
+  { ioa: 16387, name: '有功功率',     type: 'AI', value: '50.12',  unit: 'MW',   updated: '2026-05-12 10:00:01.234', setval: '' },
+  { ioa: 16388, name: '无功功率',     type: 'AI', value: '10.05',  unit: 'MVar', updated: '2026-05-12 10:00:01.234', setval: '' },
+  { ioa: 16389, name: '频率',         type: 'AI', value: '50.02',  unit: 'Hz',   updated: '2026-05-12 10:00:01.234', setval: '' },
+  { ioa: 1,     name: '断路器状态',    type: 'DI', value: '1',      unit: '',     updated: '2026-05-12 09:58:30.000', setval: '' },
+  { ioa: 2,     name: '隔离开关状态',  type: 'DI', value: '0',      unit: '',     updated: '2026-05-12 09:55:00.000', setval: '' },
+  { ioa: 3,     name: '电度表读数',    type: 'PI', value: '12345',  unit: 'kWH',  updated: '2026-05-12 10:00:00.000', setval: '' },
+  { ioa: 10,    name: '遥控分合闸',    type: 'DO', value: '0',      unit: '',     updated: '2026-05-12 09:50:00.000', setval: '' },
+  { ioa: 20,    name: '无功调压',      type: 'AO', value: '95.00',  unit: '%',    updated: '2026-05-12 09:45:00.000', setval: '' },
+];
+
+const typeMap = { AI: 'AI 遥测', DI: 'DI 遥信', PI: 'PI 遥脉', DO: 'DO 遥控', AO: 'AO 遥调' };
+const typeColor = { AI: 'primary', DI: 'success', PI: 'warning', DO: 'danger', AO: 'danger' };
+
+let autoStrategies = {};    // { ioa: strategyName }
+let selectedIOAs = new Set();
+let currentAutoIOA = null;
+
+// ===== Render Table =====
+function renderTable() {
+  const tbody = document.getElementById('pointTableBody');
+  tbody.innerHTML = '';
+  const now = new Date();
+  const ts = now.toISOString().replace('T',' ').substring(0,23);
+
+  samplePoints.forEach((p) => {
+    // Simulate live value updates only for non-set values
+    if (['AI','DI','PI'].includes(p.type) && !p.setval && Math.random() > 0.8) {
+      if (p.type === 'AI') p.value = (parseFloat(p.value) + (Math.random()-0.5)*2).toFixed(2);
+      else if (p.type === 'DI') p.value = Math.random() > 0.95 ? (p.value === '1' ? '0' : '1') : p.value;
+      p.updated = ts;
+    }
+    // Simulate AO remote control changes
+    if (p.type === 'AO' && Math.random() > 0.9) {
+      p.value = (parseFloat(p.value) + (Math.random()-0.5)*5).toFixed(2);
+      p.updated = ts;
+    }
+
+    const isAODO = p.type === 'AO' || p.type === 'DO';
+    const isDI = p.type === 'DI';
+    const isAIDIPI = ['AI','DI','PI'].includes(p.type);
+    const checked = selectedIOAs.has(p.ioa) ? 'checked' : '';
+
+    // Determine set value display
+    const displayVal = p.setval !== '' ? p.setval : p.value;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="checkbox" class="point-cb" data-ioa="${p.ioa}" ${checked} onchange="togglePoint(${p.ioa}, this.checked)"></td>
+      <td>${p.ioa}</td>
+      <td><strong>${p.name}</strong></td>
+      <td><span class="tag tag-${typeColor[p.type]}">${typeMap[p.type]}</span></td>
+      <td style="font-weight:600;font-size:14px">${displayVal}${p.unit && !p.setval ? ' <span style="font-weight:normal;color:#999;font-size:12px">'+p.unit+'</span>' : ''}</td>
+      <td style="font-size:12px;color:#666;font-family:monospace">${p.setval ? `<span style="color:#67c23a">⏱ ${p.updated}</span>` : p.updated}</td>
+      <td>
+        ${isAODO
+          ? '<span style="color:#c0c4cc;font-size:12px">—</span>'
+          : isDI
+            ? `<label class="toggle-switch">
+                <input type="checkbox" ${p.value === '1' ? 'checked' : ''} onchange="doSetValue(${p.ioa},'${p.name}','${p.type}', this.checked ? 1 : 0)">
+                <span class="slider"></span>
+               </label>
+               <span style="font-size:12px;margin-left:4px;color:${p.value === '1' ? '#67c23a' : '#999'}">${p.value === '1' ? 'ON' : 'OFF'}</span>`
+            : `<div style="display:flex;gap:4px">
+                <input class="set-value-input" id="sv-${p.ioa}" type="number" step="any" value="${p.setval || p.value}" onkeydown="if(event.key==='Enter')doSetValue(${p.ioa},'${p.name}','${p.type}')">
+                <button class="btn btn-sm btn-primary" style="padding:4px 8px;font-size:12px" onclick="doSetValue(${p.ioa},'${p.name}','${p.type}')">置数</button>
+               </div>`
+        }
+      </td>
+      <td>
+        ${isAIDIPI
+          ? `<button class="auto-btn ${autoStrategies[p.ioa] ? 'active' : ''}" onclick="openAutoModal(${p.ioa},'${p.name}','${p.type}')">
+              ${autoStrategies[p.ioa] || '配置'}
+             </button>`
+          : '<span style="color:#c0c4cc;font-size:12px">—</span>'
+        }
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  updateSelectedCount();
+}
+
+// ===== Set Value (direct set, no confirmation) =====
+function doSetValue(ioa, name, type, overrideVal) {
+  const p = samplePoints.find(x => x.ioa === ioa);
+  if (!p) return;
+
+  let val;
+  if (overrideVal !== undefined) {
+    val = overrideVal;
+  } else {
+    const input = document.getElementById('sv-'+ioa);
+    if (!input) return;
+    val = parseFloat(input.value);
+    if (isNaN(val)) { showToast('请输入有效数值', 'error'); return; }
+  }
+
+  // DI validation
+  if (type === 'DI' && val !== 0 && val !== 1) {
+    showToast('DI 点只能置 ON(1) 或 OFF(0)', 'error');
+    return;
+  }
+
+  // Store the set value separately (doesn't change live value)
+  p.setval = String(val);
+  // Also update the live value
+  if (type === 'DI') p.value = String(val);
+  else if (type === 'AI') p.value = val.toFixed(2);
+  else p.value = String(val);
+  p.updated = new Date().toISOString().replace('T',' ').substring(0,23);
+
+  renderTable();
+  showToast(`✅ ${name} 已置数为 ${p.setval}`, 'success');
+}
+
+// ===== Auto Change =====
+function openAutoModal(ioa, name, type) {
+  currentAutoIOA = ioa;
+  document.getElementById('autoPointName').textContent = `${name} (IOA: ${ioa})`;
+  // Show/hide batch checkbox
+  document.getElementById('batchApplyCheck').style.display = selectedIOAs.size > 0 ? 'inline' : 'none';
+
+  const existing = autoStrategies[ioa];
+  switchStrategy(existing || 'increment');
+  openModal('modal-auto');
+}
+
+function switchStrategy(name) {
+  document.querySelectorAll('#strategyTabs .tab-item').forEach(el => el.classList.remove('active'));
+  const tab = document.querySelector(`#strategyTabs .tab-item[data-strategy="${name}"]`);
+  if (tab) tab.classList.add('active');
+  document.querySelectorAll('.auto-config').forEach(el => el.classList.remove('show'));
+  const cfg = document.getElementById('cfg-'+name);
+  if (cfg) cfg.classList.add('show');
+}
+
+function confirmAutoChange() {
+  const activeTab = document.querySelector('#strategyTabs .tab-item.active');
+  if (!activeTab) return;
+  const strategy = activeTab.dataset.strategy;
+  const batchApply = document.getElementById('batchApplyCheck').checked;
+
+  if (batchApply && selectedIOAs.size > 0) {
+    selectedIOAs.forEach(ioa => { autoStrategies[ioa] = strategy; });
+    showToast(`✅ 已为 ${selectedIOAs.size} 个测点应用「${strategy}」策略`, 'success');
+  } else if (currentAutoIOA) {
+    autoStrategies[currentAutoIOA] = strategy;
+    showToast(`✅ ${samplePoints.find(p => p.ioa === currentAutoIOA)?.name} 已启用「${strategy}」`, 'success');
+  }
+
+  closeModal('modal-auto');
+  renderTable();
+}
+
+function onCsvTimeFormatChange() {
+  document.getElementById('csvTimeUnit').disabled = document.getElementById('csvTimeFormat').value === 'absolute';
+}
+
+// ===== Select / Batch =====
+function toggleSelectAll(checked) {
+  selectedIOAs.clear();
+  if (checked) samplePoints.forEach(p => selectedIOAs.add(p.ioa));
+  renderTable();
+}
+
+function togglePoint(ioa, checked) {
+  if (checked) selectedIOAs.add(ioa);
+  else selectedIOAs.delete(ioa);
+  updateSelectedCount();
+}
+
+function updateSelectedCount() {
+  document.getElementById('selectedCount').textContent = `已选 ${selectedIOAs.size} 个测点`;
+}
+
+// ===== Export / Import Config =====
+function exportConfig() {
+  const configs = {};
+  samplePoints.forEach(p => {
+    if (autoStrategies[p.ioa]) {
+      configs[p.ioa] = { name: p.name, type: p.type, strategy: autoStrategies[p.ioa] };
+    }
+  });
+  const blob = new Blob([JSON.stringify({ autoChanges: configs, exportTime: new Date().toISOString() }, null, 2)], { type: 'application/json' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `auto_change_config_${new Date().toISOString().substring(0,10)}.json`;
+  link.click();
+  showToast('📤 自动变化配置已导出', 'success');
+}
+
+function importConfig(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (data.autoChanges) {
+        Object.entries(data.autoChanges).forEach(([ioa, cfg]) => {
+          autoStrategies[parseInt(ioa)] = cfg.strategy;
+        });
+        renderTable();
+        showToast(`📥 已导入 ${Object.keys(data.autoChanges).length} 个测点的自动变化配置`, 'success');
+      }
+    } catch { showToast('配置文件格式错误', 'error'); }
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+// ===== Export CSV Data =====
+function exportData() {
+  let csv = '信息体地址,测点名称,测点类型,实时值,测点值更新时间\n';
+  samplePoints.forEach(p => {
+    csv += `${p.ioa},${p.name},${typeMap[p.type]},${p.setval || p.value},${p.updated}\n`;
+  });
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `变电站A_测点数据_${new Date().toISOString().substring(0,19).replace(/[:]/g,'')}.csv`;
+  link.click();
+  showToast('📥 数据已导出为 CSV', 'success');
+}
+
+// ===== Refresh =====
+let refreshTimer = null;
+
+function changeRefreshRate(ms) {
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = setInterval(renderTable, parseInt(ms));
+  document.getElementById('refreshLabel').textContent = `实时刷新 (${ms}ms)`;
+}
+
+// ===== Navigation =====
+function showList() {
+  document.getElementById('page-list').style.display = 'block';
+  document.getElementById('page-detail').style.display = 'none';
+  if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+}
+
+function showDetail() {
+  document.getElementById('page-list').style.display = 'none';
+  document.getElementById('page-detail').style.display = 'block';
+  renderTable();
+  changeRefreshRate(200);
+}
+
+// ===== Modal & Toast =====
+function openModal(id) { document.getElementById(id).classList.add('show'); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', (e) => { if (e.target === el) el.classList.remove('show'); });
+});
+
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + (type === 'error' ? 'toast-error' : 'toast-success');
+  t.style.display = 'block';
+  setTimeout(() => { t.style.display = 'none'; }, 2000);
+}
+
+// Init
+onCsvTimeFormatChange();
+</script>
+</body>
+</html>

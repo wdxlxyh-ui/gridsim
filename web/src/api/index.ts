@@ -103,3 +103,115 @@ export async function listFiles(): Promise<{ name: string; size: number; modtime
   const res = await http.get('/files')
   return res.data.files
 }
+
+export interface PointSnapshot {
+  ioa: number
+  name: string
+  point_type: string
+  value: number
+  bool_value: boolean
+  int_value: number
+  updated_at: string
+  unit: string
+}
+
+export interface PointsResponse {
+  points: PointSnapshot[]
+  refreshed_at: string
+}
+
+export interface StrategyParams {
+  start_value?: number
+  step?: number
+  period_ms?: number
+  max_value?: number
+  min_value?: number
+  max_value_r?: number
+  decimal_places?: number
+  csv_file?: string
+  time_format?: string
+  time_unit?: string
+  para_a?: string
+  para_b?: string
+  init_soc?: number
+  rated_cap?: number
+  power_ioa?: number
+  integral_ms?: number
+  init_energy?: number
+  stat_type?: number
+  energy_power_ioa?: number
+  energy_period_ms?: number
+  follow_ao_ioa?: number
+  api_init_value?: number
+}
+
+export interface AutoChangeConfig {
+  ioa: number
+  strategy: string
+  enabled: boolean
+  params: StrategyParams
+  updated_at: string
+}
+
+export interface BatchAutoChangeRequest {
+  ioas: number[]
+  config: {
+    strategy: string
+    enabled: boolean
+    params: StrategyParams
+  }
+}
+
+export async function getPoints(instanceId: string): Promise<PointsResponse> {
+  const res = await http.get(`/instances/${instanceId}/points`)
+  return res.data
+}
+
+export async function setPointValue(instanceId: string, ioa: number, value: any): Promise<any> {
+  const res = await http.put(`/instances/${instanceId}/points/${ioa}`, value)
+  return res.data
+}
+
+export async function getAutoChange(instanceId: string, ioa: number): Promise<AutoChangeConfig> {
+  const res = await http.get(`/instances/${instanceId}/points/auto-change/${ioa}`)
+  return res.data
+}
+
+export async function setAutoChange(instanceId: string, ioa: number, cfg: any): Promise<any> {
+  const res = await http.put(`/instances/${instanceId}/points/auto-change/${ioa}`, cfg)
+  return res.data
+}
+
+export async function deleteAutoChange(instanceId: string, ioa: number): Promise<any> {
+  const res = await http.delete(`/instances/${instanceId}/points/auto-change/${ioa}`)
+  return res.data
+}
+
+export async function batchAutoChange(instanceId: string, req: BatchAutoChangeRequest): Promise<any> {
+  const res = await http.put(`/instances/${instanceId}/points/auto-change/batch`, req)
+  return res.data
+}
+
+export async function exportAutoConfig(instanceId: string): Promise<any> {
+  const res = await http.get(`/instances/${instanceId}/points/auto-change/export`)
+  return res.data
+}
+
+export async function importAutoConfig(instanceId: string, data: any): Promise<any> {
+  const res = await http.post(`/instances/${instanceId}/points/auto-change/import`, data)
+  return res.data
+}
+
+export async function exportPointsCSV(instanceId: string): Promise<Blob> {
+  const res = await http.get(`/instances/${instanceId}/points/export`, { responseType: 'blob' })
+  return res.data
+}
+
+export async function uploadCSV(instanceId: string, file: File): Promise<any> {
+  const form = new FormData()
+  form.append('file', file)
+  const res = await http.post(`/instances/${instanceId}/upload-csv`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return res.data
+}

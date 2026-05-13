@@ -15,6 +15,7 @@ import (
 
 	"strconv"
 
+	"iec104-sim/internal/detail"
 	"iec104-sim/internal/manager"
 	"iec104-sim/internal/model"
 	"iec104-sim/internal/storage"
@@ -27,7 +28,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
-var version = "2.0.0"
+var version = "2.1.0"
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "serve" {
@@ -243,6 +244,16 @@ func (ws *webServer) handleInstanceByID(w http.ResponseWriter, r *http.Request) 
 		case "points":
 			ws.handleInstancePoints(w, r, id)
 			return
+		case "upload-csv":
+			store := ws.mgr.GetStore(id)
+			engine := ws.mgr.GetEngine(id)
+			if store == nil || engine == nil {
+				writeError(w, http.StatusNotFound, "instance not running")
+				return
+			}
+			dh := detail.NewDetailHandler(id, store, engine, ws.mgr.CfgDir())
+			dh.HandleUploadCSV(w, r)
+			return
 		default:
 			writeError(w, http.StatusBadRequest, "unknown action: "+parts[1])
 			return
@@ -314,7 +325,42 @@ func (ws *webServer) execAction(w http.ResponseWriter, id string, fn actionFunc)
 }
 
 func (ws *webServer) handleInstancePoints(w http.ResponseWriter, r *http.Request, id string) {
-	writeError(w, http.StatusNotImplemented, "points API per instance - use legacy mode for point manipulation")
+	store := ws.mgr.GetStore(id)
+	engine := ws.mgr.GetEngine(id)
+	if store == nil || engine == nil {
+		writeError(w, http.StatusNotFound, "instance not running")
+		return
+	}
+
+	detailHandler := detail.NewDetailHandler(id, store, engine, ws.mgr.CfgDir())
+	suffix := strings.TrimPrefix(r.URL.Path, "/api/v1/instances/"+id+"/points")
+	if suffix == "" || suffix == "/" {
+		detailHandler.HandlePoints(w, r)
+		return
+	}
+	suffix = strings.TrimPrefix(suffix, "/")
+	parts := strings.Split(suffix, "/")
+
+	switch {
+	case parts[0] == "export" && len(parts) == 1:
+		detailHandler.HandleExportCSV(w, r)
+	case parts[0] == "auto-change":
+		detailHandler.HandleAutoChangeConfig(w, r, parts)
+	default:
+		ioa, err := strconv.ParseUint(parts[0], 10, 32)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid IOA: "+parts[0])
+			return
+		}
+		switch r.Method {
+		case http.MethodGet:
+			detailHandler.HandleGetSnapshot(w, uint32(ioa))
+		case http.MethodPut:
+			detailHandler.HandleSetValue(w, r, uint32(ioa))
+		default:
+			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		}
+	}
 }
 
 func (ws *webServer) handleStatus(w http.ResponseWriter, r *http.Request) {

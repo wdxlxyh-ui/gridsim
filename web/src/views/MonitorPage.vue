@@ -54,6 +54,14 @@
           <div style="display: flex; gap: 8px">
             <el-button
               v-if="inst.status === 'running'"
+              type="primary"
+              size="small"
+              @click="$router.push('/detail/' + inst.id)"
+            >
+              详情
+            </el-button>
+            <el-button
+              v-if="inst.status === 'running'"
               type="warning"
               size="small"
               style="flex: 1"

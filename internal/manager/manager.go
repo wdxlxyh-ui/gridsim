@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 
+	"iec104-sim/internal/detail"
 	"iec104-sim/internal/model"
 	"iec104-sim/internal/storage"
 	"iec104-sim/pkg/api"
@@ -33,6 +34,7 @@ type Instance struct {
 	Server     *iec104.Server
 	Store      *library.Store
 	HTTPServer *http.Server
+	AutoEngine *detail.Engine
 }
 
 // MaxInstances is the maximum number of concurrent instances allowed.
@@ -101,49 +103,10 @@ func (m *Manager) CreateConfig(cfg model.InstanceConfig) (model.InstanceConfig, 
 	return cfg, nil
 }
 
-// UpdateConfig updates an instance configuration, stopping it if running.
-func (m *Manager) UpdateConfig(cfg model.InstanceConfig) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if inst, ok := m.instances[cfg.ID]; ok {
-		inst.Server.Stop()
-		if inst.HTTPServer != nil {
-			inst.HTTPServer.Close()
-			inst.HTTPServer = nil
-		}
-		delete(m.instances, cfg.ID)
-	}
-
-	return m.store.Update(cfg)
-}
-
-func (m *Manager) DeleteConfig(id string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if inst, ok := m.instances[id]; ok {
-		inst.Server.Stop()
-		if inst.HTTPServer != nil {
-			inst.HTTPServer.Close()
-			inst.HTTPServer = nil
-		}
-		firewall.RemovePort(inst.Config.IEC104Port)
-		if inst.Config.HttpEnabled && inst.Config.HttpPort > 0 {
-			firewall.RemovePort(inst.Config.HttpPort)
-		}
-		delete(m.instances, id)
-	}
-
-	return m.store.Delete(id)
-}
-
-// StartInstance starts an IEC104 server for the given instance config.
 func (m *Manager) StartInstance(id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Already running
 	if _, ok := m.instances[id]; ok {
 		return fmt.Errorf("instance %s already running", id)
 	}
@@ -153,7 +116,6 @@ func (m *Manager) StartInstance(id string) error {
 		return fmt.Errorf("instance %s not found", id)
 	}
 
-	// Check port availability against running instances
 	for _, inst := range m.instances {
 		if inst.Config.IEC104Port == cfg.IEC104Port {
 			return fmt.Errorf("port %d already in use by instance %s", cfg.IEC104Port, inst.Config.ID)
@@ -177,9 +139,6 @@ func (m *Manager) StartInstance(id string) error {
 		ln.Close()
 	}
 
-	// Resolve xlsx path:
-	//   1. Try as-is (relative to CWD / package root) → e.g. samples/point.xlsx
-	//   2. Fall back to config directory          → e.g. config/uploaded.xlsx
 	xlsxPath := cfg.XLSXFile
 	if !filepath.IsAbs(xlsxPath) {
 		if _, err := os.Stat(xlsxPath); os.IsNotExist(err) {
@@ -187,7 +146,6 @@ func (m *Manager) StartInstance(id string) error {
 		}
 	}
 
-	// Load point table
 	points, err := config.LoadFromXLSX(xlsxPath)
 	if err != nil {
 		return fmt.Errorf("load xlsx: %w", err)
@@ -199,16 +157,25 @@ func (m *Manager) StartInstance(id string) error {
 		return fmt.Errorf("start iec104 server: %w", err)
 	}
 
+	acStore := detail.NewAutoChangeStore(m.cfgDir)
+	engine := detail.NewEngine(cfg.ID, store, server, acStore, m.cfgDir)
+	if err := engine.LoadAndStart(); err != nil {
+		slog.Warn("自动变化引擎加载失败", "id", id, "error", err)
+	}
+
 	inst := &Instance{
-		Config: cfg,
-		Server: server,
-		Store:  store,
+		Config:     cfg,
+		Server:     server,
+		Store:      store,
+		AutoEngine: engine,
 	}
 
 	if cfg.HttpEnabled && cfg.HttpPort > 0 {
 		apiHandler := api.NewHandler(store, server, server)
+		detailHandler := detail.NewDetailHandler(cfg.ID, store, engine, m.cfgDir)
 		httpMux := http.NewServeMux()
 		apiHandler.Register(httpMux)
+		detailHandler.Register(httpMux)
 		httpSrv := &http.Server{Addr: fmt.Sprintf(":%d", cfg.HttpPort), Handler: httpMux}
 		go func() {
 			slog.Info("实例HTTP API已启动", "id", id, "port", cfg.HttpPort)
@@ -230,7 +197,46 @@ func (m *Manager) StartInstance(id string) error {
 	return nil
 }
 
-// StopInstance stops a running IEC104 server.
+// UpdateConfig updates an instance configuration, stopping it if running.
+func (m *Manager) UpdateConfig(cfg model.InstanceConfig) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if inst, ok := m.instances[cfg.ID]; ok {
+		inst.Server.Stop()
+		if inst.HTTPServer != nil {
+			inst.HTTPServer.Close()
+			inst.HTTPServer = nil
+		}
+		delete(m.instances, cfg.ID)
+	}
+
+	return m.store.Update(cfg)
+}
+
+func (m *Manager) DeleteConfig(id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if inst, ok := m.instances[id]; ok {
+		inst.Server.Stop()
+		if inst.AutoEngine != nil {
+			inst.AutoEngine.StopAll()
+		}
+		if inst.HTTPServer != nil {
+			inst.HTTPServer.Close()
+			inst.HTTPServer = nil
+		}
+		firewall.RemovePort(inst.Config.IEC104Port)
+		if inst.Config.HttpEnabled && inst.Config.HttpPort > 0 {
+			firewall.RemovePort(inst.Config.HttpPort)
+		}
+		delete(m.instances, id)
+	}
+
+	return m.store.Delete(id)
+}
+
 func (m *Manager) StopInstance(id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -241,6 +247,9 @@ func (m *Manager) StopInstance(id string) error {
 	}
 
 	inst.Server.Stop()
+	if inst.AutoEngine != nil {
+		inst.AutoEngine.StopAll()
+	}
 	if inst.HTTPServer != nil {
 		inst.HTTPServer.Close()
 		inst.HTTPServer = nil
@@ -254,6 +263,28 @@ func (m *Manager) StopInstance(id string) error {
 	delete(m.instances, id)
 
 	slog.Info("实例已停止", "id", id, "name", inst.Config.Name)
+	return nil
+}
+
+func (m *Manager) CfgDir() string {
+	return m.cfgDir
+}
+
+func (m *Manager) GetStore(id string) *library.Store {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if inst, ok := m.instances[id]; ok {
+		return inst.Store
+	}
+	return nil
+}
+
+func (m *Manager) GetEngine(id string) *detail.Engine {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if inst, ok := m.instances[id]; ok {
+		return inst.AutoEngine
+	}
 	return nil
 }
 
@@ -342,6 +373,9 @@ func (m *Manager) StopAll() {
 
 	for id, inst := range m.instances {
 		inst.Server.Stop()
+		if inst.AutoEngine != nil {
+			inst.AutoEngine.StopAll()
+		}
 		delete(m.instances, id)
 		slog.Info("实例已停止", "id", id, "name", inst.Config.Name)
 	}
