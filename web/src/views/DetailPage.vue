@@ -148,6 +148,9 @@
         </el-tab-pane>
         <el-tab-pane label="随机" name="random">
           <el-form label-width="100px" size="small">
+            <el-form-item label="变化周期(ms)">
+              <el-input-number v-model="autoForm.period_ms" :min="100" :step="100" style="width: 200px" />
+            </el-form-item>
             <el-form-item label="最小值">
               <el-input-number v-model="autoForm.min_value" :min="0" :step="1" style="width: 200px" />
             </el-form-item>
@@ -491,6 +494,7 @@ async function confirmAutoChange() {
       params.max_value = autoForm.max_value
       break
     case 'random':
+      params.period_ms = autoForm.period_ms
       params.min_value = autoForm.min_value
       params.max_value_r = autoForm.max_value_r
       params.decimal_places = autoForm.decimal_places

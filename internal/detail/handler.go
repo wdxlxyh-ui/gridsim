@@ -380,25 +380,37 @@ func (h *DetailHandler) exportAutoConfig(w http.ResponseWriter, r *http.Request)
 	writer := csv.NewWriter(w)
 	defer writer.Flush()
 
-	// Header
-	writer.Write([]string{"信息体地址", "测点名称", "自动变化模式"})
-	// Legend row
-	writer.Write([]string{"", "", "1=increment 2=random 3=csv 4=max 5=min 6=soc 7=energy 8=aofollow 9=apiupdate"})
+	// Header: IOA, name, mode code, then A~G param columns
+	writer.Write([]string{"信息体地址", "测点名称", "自动变化模式", "A", "B", "C", "D", "E", "F", "G"})
 
-	// Sort by IOA ascending for consistent output
+	// Legend rows: explain codes and A~G mapping per strategy
+	writer.Write([]string{"", "代码说明", "1=递增 2=随机 3=CSV 4=取大 5=取小 6=SOC 7=电量 8=AO关联 9=接口更新", "", "", "", "", "", "", ""})
+	writer.Write([]string{"", "递增(A~D)", "A=起始值 B=步长 C=周期(ms) D=最大值", "", "", "", "", "", "", ""})
+	writer.Write([]string{"", "随机(A~D)", "A=最小值 B=最大值 C=周期(ms) D=小数位数", "", "", "", "", "", "", ""})
+	writer.Write([]string{"", "MAX/MIN(A~B)", "A=IOA列表(分号分隔) B=关联IOA", "", "", "", "", "", "", ""})
+	writer.Write([]string{"", "SOC(A~D)", "A=初始SOC(%) B=额定容量(kWh) C=功率AI点号 D=积分周期(ms)", "", "", "", "", "", "", ""})
+	writer.Write([]string{"", "电量(A~D)", "A=初始电量(kWh) B=统计类别(0充电/1放电) C=功率AI点号 D=积分周期(ms)", "", "", "", "", "", "", ""})
+	writer.Write([]string{"", "AO关联(A)", "A=关联AO点号", "", "", "", "", "", "", ""})
+	writer.Write([]string{"", "接口更新(A)", "A=初始值", "", "", "", "", "", "", ""})
+	writer.Write([]string{"", "CSV", "不支持表格导入，请在界面中单独配置", "", "", "", "", "", "", ""})
+
+	// Sort points by IOA ascending for consistent output
 	sort.Slice(points, func(i, j int) bool {
 		return points[i].IOA < points[j].IOA
 	})
 
 	for _, p := range points {
 		code := ""
+		var a, b, c, d, e, f, g string
 		if cfg, ok := configs[p.IOA]; ok && cfg.Enabled {
 			code = strategyToCode(cfg.Strategy)
+			a, b, c, d, e, f, g = paramsToABCDEFG(cfg.Strategy, &cfg.Params)
 		}
 		writer.Write([]string{
 			strconv.FormatUint(uint64(p.IOA), 10),
 			p.Name,
 			code,
+			a, b, c, d, e, f, g,
 		})
 	}
 }
@@ -429,12 +441,30 @@ func (h *DetailHandler) importAutoConfig(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Skip header (row 0) and legend (row 1), process data rows
+	// Skip header (row 0), legend rows (rows 1~9), process data rows
+	legendCount := 0
+	for i, row := range records {
+		if i == 0 {
+			continue
+		}
+		code := ""
+		if len(row) > 2 {
+			code = strings.TrimSpace(row[2])
+		}
+		if code == "" || strings.ContainsAny(code, "=") {
+			legendCount++
+			continue
+		}
+		break
+	}
+
 	configs := make(map[uint32]*model.AutoChangeConfig)
 	success := 0
 	skipped := 0
-	for _, row := range records[2:] {
+	dataRows := records[legendCount+1:]
+	for _, row := range dataRows {
 		if len(row) < 3 {
+			skipped++
 			continue
 		}
 		ioa, err := strconv.ParseUint(strings.TrimSpace(row[0]), 10, 32)
@@ -444,8 +474,6 @@ func (h *DetailHandler) importAutoConfig(w http.ResponseWriter, r *http.Request)
 		}
 		code := strings.TrimSpace(row[2])
 		if code == "" {
-			// Empty code means no auto-change for this point — don't add to configs
-			// SaveAll replaces all configs, so this effectively removes it
 			skipped++
 			continue
 		}
@@ -463,11 +491,19 @@ func (h *DetailHandler) importAutoConfig(w http.ResponseWriter, r *http.Request)
 			skipped++
 			continue
 		}
+
+		// Parse A~G columns
+		cols := make([]string, 7)
+		for j := 0; j < 7 && j+3 < len(row); j++ {
+			cols[j] = strings.TrimSpace(row[j+3])
+		}
+		params := abcdefgToParams(strategy, cols[0], cols[1], cols[2], cols[3], cols[4], cols[5], cols[6])
+
 		configs[uint32(ioa)] = &model.AutoChangeConfig{
 			PointIOA:  uint32(ioa),
 			Strategy:  strategy,
 			Enabled:   true,
-			Params:    model.StrategyParams{},
+			Params:    params,
 			UpdatedAt: time.Now(),
 		}
 		success++
@@ -494,8 +530,18 @@ func (h *DetailHandler) exportCSV(w http.ResponseWriter, r *http.Request) {
 
 	points := h.store.GetAll()
 
+	// Sort: AI first, then by IOA ascending (match UI display order)
+	sort.Slice(points, func(i, j int) bool {
+		if (points[i].PointType == config.TypeAI) != (points[j].PointType == config.TypeAI) {
+			return points[i].PointType == config.TypeAI
+		}
+		return points[i].IOA < points[j].IOA
+	})
+
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="points_%s.csv"`, h.instID))
+	// BOM for Excel UTF-8
+	w.Write([]byte{0xEF, 0xBB, 0xBF})
 
 	writer := csv.NewWriter(w)
 	defer writer.Flush()
@@ -595,6 +641,86 @@ func strategyToCode(s model.StrategyType) string {
 		model.StrategyAPIUpdate: "9",
 	}
 	return m[s]
+}
+
+func floatToStr(v float64) string {
+	if v == float64(int64(v)) {
+		return strconv.FormatInt(int64(v), 10)
+	}
+	return strconv.FormatFloat(v, 'f', -1, 64)
+}
+
+func paramsToABCDEFG(strategy model.StrategyType, p *model.StrategyParams) (a, b, c, d, e, f, g string) {
+	switch strategy {
+	case model.StrategyIncrement:
+		return floatToStr(p.StartValue), floatToStr(p.Step),
+			strconv.Itoa(p.PeriodMs), floatToStr(p.MaxValue), "", "", ""
+	case model.StrategyRandom:
+		return floatToStr(p.MinValue), floatToStr(p.MaxValueR),
+			strconv.Itoa(p.PeriodMs), strconv.Itoa(p.DecimalPlaces), "", "", ""
+	case model.StrategyMax, model.StrategyMin:
+		return p.ParaA, p.ParaB, "", "", "", "", ""
+	case model.StrategySOC:
+		return floatToStr(p.InitSOC), floatToStr(p.RatedCap),
+			strconv.FormatUint(uint64(p.PowerIOA), 10), strconv.Itoa(p.IntegralMs), "", "", ""
+	case model.StrategyEnergy:
+		return floatToStr(p.InitEnergy), strconv.Itoa(p.StatType),
+			strconv.FormatUint(uint64(p.EnergyPowerIOA), 10), strconv.Itoa(p.EnergyPeriodMs), "", "", ""
+	case model.StrategyAOFollow:
+		return strconv.FormatUint(uint64(p.FollowAOIOA), 10), "", "", "", "", "", ""
+	case model.StrategyAPIUpdate:
+		return floatToStr(p.APIInitValue), "", "", "", "", "", ""
+	}
+	return "", "", "", "", "", "", ""
+}
+
+func parseFloatCol(s string) float64 {
+	v, _ := strconv.ParseFloat(strings.TrimSpace(s), 64)
+	return v
+}
+
+func parseIntCol(s string) int {
+	v, _ := strconv.Atoi(strings.TrimSpace(s))
+	return v
+}
+
+func parseUint32Col(s string) uint32 {
+	v, _ := strconv.ParseUint(strings.TrimSpace(s), 10, 32)
+	return uint32(v)
+}
+
+func abcdefgToParams(strategy model.StrategyType, a, b, c, d, e, f, g string) model.StrategyParams {
+	p := model.StrategyParams{}
+	switch strategy {
+	case model.StrategyIncrement:
+		p.StartValue = parseFloatCol(a)
+		p.Step = parseFloatCol(b)
+		p.PeriodMs = parseIntCol(c)
+		p.MaxValue = parseFloatCol(d)
+	case model.StrategyRandom:
+		p.MinValue = parseFloatCol(a)
+		p.MaxValueR = parseFloatCol(b)
+		p.PeriodMs = parseIntCol(c)
+		p.DecimalPlaces = parseIntCol(d)
+	case model.StrategyMax, model.StrategyMin:
+		p.ParaA = strings.TrimSpace(a)
+		p.ParaB = strings.TrimSpace(b)
+	case model.StrategySOC:
+		p.InitSOC = parseFloatCol(a)
+		p.RatedCap = parseFloatCol(b)
+		p.PowerIOA = parseUint32Col(c)
+		p.IntegralMs = parseIntCol(d)
+	case model.StrategyEnergy:
+		p.InitEnergy = parseFloatCol(a)
+		p.StatType = parseIntCol(b)
+		p.EnergyPowerIOA = parseUint32Col(c)
+		p.EnergyPeriodMs = parseIntCol(d)
+	case model.StrategyAOFollow:
+		p.FollowAOIOA = parseUint32Col(a)
+	case model.StrategyAPIUpdate:
+		p.APIInitValue = parseFloatCol(a)
+	}
+	return p
 }
 
 func codeToStrategy(code string) model.StrategyType {
