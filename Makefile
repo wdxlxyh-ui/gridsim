@@ -1,5 +1,5 @@
 PROJECT   := iec104-sim
-VERSION   := 2.1.0
+VERSION   := 2.1.1
 LDFLAGS   := -ldflags="-s -w -X main.version=$(VERSION)"
 DIST_DIR  := dist
 BIN_DIR   := bin

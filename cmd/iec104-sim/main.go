@@ -28,7 +28,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
-var version = "2.1.0"
+var version = "2.1.1"
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "serve" {
