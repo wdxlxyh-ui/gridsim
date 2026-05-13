@@ -1,14 +1,14 @@
 <template>
   <el-container style="height: 100vh">
-    <el-header style="display: flex; align-items: center; background: #409eff; color: white; padding: 0 20px">
-      <h2 style="margin: 0; font-size: 18px; flex: 1">IEC104 模拟器管理系统 v2.1</h2>
-      <el-tag v-if="status" type="" style="margin-right: 12px" effect="dark">
-        运行: {{ status.running }} / 总: {{ status.configured }}
+    <header class="app-header">
+      <h2>IEC104 模拟器管理系统 v2.1</h2>
+      <el-tag v-if="status" class="header-status-tag">
+        运行 {{ status.running }} / 总计 {{ status.configured }}
       </el-tag>
-    </el-header>
-    <el-container style="height: calc(100vh - 60px)">
-      <el-aside width="160px" style="background: #f5f7fa; border-right: 1px solid #e4e7ed">
-        <el-menu :router="true" :default-active="currentRoute" style="border-right: none">
+    </header>
+    <el-container style="height: calc(100vh - var(--header-height))">
+      <el-aside class="app-sidebar" width="200px">
+        <el-menu :router="true" :default-active="currentRoute">
           <el-menu-item index="/config">
             <el-icon><Setting /></el-icon>
             <span>配置管理</span>
@@ -19,7 +19,7 @@
           </el-menu-item>
         </el-menu>
       </el-aside>
-      <el-main style="padding: 20px; background: #f0f2f5">
+      <el-main class="app-main">
         <router-view />
       </el-main>
     </el-container>
