@@ -136,7 +136,7 @@ func (e *Engine) CheckAPIWriteAllowed(ioa uint32) bool {
 	if !cfg.Enabled {
 		return true
 	}
-	return cfg.Strategy == model.StrategyAPIUpdate
+	return cfg.Strategy == model.StrategyAPIUpdate || cfg.Strategy == model.StrategyManual
 }
 
 func (e *Engine) startTask(cfg *model.AutoChangeConfig) {

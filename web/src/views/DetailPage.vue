@@ -270,6 +270,13 @@
           </el-form>
           <div style="font-size: 12px; color: #999; margin-top: 8px">此模式仅能通过 HTTP API 更新值，其他方式拒绝写入</div>
         </el-tab-pane>
+        <el-tab-pane label="手动置数" name="manual">
+          <div style="padding: 20px; color: #999; font-size: 13px">
+            此模式下引擎不自动计算值<br/>
+            需通过 HTTP API 手动置数（PUT /api/v1/instances/{id}/points/{ioa}）<br/>
+            适用于外部系统联调场景
+          </div>
+        </el-tab-pane>
       </el-tabs>
       <template #footer>
         <div style="display: flex; justify-content: space-between; align-items: center">
@@ -548,6 +555,8 @@ async function confirmAutoChange() {
     case 'apiupdate':
       params.api_init_value = autoForm.api_init_value
       break
+    case 'manual':
+      break
   }
 
   if (params.period_ms && params.period_ms < 100) {
@@ -577,7 +586,7 @@ async function confirmAutoChange() {
 function strategyLabel(s: string): string {
   const map: Record<string, string> = {
     increment: '递增', random: '随机', csv: 'CSV', max: 'MAX',
-    min: 'MIN', soc: 'SOC', energy: '电量', aofollow: 'AO关联', apiupdate: '接口更新',
+    min: 'MIN', soc: 'SOC', energy: '电量', aofollow: 'AO关联', apiupdate: '接口更新', manual: '手动',
   }
   return map[s] || s
 }
