@@ -1,5 +1,5 @@
 PROJECT   := iec104-sim
-VERSION   := 2.1.3
+VERSION   := 2.1.4
 LDFLAGS   := -ldflags="-s -w -X main.version=$(VERSION)"
 DIST_DIR  := dist
 BIN_DIR   := bin
@@ -13,12 +13,12 @@ all: build-linux-amd64
 # ── Linux amd64 ─────────────────────────────────────────
 build-linux-amd64:
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 \
-		go build $(LDFLAGS) -o $(BIN_DIR)/$(PROJECT)-linux-amd64 ./cmd/iec104-sim/
+		go build $(LDFLAGS) -o $(BIN_DIR)/$(PROJECT) ./cmd/iec104-sim/
 
 # ── Linux arm64 (aarch64) ──────────────────────────────
 build-linux-arm64:
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 \
-		go build $(LDFLAGS) -o $(BIN_DIR)/$(PROJECT)-linux-arm64 ./cmd/iec104-sim/
+		go build $(LDFLAGS) -o $(BIN_DIR)/$(PROJECT)-arm64 ./cmd/iec104-sim/
 
 # ── Windows amd64 ─────────────────────────────────────
 build-windows:
@@ -27,6 +27,7 @@ build-windows:
 
 # ── 全部二进制 ──────────────────────────────────────────
 build-all: build-linux-amd64 build-linux-arm64 build-windows
+	@echo "  ✔ all binaries built"
 
 # ── Web 前端构建 (需要 Node.js) ─────────────────────────
 web-build:
@@ -45,8 +46,11 @@ dist: web-build build-all
 	@echo "=== 打包三平台发行包 ==="
 	@echo ""
 	# Linux amd64
-	@mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64/{bin,config,logs,resources}
-	cp $(BIN_DIR)/$(PROJECT)-linux-amd64 $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64/bin/$(PROJECT)
+	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64/bin
+	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64/config
+	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64/logs
+	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64/resources
+	cp $(BIN_DIR)/$(PROJECT) $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64/bin/$(PROJECT)
 	cp scripts/start.sh scripts/stop.sh scripts/restart.sh $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64/bin/
 	chmod +x $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64/bin/*.sh
 	echo '[]' > $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64/config/instances.json
@@ -59,8 +63,11 @@ dist: web-build build-all
 	@rm -rf $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64
 	@echo "  ✔ $(PROJECT)-v$(VERSION)-linux-amd64.tar.gz"
 	# Linux arm64
-	@mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64/{bin,config,logs,resources}
-	cp $(BIN_DIR)/$(PROJECT)-linux-arm64 $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64/bin/$(PROJECT)
+	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64/bin
+	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64/config
+	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64/logs
+	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64/resources
+	cp $(BIN_DIR)/$(PROJECT)-arm64 $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64/bin/$(PROJECT)
 	cp scripts/start.sh scripts/stop.sh scripts/restart.sh $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64/bin/
 	chmod +x $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64/bin/*.sh
 	echo '[]' > $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64/config/instances.json
@@ -73,7 +80,11 @@ dist: web-build build-all
 	@rm -rf $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64
 	@echo "  ✔ $(PROJECT)-v$(VERSION)-linux-arm64.tar.gz"
 	# Windows amd64 (zip)
-	@mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-windows-amd64/{bin,scripts,config,logs,resources}
+	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-windows-amd64/bin
+	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-windows-amd64/scripts
+	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-windows-amd64/config
+	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-windows-amd64/logs
+	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-windows-amd64/resources
 	cp $(BIN_DIR)/$(PROJECT).exe $(DIST_DIR)/$(PROJECT)-v$(VERSION)-windows-amd64/bin/$(PROJECT).exe
 	cp scripts/start.bat scripts/stop.bat scripts/restart.bat $(DIST_DIR)/$(PROJECT)-v$(VERSION)-windows-amd64/scripts/
 	echo '[]' > $(DIST_DIR)/$(PROJECT)-v$(VERSION)-windows-amd64/config/instances.json
@@ -95,7 +106,7 @@ dist: web-build build-all
 # ── .deb 打包 ───────────────────────────────────────────
 deb-amd64: build-linux-amd64
 	@mkdir -p /tmp/deb-amd64/DEBIAN /tmp/deb-amd64/usr/local/bin
-	cp $(BIN_DIR)/$(PROJECT)-linux-amd64 /tmp/deb-amd64/usr/local/bin/$(PROJECT)
+	cp $(BIN_DIR)/$(PROJECT) /tmp/deb-amd64/usr/local/bin/$(PROJECT)
 	chmod 755 /tmp/deb-amd64/usr/local/bin/$(PROJECT)
 	printf 'Package: %s\nVersion: %s\nSection: utils\nPriority: optional\nArchitecture: amd64\nMaintainer: IEC104 Simulator <dev@example.com>\nDescription: IEC 60870-5-104 Simulator with Web Management\n Supports multi-instance IEC104 simulation with\n web-based configuration and monitoring.\nBuilt-Using: go1.22.5\n' $(PROJECT) $(VERSION) > /tmp/deb-amd64/DEBIAN/control
 	cd /tmp/deb-amd64 && find . -type f ! -path './DEBIAN/*' -exec md5sum {} \; > DEBIAN/md5sums
@@ -115,23 +126,23 @@ deb: deb-amd64 deb-arm64
 
 # ── UPX 压缩 ────────────────────────────────────────────
 compress: build-linux-amd64
-	upx --best $(BIN_DIR)/$(PROJECT)-linux-amd64 \
-		-o $(BIN_DIR)/$(PROJECT)-linux-amd64-upx 2>/dev/null || true
+	upx --best $(BIN_DIR)/$(PROJECT) \
+		-o $(BIN_DIR)/$(PROJECT)-upx 2>/dev/null || true
 
 # ── 冒烟测试 ────────────────────────────────────────────
 smoke: build-linux-amd64
 	@echo "=== 编译产物 ==="
-	file $(BIN_DIR)/$(PROJECT)-linux-amd64
+	file $(BIN_DIR)/$(PROJECT)
 	@echo ""
 	@echo "=== 文件大小 ==="
-	ls -lh $(BIN_DIR)/$(PROJECT)-linux-amd64
+	ls -lh $(BIN_DIR)/$(PROJECT)
 	@echo ""
 	@echo "=== 检查静态链接 ==="
-	@ldd $(BIN_DIR)/$(PROJECT)-linux-amd64 2>&1 | grep -q "statically linked" && \
+	@ldd $(BIN_DIR)/$(PROJECT) 2>&1 | grep -q "statically linked" && \
 		echo "✓ 静态链接" || echo "✓ 动态链接（需要运行时库）"
 	@echo ""
 	@echo "=== 版本信息 ==="
-	@strings $(BIN_DIR)/$(PROJECT)-linux-amd64 | grep -E "^[0-9]+\.[0-9]+\.[0-9]+" || true
+	@strings $(BIN_DIR)/$(PROJECT) | grep -E "^[0-9]+\.[0-9]+\.[0-9]+" || true
 	@echo "OK"
 
 # ── 测试 ─────────────────────────────────────────────────
