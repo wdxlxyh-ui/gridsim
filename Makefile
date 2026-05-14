@@ -45,7 +45,10 @@ dist: web-build build-all
 	@echo "=== 打包三平台发行包 ==="
 	@echo ""
 	# Linux amd64
-	@mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64/{bin,config,logs,resources}
+	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64/bin
+	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64/config
+	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64/logs
+	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64/resources
 	cp $(BIN_DIR)/$(PROJECT)-linux-amd64 $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64/bin/$(PROJECT)
 	cp scripts/start.sh scripts/stop.sh scripts/restart.sh $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64/bin/
 	chmod +x $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64/bin/*.sh
@@ -59,7 +62,10 @@ dist: web-build build-all
 	@rm -rf $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64
 	@echo "  ✔ $(PROJECT)-v$(VERSION)-linux-amd64.tar.gz"
 	# Linux arm64
-	@mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64/{bin,config,logs,resources}
+	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64/bin
+	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64/config
+	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64/logs
+	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64/resources
 	cp $(BIN_DIR)/$(PROJECT)-linux-arm64 $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64/bin/$(PROJECT)
 	cp scripts/start.sh scripts/stop.sh scripts/restart.sh $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64/bin/
 	chmod +x $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64/bin/*.sh
@@ -73,7 +79,11 @@ dist: web-build build-all
 	@rm -rf $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64
 	@echo "  ✔ $(PROJECT)-v$(VERSION)-linux-arm64.tar.gz"
 	# Windows amd64 (zip)
-	@mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-windows-amd64/{bin,scripts,config,logs,resources}
+	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-windows-amd64/bin
+	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-windows-amd64/scripts
+	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-windows-amd64/config
+	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-windows-amd64/logs
+	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-windows-amd64/resources
 	cp $(BIN_DIR)/$(PROJECT).exe $(DIST_DIR)/$(PROJECT)-v$(VERSION)-windows-amd64/bin/$(PROJECT).exe
 	cp scripts/start.bat scripts/stop.bat scripts/restart.bat $(DIST_DIR)/$(PROJECT)-v$(VERSION)-windows-amd64/scripts/
 	echo '[]' > $(DIST_DIR)/$(PROJECT)-v$(VERSION)-windows-amd64/config/instances.json
