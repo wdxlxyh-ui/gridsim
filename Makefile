@@ -56,7 +56,8 @@ dist: web-build build-all
 	touch $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64/logs/.gitkeep
 	touch $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64/resources/.gitkeep
 	@if [ -d web/dist ]; then \
-		cp -r web/dist $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64/web; \
+		mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64/web/dist && \
+		cp -r web/dist/* $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64/web/dist/; \
 	fi
 	cd $(DIST_DIR) && tar czf $(PROJECT)-v$(VERSION)-linux-amd64.tar.gz $(PROJECT)-v$(VERSION)-linux-amd64/
 	@rm -rf $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64
@@ -73,7 +74,8 @@ dist: web-build build-all
 	touch $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64/logs/.gitkeep
 	touch $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64/resources/.gitkeep
 	@if [ -d web/dist ]; then \
-		cp -r web/dist $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64/web; \
+		mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64/web/dist && \
+		cp -r web/dist/* $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64/web/dist/; \
 	fi
 	cd $(DIST_DIR) && tar czf $(PROJECT)-v$(VERSION)-linux-arm64.tar.gz $(PROJECT)-v$(VERSION)-linux-arm64/
 	@rm -rf $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64
@@ -90,7 +92,8 @@ dist: web-build build-all
 	touch $(DIST_DIR)/$(PROJECT)-v$(VERSION)-windows-amd64/logs/.gitkeep
 	touch $(DIST_DIR)/$(PROJECT)-v$(VERSION)-windows-amd64/resources/.gitkeep
 	@if [ -d web/dist ]; then \
-		cp -r web/dist $(DIST_DIR)/$(PROJECT)-v$(VERSION)-windows-amd64/web; \
+		mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-windows-amd64/web/dist && \
+		cp -r web/dist/* $(DIST_DIR)/$(PROJECT)-v$(VERSION)-windows-amd64/web/dist/; \
 	fi
 	cd $(DIST_DIR) && zip -rq $(PROJECT)-v$(VERSION)-windows-amd64.zip $(PROJECT)-v$(VERSION)-windows-amd64/
 	@rm -rf $(DIST_DIR)/$(PROJECT)-v$(VERSION)-windows-amd64

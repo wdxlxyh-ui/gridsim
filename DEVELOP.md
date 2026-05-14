@@ -32,23 +32,31 @@ iec104-sim-v{version}-linux-amd64/
 │   └── .gitkeep
 ├── resources/
 │   └── .gitkeep
-└── web/                      ← 前端构建产物
-    ├── index.html
-    └── assets/
-        ├── index-*.css
-        ├── index-*.js
-        └── DetailPage-*.js
+└── web/
+    └── dist/                 ← 前端构建产物（必须在此子目录下）
+        ├── index.html
+        └── assets/
+            ├── index-*.css
+            ├── index-*.js
+            └── DetailPage-*.js
 ```
 
 ### 1.3 前端路径解析
 
 二进制通过 `filepath.Dir(exePath)` 定位到 `bin/` 目录，前端路径为：
 
-```
+```go
 filepath.Join(filepath.Dir(exePath), "..", "web", "dist")
 ```
 
-**禁止**使用 `./web/dist`（依赖 CWD）或 `bin/web/dist`（路径错误）。
+**打包 Makefile 关键写法**（将 `web/dist/` 内容复制到包内的 `web/dist/`，保留目录层级）：
+
+```makefile
+mkdir -p $(TARGET)/web/dist && \
+cp -r web/dist/* $(TARGET)/web/dist/
+```
+
+> ⚠️ **常见错误**：`cp -r web/dist $(TARGET)/web` 会将 dist **内容** 直接放到 web/ 下，导致实际路径变成 `web/index.html` 而非 `web/dist/index.html`，与 Go 代码解析路径不匹配。
 
 ---
 
