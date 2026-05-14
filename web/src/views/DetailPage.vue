@@ -81,11 +81,12 @@
               </template>
               <template v-else-if="row.point_type === 'DI'">
                 <el-switch
-                  :model-value="diValue(row)"
+                  :model-value="setValues[row.ioa] !== undefined ? !!setValues[row.ioa] : !!row.value"
                   @change="(val: boolean) => doSetValue(row, val ? 1 : 0)"
                   size="small"
                   active-text="ON"
                   inactive-text="OFF"
+                  :disabled="autoStrategies[row.ioa] === 'manual'"
                 />
               </template>
               <template v-else>
@@ -95,7 +96,9 @@
                     size="small"
                     :step="row.point_type === 'PI' ? 1 : 0.1"
                     :controls="false"
+                    :disabled="autoStrategies[row.ioa] === 'manual'"
                     style="width: 80px"
+                    @input="(val: number | undefined) => { setValues[row.ioa] = val ?? '' }"
                     @keydown.enter="(e: any) => doSetValue(row, parseFloat((e.target as HTMLInputElement).value))"
                   />
                   <el-button size="small" type="primary" @click="doSetValue(row, undefined)">置数</el-button>
