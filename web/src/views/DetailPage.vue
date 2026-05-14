@@ -79,6 +79,7 @@
               <template v-else-if="row.point_type === 'DI'">
                 <el-switch
                   :model-value="row.bool_value"
+                  :key="row.ioa"
                   @change="(val: boolean) => doSetValue(row, val ? 1 : 0)"
                   size="small"
                   active-text="ON"
@@ -92,7 +93,7 @@
                      size="small"
                      :step="row.point_type === 'PI' ? 1 : 0.1"
                      :controls="false"
-                     :disabled="autoStrategies[row.ioa] && autoStrategies[row.ioa] !== 'manual' && autoStrategies[row.ioa] !== 'apiupdate'"
+                     :disabled="!isSetValueEnabled(row.ioa)"
                      style="width: 80px"
                      @update:model-value="(v: number | null) => { setValues[row.ioa] = (v ?? '') as string | number }"
                      @keydown.enter.prevent="() => doSetValue(row)"
@@ -398,6 +399,12 @@ function diValue(p: PointSnapshot): boolean {
 
 function autoStrategyLabel(ioa: number): string {
   return autoStrategies[ioa] || '配置'
+}
+
+function isSetValueEnabled(ioa: number): boolean {
+  const s = autoStrategies[ioa]
+  // 无策略 / 手动 / 接口更新 → 可置数；其他策略 → 禁用
+  return !s || s === 'manual' || s === 'apiupdate'
 }
 
 function goBack() {
