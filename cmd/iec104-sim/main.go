@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"strconv"
 
@@ -114,6 +115,7 @@ func runLegacyMode() {
 type webServer struct {
 	mgr     *manager.Manager
 	httpSrv *http.Server
+	cfgDir  string
 }
 
 func runServerMode() {
@@ -145,7 +147,7 @@ func runServerMode() {
 
 	// Build HTTP mux
 	mux := http.NewServeMux()
-	ws := &webServer{mgr: mgr}
+	ws := &webServer{mgr: mgr, cfgDir: configDir}
 	ws.registerRoutes(mux, configDir)
 
 	if p := parsePort(httpAddr); p > 0 {
@@ -423,7 +425,7 @@ func (ws *webServer) handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	filename := saveUploadedFile(file, header)
+	filename := ws.saveUploadedFile(file, header)
 	if filename == "" {
 		writeError(w, http.StatusInternalServerError, "failed to save file")
 		return
@@ -440,7 +442,32 @@ func (ws *webServer) handleFiles(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]interface{}{"files": []interface{}{}})
+	// 扫描 configDir 下的 .xlsx 文件
+	entries, err := os.ReadDir(ws.cfgDir)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]interface{}{"files": []interface{}{}})
+		return
+	}
+	files := make([]map[string]interface{}, 0)
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if !strings.HasSuffix(strings.ToLower(name), ".xlsx") {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		files = append(files, map[string]interface{}{
+			"name":    name,
+			"size":    info.Size(),
+			"modtime": info.ModTime().Format(time.RFC3339),
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"files": files})
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -488,9 +515,9 @@ func validateConfig(cfg model.InstanceConfig) error {
 	return nil
 }
 
-func saveUploadedFile(file multipart.File, header *multipart.FileHeader) string {
+func (ws *webServer) saveUploadedFile(file multipart.File, header *multipart.FileHeader) string {
 	filename := filepath.Base(header.Filename)
-	dst := filepath.Join(".", "config", filename)
+	dst := filepath.Join(ws.cfgDir, filename)
 	dstFile, err := os.Create(dst)
 	if err != nil {
 		return ""
