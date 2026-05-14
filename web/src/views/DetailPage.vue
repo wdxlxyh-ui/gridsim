@@ -81,43 +81,45 @@
               </template>
               <template v-else-if="row.point_type === 'DI'">
                 <el-switch
-                  :model-value="setValues[row.ioa] !== undefined ? !!setValues[row.ioa] : !!row.value"
+                  :model-value="!!setValues[row.ioa]"
                   @change="(val: boolean) => doSetValue(row, val ? 1 : 0)"
                   size="small"
                   active-text="ON"
                   inactive-text="OFF"
-                  :disabled="autoStrategies[row.ioa] === 'manual'"
                 />
               </template>
               <template v-else>
                 <div style="display: flex; gap: 4px">
-                  <el-input-number
-                    :model-value="setValues[row.ioa] ?? row.value"
-                    size="small"
-                    :step="row.point_type === 'PI' ? 1 : 0.1"
-                    :controls="false"
-                    :disabled="autoStrategies[row.ioa] === 'manual'"
-                    style="width: 80px"
-                    @input="(val: number | undefined) => { setValues[row.ioa] = val ?? '' }"
-                    @keydown.enter="(e: any) => doSetValue(row, parseFloat((e.target as HTMLInputElement).value))"
-                  />
+<el-input-number
+                     :model-value="setValues[row.ioa]"
+                     size="small"
+                     :step="row.point_type === 'PI' ? 1 : 0.1"
+                     :controls="false"
+                     :disabled="autoStrategies[row.ioa] && autoStrategies[row.ioa] !== 'manual' && autoStrategies[row.ioa] !== 'apiupdate'"
+                     style="width: 80px"
+                     @input="(val: number | undefined) => { setValues[row.ioa] = val ?? '' }"
+                     @keydown.enter="(e: any) => doSetValue(row, parseFloat((e.target as HTMLInputElement).value))"
+                   />
                   <el-button size="small" type="primary" @click="doSetValue(row, undefined)">置数</el-button>
                 </div>
               </template>
             </template>
           </el-table-column>
-          <el-table-column label="自动变化" width="120">
-            <template #default="{ row }">
-              <template v-if="row.point_type === 'AO' || row.point_type === 'DO'">
-                <span style="color: #c0c4cc; font-size: 12px">—</span>
-              </template>
-              <template v-else>
-                <el-button size="small" :type="autoStrategies[row.ioa] ? 'success' : 'default'" @click="openAutoModal(row)">
-                  {{ autoStrategyLabel(row.ioa) }}
-                </el-button>
-              </template>
-            </template>
-          </el-table-column>
+<el-table-column label="自动变化" width="120">
+             <template #default="{ row }">
+               <template v-if="row.point_type === 'AO' || row.point_type === 'DO'">
+                 <span style="color: #c0c4cc; font-size: 12px">—</span>
+               </template>
+               <template v-else-if="row.point_type === 'DI'">
+                 <span style="color: #c0c4cc; font-size: 12px">—</span>
+               </template>
+               <template v-else>
+                 <el-button size="small" :type="autoStrategies[row.ioa] ? 'success' : 'default'" @click="openAutoModal(row)">
+                   {{ autoStrategyLabel(row.ioa) }}
+                 </el-button>
+               </template>
+             </template>
+           </el-table-column>
         </el-table>
 
         <div style="font-size: 12px; color: #999; display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; padding: 8px 0">
@@ -281,16 +283,16 @@
           </div>
         </el-tab-pane>
       </el-tabs>
-      <template #footer>
-        <div style="display: flex; justify-content: space-between; align-items: center">
-          <el-checkbox v-if="batchMode" v-model="batchApplyAll">同时应用到所有已选测点</el-checkbox>
-          <span v-else />
-          <div style="display: flex; gap: 8px">
-            <el-button @click="autoDialogVisible = false">取消</el-button>
-            <el-button type="primary" @click="confirmAutoChange">确认启用</el-button>
-          </div>
-        </div>
-      </template>
+<template #footer>
+         <div style="display: flex; justify-content: space-between; align-items: center">
+           <span v-if="batchMode" style="font-size: 12px; color: #909399">已选 {{ Object.keys(selectedIoas).length }} 个测点，策略将应用到所有选中测点</span>
+           <span v-else />
+           <div style="display: flex; gap: 8px">
+             <el-button @click="autoDialogVisible = false">取消</el-button>
+             <el-button type="primary" @click="confirmAutoChange">确认启用</el-button>
+           </div>
+         </div>
+       </template>
     </el-dialog>
   </div>
 </template>
@@ -412,13 +414,19 @@ function onSelectionChange(rows: PointSnapshot[]) {
 }
 
 async function fetchPoints() {
-  try {
-    const res = await getPoints(instanceId.value)
-    points.value = res.points
-  } catch (e: any) {
-    // silent on polling errors
-  }
-}
+   try {
+     const res = await getPoints(instanceId.value)
+     points.value = res.points
+     // 初始化 setValues，保持用户已输入的值不被覆盖
+     res.points.forEach(p => {
+       if (!(p.ioa in setValues)) {
+         setValues[p.ioa] = p.point_type === 'DI' ? (p.bool_value ? 1 : 0) : p.value
+       }
+     })
+   } catch (e: any) {
+     // silent on polling errors
+   }
+ }
 
 function restartPolling() {
   if (pollTimer) {
@@ -570,7 +578,7 @@ async function confirmAutoChange() {
   const config = { strategy, enabled: true, params }
 
   try {
-    if (batchMode.value && batchApplyAll.value && Object.keys(selectedIoas).length > 0) {
+    if (batchMode.value && Object.keys(selectedIoas).length > 0) {
       const ioas = Object.keys(selectedIoas).map(Number)
       await batchAutoChange(instanceId.value, { ioas, config })
       ElMessage.success(`已批量配置 ${ioas.length} 个测点`)
