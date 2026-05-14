@@ -1,5 +1,5 @@
 PROJECT   := iec104-sim
-VERSION   := 2.1.4
+VERSION   := 2.1.5
 LDFLAGS   := -ldflags="-s -w -X main.version=$(VERSION)"
 DIST_DIR  := dist
 BIN_DIR   := bin
@@ -57,7 +57,8 @@ cp $(BIN_DIR)/$(PROJECT)-linux-amd64 $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-am
 	touch $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64/logs/.gitkeep
 	touch $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64/resources/.gitkeep
 	@if [ -d web/dist ]; then \
-		cp -r web/dist $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64/web; \
+		mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64/web/dist && \
+		cp -r web/dist/* $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64/web/dist/; \
 	fi
 	cd $(DIST_DIR) && tar czf $(PROJECT)-v$(VERSION)-linux-amd64.tar.gz $(PROJECT)-v$(VERSION)-linux-amd64/
 	@rm -rf $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-amd64
@@ -74,7 +75,8 @@ cp $(BIN_DIR)/$(PROJECT)-linux-arm64 $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-ar
 	touch $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64/logs/.gitkeep
 	touch $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64/resources/.gitkeep
 	@if [ -d web/dist ]; then \
-		cp -r web/dist $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64/web; \
+		mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64/web/dist && \
+		cp -r web/dist/* $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64/web/dist/; \
 	fi
 	cd $(DIST_DIR) && tar czf $(PROJECT)-v$(VERSION)-linux-arm64.tar.gz $(PROJECT)-v$(VERSION)-linux-arm64/
 	@rm -rf $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-arm64
@@ -91,7 +93,8 @@ cp $(BIN_DIR)/$(PROJECT)-linux-arm64 $(DIST_DIR)/$(PROJECT)-v$(VERSION)-linux-ar
 	touch $(DIST_DIR)/$(PROJECT)-v$(VERSION)-windows-amd64/logs/.gitkeep
 	touch $(DIST_DIR)/$(PROJECT)-v$(VERSION)-windows-amd64/resources/.gitkeep
 	@if [ -d web/dist ]; then \
-		cp -r web/dist $(DIST_DIR)/$(PROJECT)-v$(VERSION)-windows-amd64/web; \
+		mkdir -p $(DIST_DIR)/$(PROJECT)-v$(VERSION)-windows-amd64/web/dist && \
+		cp -r web/dist/* $(DIST_DIR)/$(PROJECT)-v$(VERSION)-windows-amd64/web/dist/; \
 	fi
 	cd $(DIST_DIR) && zip -rq $(PROJECT)-v$(VERSION)-windows-amd64.zip $(PROJECT)-v$(VERSION)-windows-amd64/
 	@rm -rf $(DIST_DIR)/$(PROJECT)-v$(VERSION)-windows-amd64
