@@ -1,0 +1,78 @@
+{
+  "16385": {
+    "ioa": 16385,
+    "strategy": "random",
+    "enabled": true,
+    "params": {
+      "period_ms": 1000,
+      "max_value_r": 100
+    },
+    "updated_at": "2026-05-14T16:45:11.348638575Z"
+  },
+  "16386": {
+    "ioa": 16386,
+    "strategy": "increment",
+    "enabled": true,
+    "params": {
+      "step": 1,
+      "period_ms": 1000,
+      "max_value": 100
+    },
+    "updated_at": "2026-05-14T14:01:04.005261159Z"
+  },
+  "16387": {
+    "ioa": 16387,
+    "strategy": "increment",
+    "enabled": true,
+    "params": {
+      "step": 1,
+      "period_ms": 1000,
+      "max_value": 100
+    },
+    "updated_at": "2026-05-14T14:01:04.005497731Z"
+  },
+  "16388": {
+    "ioa": 16388,
+    "strategy": "custom",
+    "enabled": true,
+    "params": {
+      "period_ms": 1000,
+      "custom_ioas": "16385;16386;16387",
+      "custom_formula": "{0}-{1}-{2}"
+    },
+    "updated_at": "2026-05-15T14:18:34.918082436Z"
+  },
+  "16389": {
+    "ioa": 16389,
+    "strategy": "custom",
+    "enabled": true,
+    "params": {
+      "period_ms": 1000,
+      "custom_ioas": "16385;16386;16387",
+      "custom_formula": "{0}*{1}/{2}"
+    },
+    "updated_at": "2026-05-15T14:18:34.932188104Z"
+  },
+  "16390": {
+    "ioa": 16390,
+    "strategy": "custom",
+    "enabled": true,
+    "params": {
+      "period_ms": 1000,
+      "custom_ioas": "16385;16386;16387",
+      "custom_formula": "({0}+{1})*{2}"
+    },
+    "updated_at": "2026-05-15T14:19:06.79379549Z"
+  },
+  "5": {
+    "ioa": 5,
+    "strategy": "increment",
+    "enabled": true,
+    "params": {
+      "step": 1,
+      "period_ms": 1000,
+      "max_value": 100
+    },
+    "updated_at": "2026-05-14T14:01:04.000984049Z"
+  }
+}
