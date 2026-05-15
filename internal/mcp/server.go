@@ -153,7 +153,11 @@ func NewDataInterfaceServer(client *SimulatorClient) *server.MCPServer {
 				filtered = append(filtered, p)
 			}
 		}
-		return json.Marshal(map[string]any{"points": filtered})
+			rawResult, err := json.Marshal(map[string]any{"points": filtered})
+		if err != nil {
+			return nil, err
+		}
+		return json.RawMessage(rawResult), nil
 	}))
 
 	// write_point
@@ -301,6 +305,20 @@ func NewDataInterfaceServer(client *SimulatorClient) *server.MCPServer {
 		mcp.WithString("csv_content", mcp.Description("CSV 文件内容")),
 	), toolHandler(client, func(c *SimulatorClient, args map[string]any) (any, error) {
 		return c.UploadCSV(getStringArg(args, "instance_id"), getStringArg(args, "csv_content"))
+	}))
+
+	// upload_file — 上传 xlsx 点表文件
+	s.AddTool(mcp.NewTool("upload_file",
+		mcp.WithDescription("上传 .xlsx 点表文件到模拟器 config 目录。文件内容需 base64 编码。"),
+		mcp.WithString("filename", mcp.Description("文件名，如 \"固定验证-关口表.xlsx\"")),
+		mcp.WithString("content_base64", mcp.Description("文件内容的 base64 编码")),
+	), toolHandler(client, func(c *SimulatorClient, args map[string]any) (any, error) {
+		filename := getStringArg(args, "filename")
+		content := getStringArg(args, "content_base64")
+		if filename == "" || content == "" {
+			return nil, fmt.Errorf("filename and content_base64 are required")
+		}
+		return c.UploadFile(filename, content)
 	}))
 
 	return s
