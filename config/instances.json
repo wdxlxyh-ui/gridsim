@@ -21,7 +21,7 @@
     "id": "d7b403a205db",
     "name": "R",
     "iec104_port": 5555,
-    "xlsx_file": "point - 副本.xlsx",
+    "xlsx_file": "point.xlsx",
     "enabled": false,
     "http_enabled": true,
     "http_port": 6688
