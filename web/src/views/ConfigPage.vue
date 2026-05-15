@@ -4,7 +4,7 @@
       <div style="display: flex; justify-content: space-between; align-items: center">
         <span style="font-size: 16px; font-weight: 600">实例配置</span>
         <div>
-          <el-button @click="fetchData" :icon="Refresh" circle />
+          <el-button @click="fetchData" :icon="Refresh" circle aria-label="刷新数据" />
           <el-button type="primary" @click="showAddDialog = true">添加实例</el-button>
         </div>
       </div>
@@ -28,23 +28,28 @@
             <el-tag v-else type="info">已停止</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="统计" min-width="180">
+        <el-table-column label="统计" min-width="200">
           <template #default="{ row }">
-            <span v-if="row.stats" style="font-size: 12px; color: #666">
-              在线: {{ row.stats.client_connected ? '✅' : '❌' }} |
+            <span v-if="row.stats" style="font-size: 12px; color: var(--el-text-color-secondary)">
+              <el-icon :color="row.stats.client_connected ? '#67c23a' : '#f56c6c'" style="vertical-align: middle; margin-right: 2px">
+                <component :is="row.stats.client_connected ? SuccessFilled : CircleCloseFilled" />
+              </el-icon>
+              {{ row.stats.client_connected ? '在线' : '离线' }} |
               测点: {{ row.stats.total_points }} |
               运行: {{ fmtUptime(row.stats.uptime_seconds) }}
             </span>
-            <span v-else style="color: #999">-</span>
+            <span v-else style="color: var(--el-text-color-placeholder)">-</span>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
             <el-button-group>
-              <el-button v-if="row.status === 'running'" type="warning" size="small" @click="handleStop(row.id)">停止</el-button>
-              <el-button v-else type="success" size="small" @click="handleStart(row.id)">启动</el-button>
-              <el-button size="small" :disabled="row.status === 'running'" @click="handleEdit(row)">编辑</el-button>
-              <el-button type="danger" size="small" :disabled="row.status === 'running'" @click="handleDelete(row.id)">删除</el-button>
+              <el-button v-if="row.status === 'running'" type="warning" size="small"
+                :loading="actionLoading === row.id" @click="handleStop(row.id)">停止</el-button>
+              <el-button v-else type="success" size="small"
+                :loading="actionLoading === row.id" @click="handleStart(row.id)">启动</el-button>
+              <el-button size="small" :disabled="row.status === 'running' || actionLoading === row.id" @click="handleEdit(row)">编辑</el-button>
+              <el-button type="danger" size="small" :disabled="row.status === 'running' || actionLoading === row.id" @click="handleDelete(row.id)">删除</el-button>
             </el-button-group>
           </template>
         </el-table-column>
@@ -89,7 +94,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { Refresh } from '@element-plus/icons-vue'
+import { Refresh, SuccessFilled, CircleCloseFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 import {
@@ -113,6 +118,7 @@ const saving = ref(false)
 const formRef = ref<FormInstance>()
 const availableFiles = ref<{ name: string; size: number; modtime: string }[]>([])
 const selectedFile = ref<File | null>(null)
+const actionLoading = ref('')
 
 const form = ref<InstanceConfig>({
   name: '',
@@ -184,22 +190,28 @@ async function handleSave() {
 }
 
 async function handleStart(id: string) {
+  actionLoading.value = id
   try {
     await startInstance(id)
     ElMessage.success('已启动')
     await fetchData()
   } catch (e: any) {
     ElMessage.error('启动失败: ' + (e?.response?.data?.error || e.message))
+  } finally {
+    actionLoading.value = ''
   }
 }
 
 async function handleStop(id: string) {
+  actionLoading.value = id
   try {
     await stopInstance(id)
     ElMessage.success('已停止')
     await fetchData()
   } catch (e: any) {
     ElMessage.error('停止失败: ' + (e?.response?.data?.error || e.message))
+  } finally {
+    actionLoading.value = ''
   }
 }
 

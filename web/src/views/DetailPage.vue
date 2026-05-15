@@ -289,14 +289,36 @@
           <el-tab-pane label="自定义公式" name="custom">
             <el-form label-width="100px" size="small">
               <el-form-item label="关联测点">
-                <!-- 跨实例模式切换 -->
-                <div style="margin-bottom: 8px; width: 100%">
-                  <el-switch v-model="crossInstanceMode"
-                    active-text="跨实例" inactive-text="本实例"
-                    size="small" @change="onCrossModeChange" />
+                <!-- 来源选择 => 当前实例 / 远程实例 -->
+                <div style="display: flex; gap: 8px; margin-bottom: 8px; width: 100%">
+                  <el-select v-model="pointSource" filterable
+                    placeholder="选择测点来源" style="width: 220px"
+                    @change="onPointSourceChange">
+                    <el-option label="当前实例" :value="''" />
+                    <el-option v-for="inst in remoteInstances" :key="inst.id"
+                      :label="inst.name + ' (' + inst.id.slice(0,8) + ')'"
+                      :value="inst.id" />
+                  </el-select>
+                  <el-select
+                    v-model="customPointSearch"
+                    filterable remote reserve-keyword
+                    placeholder="搜索测点名称或 IOA"
+                    :remote-method="searchPointsBySource"
+                    :loading="sourceLoading"
+                    style="width: 320px"
+                    @change="addPointKey"
+                  >
+                    <el-option
+                      v-for="pt in customPointOptions"
+                      :key="pointSource ? pointSource + ':' + pt.ioa : String(pt.ioa)"
+                      :label="pt.name + ' (IOA: ' + pt.ioa + ')'"
+                      :value="pointSource ? pointSource + ':' + pt.ioa : String(pt.ioa)"
+                    />
+                  </el-select>
+                  <el-button size="small" @click="clearCustomIoas">清空</el-button>
                 </div>
                 <!-- 已选测点标签 -->
-                <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px">
+                <div style="display: flex; flex-wrap: wrap; gap: 6px; min-height: 32px">
                   <el-tag
                     v-for="key in customSelectedIoas"
                     :key="key"
@@ -307,63 +329,9 @@
                     {{ customIoaLabel(key) }}
                   </el-tag>
                 </div>
-                <!-- 本实例搜索 -->
-                <template v-if="!crossInstanceMode">
-                  <div style="display: flex; gap: 8px">
-                    <el-select
-                      v-model="customPointSearch"
-                      filterable remote reserve-keyword
-                      placeholder="搜索测点名称或IOA"
-                      :remote-method="queryCustomPoints"
-                      :loading="customPointLoading"
-                      style="width: 300px"
-                      @change="addCustomIoa"
-                    >
-                      <el-option
-                        v-for="pt in customPointOptions"
-                        :key="pt.ioa"
-                        :label="pt.name + ' (IOA: ' + pt.ioa + ')'"
-                        :value="pt.ioa"
-                      />
-                    </el-select>
-                    <el-button size="small" @click="clearCustomIoas">清空</el-button>
-                  </div>
-                </template>
-                <!-- 跨实例搜索 -->
-                <template v-else>
-                  <div style="display: flex; flex-direction: column; gap: 8px">
-                    <el-select v-model="crossInstanceId" filterable
-                      placeholder="选择远程实例" style="width: 280px"
-                      @change="loadCrossInstancePoints">
-                      <el-option v-for="inst in allInstances" :key="inst.id"
-                        :label="inst.name + '(' + inst.id.slice(0, 8) + ')'"
-                        :value="inst.id" />
-                    </el-select>
-                    <div style="display: flex; gap: 8px">
-                      <el-select
-                        v-model="customPointSearch"
-                        filterable remote reserve-keyword
-                        placeholder="搜索远程测点"
-                        :remote-method="queryCrossPoints"
-                        :loading="crossInstanceLoading"
-                        style="width: 300px"
-                        @change="confirmCrossPoint"
-                        :disabled="!crossInstanceId"
-                      >
-                        <el-option
-                          v-for="pt in crossInstancePoints"
-                          :key="crossInstanceId + ':' + pt.ioa"
-                          :label="pt.name + ' (IOA: ' + pt.ioa + ')'"
-                          :value="crossInstanceId + ':' + pt.ioa"
-                        />
-                      </el-select>
-                      <el-button size="small" @click="clearCustomIoas">清空</el-button>
-                    </div>
-                  </div>
-                </template>
                 <div style="font-size: 12px; color: #999; margin-top: 4px">
                   已选 {{ customSelectedIoas.length }} 个测点（最少2个，最多50个）
-                  <span v-if="customSelectedIoas.some(isCrossKey)" style="margin-left: 8px; color: #e6a23c">⚠ 黄色标签为跨实例测点</span>
+                  <span v-if="customSelectedIoas.some(isCrossKey)" style="margin-left: 8px; color: #e6a23c">⚠ 橙色标签为跨实例测点</span>
                 </div>
               </el-form-item>
              <el-form-item label="公式编辑">
@@ -489,11 +457,11 @@ const customFormulaTokens = ref<string[]>([])
 const formulaOperators = ['+', '-', '*', '/']
 
 // ---- 跨实例选择状态 ----
-const crossInstanceMode = ref(false)
-const crossInstanceId = ref('')
-const crossInstancePoints = ref<PointSnapshot[]>([])
-const crossInstanceLoading = ref(false)
-const allInstances = ref<{ id: string; name: string }[]>([])
+const pointSource = ref('') // '' = local, other = instance ID
+const sourceLoading = ref(false)
+const remoteInstances = ref<{ id: string; name: string }[]>([])
+// Cache remote points per instance ID to avoid repeated fetches
+const remotePointsCache = ref<Record<string, PointSnapshot[]>>({})
 
 const customForm = reactive({
   period_ms: 1000,
@@ -525,7 +493,8 @@ const customSelectedPoints = computed(() => {
     .map(key => {
       const cross = parseCrossKey(key)
       if (cross) {
-        const pt = crossInstancePoints.value.find(p => p.ioa === cross.ioa)
+        const pts = remotePointsCache.value[cross.instanceId] || []
+        const pt = pts.find(p => p.ioa === cross.ioa)
         return pt ? { ...pt, _crossInstanceId: cross.instanceId } : null
       }
       const ioa = parseInt(key)
@@ -550,8 +519,9 @@ function customTagType(key: string): string {
 function customIoaLabel(key: string): string {
   const cross = parseCrossKey(key)
   if (cross) {
-    const inst = allInstances.value.find(i => i.id === cross.instanceId)
-    const pt = crossInstancePoints.value.find(p => p.ioa === cross.ioa)
+    const inst = remoteInstances.value.find(i => i.id === cross.instanceId)
+    const pts = remotePointsCache.value[cross.instanceId] || []
+    const pt = pts.find(p => p.ioa === cross.ioa)
     const instName = inst?.name || cross.instanceId.slice(0, 8)
     const ptName = pt ? pt.name : 'IOA:' + cross.ioa
     return `${instName}→${ptName}`
@@ -613,58 +583,65 @@ function clearCustomIoas() {
 }
 
 // ---- 跨实例方法 ----
-async function loadAllInstances() {
+// ---- 跨实例: 加载实例列表 ----
+async function loadRemoteInstances() {
   try {
     const all = await listInstances()
-    allInstances.value = all
+    remoteInstances.value = all
       .filter(inst => inst.id !== instanceId.value)
       .map(inst => ({ id: inst.id, name: inst.name }))
   } catch {}
 }
 
-async function loadCrossInstancePoints() {
-  if (!crossInstanceId.value) {
-    crossInstancePoints.value = []
+// ---- 切换点源时延迟加载远程测点 ----
+function onPointSourceChange(src: string) {
+  if (!src) {
+    // 切回本地，无需加载
+    customPointOptions.value = []
+    customPointSearch.value = ''
     return
   }
-  crossInstanceLoading.value = true
+  if (!remotePointsCache.value[src]) {
+    loadPointsForSource(src)
+  }
+}
+
+async function loadPointsForSource(instId: string) {
+  sourceLoading.value = true
   try {
-    const res = await getPoints(crossInstanceId.value)
-    crossInstancePoints.value = res.points.filter(
+    const res = await getPoints(instId)
+    remotePointsCache.value[instId] = res.points.filter(
       p => p.point_type !== 'AO' && p.point_type !== 'DO'
     )
-  } catch (e: any) {
+  } catch {
     ElMessage.error('获取远程实例测点失败')
-    crossInstancePoints.value = []
+    remotePointsCache.value[instId] = []
   } finally {
-    crossInstanceLoading.value = false
+    sourceLoading.value = false
   }
 }
 
-function queryCrossPoints(query: string) {
-  if (!query) {
-    customPointOptions.value = crossInstancePoints.value.slice(0, 20) as any
-    return
-  }
-  const q = query.toLowerCase()
-  customPointOptions.value = crossInstancePoints.value.filter(p =>
-    p.name.toLowerCase().includes(q) || String(p.ioa).includes(q)
-  ) as any
-}
-
-function onCrossModeChange(val: boolean) {
-  if (val) {
-    loadAllInstances()
-  } else {
-    crossInstanceId.value = ''
-    crossInstancePoints.value = []
-  }
-}
-
-function confirmCrossPoint(key: string) {
-  addPointKey(key)
-  customPointSearch.value = ''
-  customPointOptions.value = []
+// ---- 统一搜索: 根据 pointSource 决定搜索本地还是远程 ----
+function searchPointsBySource(query: string) {
+  sourceLoading.value = true
+  setTimeout(() => {
+    const src = pointSource.value
+    if (!src) {
+      // 搜索本地
+      const q = query.toLowerCase()
+      customPointOptions.value = points.value.filter(p =>
+        !q || p.name.toLowerCase().includes(q) || String(p.ioa).includes(q)
+      )
+    } else {
+      // 搜索远程
+      const pts = remotePointsCache.value[src] || []
+      const q = query.toLowerCase()
+      customPointOptions.value = pts.filter(p =>
+        !q || p.name.toLowerCase().includes(q) || String(p.ioa).includes(q)
+      ) as any
+    }
+    sourceLoading.value = false
+  }, 200)
 }
 
 function appendFormulaToken(token: string) {
@@ -809,6 +786,7 @@ async function openAutoModal(row: PointSnapshot) {
   autoDialogVisible.value = true
 
   resetAutoForm()
+  loadRemoteInstances()
 
   try {
     const cfg = await (await import('../api')).getAutoChange(instanceId.value, row.ioa)

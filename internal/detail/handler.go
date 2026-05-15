@@ -373,7 +373,7 @@ func (h *DetailHandler) putAutoChange(w http.ResponseWriter, r *http.Request, io
 	}
 
 	if model.StrategyType(req.Strategy) == model.StrategyCustomFormula {
-		ioas := parseIOAList(req.Params.CustomIOAs)
+		ioas := parseCrossIOAList(req.Params.CustomIOAs)
 		if len(ioas) < 2 {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "custom formula requires at least 2 associated IOAs"})
 			return

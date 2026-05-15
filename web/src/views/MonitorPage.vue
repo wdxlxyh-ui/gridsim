@@ -65,6 +65,7 @@
               type="warning"
               size="small"
               style="flex: 1"
+              :loading="actionLoading === inst.id"
               @click="handleRestart(inst.id)"
             >
               重启
@@ -74,6 +75,7 @@
               type="success"
               size="small"
               style="flex: 1"
+              :loading="actionLoading === inst.id"
               @click="handleStart(inst.id)"
             >
               启动
@@ -81,6 +83,7 @@
             <el-button
               v-if="inst.status === 'running'"
               size="small"
+              :loading="actionLoading === inst.id"
               @click="handleStop(inst.id)"
             >
               停止
@@ -95,7 +98,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   listInstances,
   startInstance,
@@ -107,6 +110,7 @@ import {
 const loading = ref(false)
 const instances = ref<InstanceState[]>([])
 const lastRefresh = ref('')
+const actionLoading = ref('')
 let timer: ReturnType<typeof setInterval> | null = null
 
 async function fetchData() {
@@ -122,32 +126,46 @@ async function fetchData() {
 }
 
 async function handleStart(id: string) {
+  actionLoading.value = id
   try {
     await startInstance(id)
     ElMessage.success('已启动')
     await fetchData()
   } catch (e: any) {
     ElMessage.error('启动失败: ' + (e?.response?.data?.error || e.message))
+  } finally {
+    actionLoading.value = ''
   }
 }
 
 async function handleStop(id: string) {
+  actionLoading.value = id
   try {
     await stopInstance(id)
     ElMessage.success('已停止')
     await fetchData()
   } catch (e: any) {
     ElMessage.error('停止失败: ' + (e?.response?.data?.error || e.message))
+  } finally {
+    actionLoading.value = ''
   }
 }
 
 async function handleRestart(id: string) {
+  try {
+    await ElMessageBox.confirm('确定重启此实例？实例重启期间绑定的 IEC104 客户端将断开。', '确认重启')
+  } catch {
+    return
+  }
+  actionLoading.value = id
   try {
     await restartInstance(id)
     ElMessage.success('已重启')
     await fetchData()
   } catch (e: any) {
     ElMessage.error('重启失败: ' + (e?.response?.data?.error || e.message))
+  } finally {
+    actionLoading.value = ''
   }
 }
 
