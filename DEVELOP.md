@@ -182,6 +182,24 @@ return cfg.Strategy == model.StrategyAPIUpdate || cfg.Strategy == model.Strategy
 
 > **v2.1.5 已修复**：`handleFiles` 现在正确扫描 `configDir` 目录。
 
+### 3.6 AO 关联 (AOFollow) 策略架构
+
+AO 关联是**事件驱动型**策略（非定时触发），工作流程：
+
+```
+IEC104 C_SE_NC_1 (AO遥控) → iec104.Server.AO控制 → store.SetValue(AO)
+                                                        ↓
+                                                   引擎.HandleAOFollow(aoIOA)
+                                                        ↓
+                                                   找到所有 FollowAOIOA == aoIOA 的AI点
+                                                        ↓
+                                                   复制AO值到各AI点 + Publish
+```
+
+**⚠️ 历史 Bug**：v2.2.0 之前，IEC104 服务端收到 AO 控制后未触发 `HandleAOFollow`，导致关联的 AI 点不会同步更新。原因是 `iec104.Server` 结构体缺少 `aoFollowFn` 回调字段，且 `handleSetpointCommand` 中没有调用该回调。
+
+> **v2.2.0 已修复**：在 `iec104.Server` 中添加 `SetAOFollowHandler` 方法，`manager.go` 中 `server.SetAOFollowHandler(engine.HandleAOFollow)` 完成回调注册。
+
 ---
 
 ## 4. DI（遥信）组件规范
