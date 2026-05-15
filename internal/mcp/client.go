@@ -2,9 +2,11 @@ package mcp
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"strconv"
 	"strings"
@@ -113,6 +115,37 @@ func (c *SimulatorClient) UploadCSV(instID string, csvContent string) (json.RawM
 	body.WriteString(csvContent)
 	return c.postRaw(fmt.Sprintf("/api/v1/instances/%s/upload-csv", instID),
 		"text/csv", body.Bytes())
+}
+
+func (c *SimulatorClient) UploadFile(filename string, base64Content string) (json.RawMessage, error) {
+	decoded, err := base64.StdEncoding.DecodeString(base64Content)
+	if err != nil {
+		return nil, fmt.Errorf("base64 decode: %w", err)
+	}
+
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	part, err := w.CreateFormFile("file", filename)
+	if err != nil {
+		return nil, fmt.Errorf("create form file: %w", err)
+	}
+	if _, err := part.Write(decoded); err != nil {
+		return nil, fmt.Errorf("write file: %w", err)
+	}
+	w.Close()
+
+	req, err := http.NewRequest(http.MethodPost, c.url("/api/v1/upload"), &buf)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", w.FormDataContentType())
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("POST upload: %w", err)
+	}
+	defer resp.Body.Close()
+	return c.readResponse(resp)
 }
 
 func (c *SimulatorClient) ExportPointsCSV(instID string) (json.RawMessage, error) {
@@ -239,9 +272,14 @@ func getStringArray(args map[string]any, key string) []string {
 	if v == nil {
 		return nil
 	}
-	res := make([]string, len(v))
-	for i, item := range v {
-		res[i], _ = item.(string)
+	res := make([]string, 0, len(v))
+	for _, item := range v {
+		switch val := item.(type) {
+		case string:
+			res = append(res, val)
+		case float64:
+			res = append(res, strconv.FormatFloat(val, 'f', 0, 64))
+		}
 	}
 	return res
 }
