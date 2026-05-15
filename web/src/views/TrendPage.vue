@@ -2,7 +2,7 @@
   <div>
     <!-- Description -->
     <el-card shadow="never" style="margin-bottom: 16px">
-      <div style="font-size: 13px; color: var(--el-text-color-secondary); line-height: 1.8">
+      <div style="font-size: 13px; color: #94a3b8; line-height: 1.8">
         选取多个实例的测点，放在同一张图上对比趋势。
         每 5 秒轮询一次，最长保留 1 小时数据。
         <span v-if="traces.length === 0" style="color: var(--el-color-warning)">
@@ -52,7 +52,7 @@
         </div>
       </div>
 
-      <div v-if="traces.length === 0" style="text-align: center; padding: 80px 20px; color: var(--el-text-color-placeholder)">
+      <div v-if="traces.length === 0" style="text-align: center; padding: 80px 20px; color: #475569">
         <div style="font-size: 48px; margin-bottom: 12px">📊</div>
         <div>点击上方「+ 添加测点」选择要跟踪的数据</div>
       </div>
@@ -63,31 +63,51 @@
           <line v-for="i in 6" :key="'g'+i"
             :x1="padL" :y1="padT + chartH - (i/6)*chartH"
             :x2="padL + chartW" :y2="padT + chartH - (i/6)*chartH"
-            stroke="#e0e0e0" stroke-width="0.5" />
+            stroke="#1e293b" stroke-width="0.5" />
           <!-- Y labels -->
           <text v-for="i in 6" :key="'yl'+i"
             :x="padL - 6" :y="padT + chartH - (i/6)*chartH + 3"
-            text-anchor="end" font-size="10" font-family="monospace" fill="#999"
+            text-anchor="end" font-size="10" font-family="monospace" fill="#475569"
           >{{ yLabel(i/6) }}</text>
           <!-- Axes -->
-          <line :x1="padL" :y1="padT" :x2="padL" :y2="padT+chartH" stroke="#ccc" stroke-width="1" />
-          <line :x1="padL" :y1="padT+chartH" :x2="padL+chartW" :y2="padT+chartH" stroke="#ccc" stroke-width="1" />
+          <line :x1="padL" :y1="padT" :x2="padL" :y2="padT+chartH" stroke="#1e293b" stroke-width="1" />
+          <line :x1="padL" :y1="padT+chartH" :x2="padL+chartW" :y2="padT+chartH" stroke="#1e293b" stroke-width="1" />
           <!-- X labels -->
           <text v-for="i in 5" :key="'xl'+i"
             :x="padL + (i/5)*chartW" :y="padT + chartH + 16"
-            text-anchor="middle" font-size="10" font-family="monospace" fill="#999"
+            text-anchor="middle" font-size="10" font-family="monospace" fill="#475569"
           >{{ xLabel(i/5) }}</text>
-          <!-- Data lines -->
-          <polyline
-            v-for="(t, vi) in visibleTraces"
-            :key="'line'+vi"
-            :points="linePoints(t, vi)"
-            :stroke="COLORS[t.colorIdx % COLORS.length]"
-            fill="none" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"
-          />
+          <!-- Data lines with gradient fill -->
+          <template v-for="(t, vi) in visibleTraces" :key="'trace'+vi">
+            <!-- Gradient fill area -->
+            <path
+              :d="areaPath(t, vi)"
+              :fill="`url(#grad-${t.colorIdx % COLORS.length})`"
+              opacity="0.15"
+            />
+            <!-- Line -->
+            <path
+              :d="smoothPath(t, vi)"
+              :stroke="COLORS[t.colorIdx % COLORS.length]"
+              fill="none"
+              stroke-width="1.5"
+              stroke-linejoin="round"
+              stroke-linecap="round"
+            />
+          </template>
+        </svg>
+
+        <!-- SVG gradient defs -->
+        <svg style="position:absolute;width:0;height:0">
+          <defs>
+            <linearGradient v-for="(c, i) in COLORS" :key="'lg'+i" :id="'grad-'+i" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" :stop-color="c" stop-opacity="0.3" />
+              <stop offset="100%" :stop-color="c" stop-opacity="0.02" />
+            </linearGradient>
+          </defs>
         </svg>
         <!-- Legend -->
-        <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--el-border-color-light)">
+        <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; padding-top: 16px; border-top: 1px solid #1e293b">
           <div
             v-for="(t, i) in traces"
             :key="i"
@@ -211,6 +231,64 @@ function linePoints(t: Trace, vi: number): string {
     const y = padT + chartH - ((v - min) / range) * chartH
     return `${x},${y}`
   }).join(' ')
+}
+
+function smoothPath(t: Trace, vi: number): string {
+  const sl = sliceData(t)
+  if (sl.length < 2) return ''
+  const all: number[] = []
+  visibleTraces.value.forEach(t => { all.push(...sliceData(t)) })
+  if (all.length === 0) return ''
+  const min = Math.min(...all)
+  const max = Math.max(...all)
+  const range = max - min || 1
+  const step = chartW / (sl.length - 1)
+
+  // Build smooth cubic bezier path
+  const pts = sl.map((v, i) => ({
+    x: padL + i * step,
+    y: padT + chartH - ((v - min) / range) * chartH,
+  }))
+
+  if (pts.length < 2) return ''
+  let d = `M${pts[0].x},${pts[0].y}`
+
+  for (let i = 1; i < pts.length; i++) {
+    const p0 = pts[i - 1]
+    const p1 = pts[i]
+    const cp1x = p0.x + (p1.x - p0.x) / 3
+    const cp1y = p0.y
+    const cp2x = p1.x - (p1.x - p0.x) / 3
+    const cp2y = p1.y
+    d += ` C${cp1x},${cp1y} ${cp2x},${cp2y} ${p1.x},${p1.y}`
+  }
+  return d
+}
+
+function areaPath(t: Trace, vi: number): string {
+  const sl = sliceData(t)
+  if (sl.length < 2) return ''
+  const all: number[] = []
+  visibleTraces.value.forEach(t => { all.push(...sliceData(t)) })
+  if (all.length === 0) return ''
+  const min = Math.min(...all)
+  const max = Math.max(...all)
+  const range = max - min || 1
+  const step = chartW / (sl.length - 1)
+  const bottomY = padT + chartH
+
+  const pts = sl.map((v, i) => ({
+    x: padL + i * step,
+    y: padT + chartH - ((v - min) / range) * chartH,
+  }))
+
+  let d = `M${pts[0].x},${pts[0].y}`
+  for (let i = 1; i < pts.length; i++) {
+    const p0 = pts[i - 1], p1 = pts[i]
+    d += ` C${p0.x+(p1.x-p0.x)/3},${p0.y} ${p1.x-(p1.x-p0.x)/3},${p1.y} ${p1.x},${p1.y}`
+  }
+  d += ` L${pts[pts.length-1].x},${bottomY} L${pts[0].x},${bottomY} Z`
+  return d
 }
 
 function lastValue(t: Trace): string {
