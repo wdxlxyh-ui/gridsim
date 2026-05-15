@@ -258,11 +258,18 @@
         </el-tab-pane>
         <el-tab-pane label="AO关联" name="aofollow">
           <el-form label-width="100px" size="small">
-            <el-form-item label="关联AO点号">
-              <el-input-number v-model="autoForm.follow_ao_ioa" :min="1" :step="1" style="width: 200px" />
+            <el-form-item label="关联AO点">
+              <el-select v-model="autoForm.follow_ao_ioa" filterable placeholder="选择关联的AO点" style="width: 280px">
+                <el-option
+                  v-for="pt in aoPoints"
+                  :key="pt.ioa"
+                  :label="pt.name + ' (IOA: ' + pt.ioa + ')'"
+                  :value="pt.ioa"
+                />
+              </el-select>
             </el-form-item>
           </el-form>
-          <div style="font-size: 12px; color: #999; margin-top: 8px">本 AI/DI/PI 点将跟随指定 AO 点的控制值变化</div>
+          <div style="font-size: 12px; color: #999; margin-top: 8px">本 AI/DI/PI 点将跟随指定 AO 点的控制值变化。当 AO 点通过 IEC104 协议被遥控时，自动同步更新。</div>
         </el-tab-pane>
         <el-tab-pane label="接口更新" name="apiupdate">
           <el-form label-width="100px" size="small">
@@ -447,6 +454,8 @@ const customForm = reactive({
 const customFormulaPreview = computed(() => {
   return customFormulaTokens.value.join(' ')
 })
+
+const aoPoints = computed(() => points.value.filter(p => p.point_type === 'AO'))
 
 const customSelectedPoints = computed(() => {
   return customSelectedIoas.value.map(ioa => points.value.find(p => p.ioa === ioa)).filter(Boolean) as PointSnapshot[]
@@ -697,7 +706,7 @@ function resetAutoForm() {
      para_a: '', para_b: '',
      init_soc: 50, rated_cap: 100, power_ioa: 16385, integral_ms: 1000,
      init_energy: 0, stat_type: 0, energy_power_ioa: 16385, energy_period_ms: 1000,
-     follow_ao_ioa: 20, api_init_value: 0,
+     follow_ao_ioa: 0, api_init_value: 0,
    })
    customSelectedIoas.value = []
    customFormulaTokens.value = []

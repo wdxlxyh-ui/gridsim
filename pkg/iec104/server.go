@@ -28,6 +28,7 @@ type Server struct {
 	startTime   time.Time
 	server      *cs104.Server
 	started     bool
+	aoFollowFn  func(aoIOA uint32)
 }
 
 func NewServer(port int, store *library.Store) *Server {
@@ -326,6 +327,10 @@ func (h *serverHandler) handleSingleCommand(c asdu.Connect, a *asdu.ASDU) error 
 	return nil
 }
 
+func (s *Server) SetAOFollowHandler(fn func(aoIOA uint32)) {
+	s.aoFollowFn = fn
+}
+
 func (h *serverHandler) handleSetpointCommand(c asdu.Connect, a *asdu.ASDU) error {
 	mirror := a.Clone()
 
@@ -349,6 +354,10 @@ func (h *serverHandler) handleSetpointCommand(c asdu.Connect, a *asdu.ASDU) erro
 	h.srv.controlCnt.Add(1)
 	if pt != nil {
 		h.srv.Publish(pt)
+	}
+	// Trigger AO follow: update associated AI/DI/PI points
+	if h.srv.aoFollowFn != nil {
+		h.srv.aoFollowFn(ioa)
 	}
 	return nil
 }
