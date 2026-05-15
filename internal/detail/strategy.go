@@ -132,7 +132,12 @@ func (sr *strategyRunner) doCSV(cfg *model.AutoChangeConfig, state *strategyStat
 }
 
 func (sr *strategyRunner) loadCSVRows(cfg *model.AutoChangeConfig) []csvRow {
-	csvPath := filepath.Join(sr.configDir, "csv", cfg.Params.CSVFileName)
+	// Check instance-specific directory first (upload-csv saves here)
+	csvPath := filepath.Join(sr.configDir, "csv", sr.instanceID, cfg.Params.CSVFileName)
+	if _, err := os.Stat(csvPath); os.IsNotExist(err) {
+		// Fall back to shared directory
+		csvPath = filepath.Join(sr.configDir, "csv", cfg.Params.CSVFileName)
+	}
 	f, err := os.Open(csvPath)
 	if err != nil {
 		return nil
