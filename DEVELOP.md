@@ -205,10 +205,10 @@ return cfg.Strategy == model.StrategyAPIUpdate || cfg.Strategy == model.Strategy
 | 开发版本 | `-dev` 后缀（如 `2.1.5-dev`） |
 
 版本号在以下位置同步更新：
-1. `Makefile` → `VERSION := 2.2.0-dev`
-2. `web/package.json` → `"version": "2.2.0-dev"`
-3. `cmd/iec104-sim/main.go` → `-ldflags="-X main.version=2.2.0-dev"`
-4. Git Tag → `v2.2.0-dev`
+1. `Makefile` → `VERSION := 2.2.0`
+2. `web/package.json` → `"version": "2.2.0"`
+3. `cmd/iec104-sim/main.go` → `-ldflags="-X main.version=2.2.0"`
+4. Git Tag → `v2.2.0`
 
 ---
 
