@@ -246,14 +246,16 @@ async function fetchAllPoints(){
   pointsCount.value=Math.min(Math.max(...traces.value.map(t=>t.data.length),0),Math.floor(timeRange.value*60*1000/pollInterval.value))
 }
 
-// Seed initial data so chart + tooltip work immediately
+// Seed enough initial data so chart + tooltip work immediately for any time range
 function seedInitData() {
+  const ptsNeeded = Math.floor(60 * 60 * 1000 / pollInterval.value) // 1h max
   traces.value.forEach(t => {
     if (t.data.length > 0) return
-    for (let i = 0; i < 60; i++) {
-      t.data.push(50 + Math.sin(i * 0.1) * 20 + (Math.random() - 0.5) * 10)
+    for (let i = 0; i < ptsNeeded; i++) {
+      t.data.push(50 + Math.sin(i * 0.02) * 20 + Math.sin(i * 0.1) * 8 + (Math.random() - 0.5) * 5)
     }
   })
+  lastUpdate.value = new Date().toLocaleTimeString()
 }
 
 function restartTimer() {
