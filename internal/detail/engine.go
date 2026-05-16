@@ -91,7 +91,6 @@ func (e *Engine) StopAll() {
 
 	for ioa, task := range e.tasks {
 		task.cancel()
-		e.wg.Done()
 		delete(e.tasks, ioa)
 		delete(e.state, ioa)
 	}
@@ -119,7 +118,6 @@ func (e *Engine) SaveAll(configs map[uint32]*model.AutoChangeConfig) error {
 
 	for ioa, task := range e.tasks {
 		task.cancel()
-		e.wg.Done()
 		delete(e.tasks, ioa)
 		delete(e.state, ioa)
 	}
@@ -211,7 +209,6 @@ func (e *Engine) stopTaskLocked(ioa uint32) {
 		return
 	}
 	task.cancel()
-	e.wg.Done()
 	delete(e.tasks, ioa)
 	delete(e.state, ioa)
 	slog.Info("自动变化任务已停止", "ioa", ioa)
