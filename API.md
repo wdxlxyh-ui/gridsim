@@ -1,6 +1,6 @@
 # IEC104 Simulator API 文档
 
-Base URL: `http://localhost:8080`
+Base URL: `http://localhost:8989`
 
 ---
 
@@ -29,12 +29,12 @@ GET /api/v1/status
 **响应 200：**
 ```json
 {
-  "version": "2.1.3",
+  "version": "2.2.0",
   "mode": "serve",
   "configured": 2,
   "running": 1,
   "stopped": 1,
-  "max": 10
+  "max": 1000
 }
 ```
 
