@@ -32,7 +32,11 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var version = "2.3.0-dev"
+var (
+	version    = "dev"
+	gitCommit  = "unknown"
+	gitBranch  = "unknown"
+)
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "serve" {
@@ -413,6 +417,8 @@ func (ws *webServer) handleStatus(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"version":    version,
+		"git_commit": gitCommit,
+		"git_branch": gitBranch,
 		"mode":       "serve",
 		"configured": len(states),
 		"running":    running,
