@@ -26,12 +26,17 @@ import (
 	"iec104-sim/pkg/iec104"
 	"iec104-sim/pkg/library"
 	"iec104-sim/pkg/middleware"
+	"iec104-sim/pkg/protocol"
 
 	"github.com/spf13/pflag"
 	"golang.org/x/crypto/bcrypt"
 )
 
-var version = "2.3.0"
+var (
+	version    = "dev"
+	gitCommit  = "unknown"
+	gitBranch  = "unknown"
+)
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "serve" {
@@ -65,7 +70,7 @@ func runLegacyMode() {
 	setupLogLevel(logLvl)
 	slog.Info("启动模拟器 (传统模式)", "port", port, "config", cfgPath, "http", httpAddr)
 
-	points, err := config.LoadFromXLSX(cfgPath)
+	points, err := config.LoadFromXLSX(cfgPath, "")
 	if err != nil {
 		slog.Error("加载配置文件失败", "error", err)
 		os.Exit(1)
@@ -190,6 +195,7 @@ func (ws *webServer) registerRoutes(mux *http.ServeMux, configDir string) {
 	mux.HandleFunc("/api/v1/status", ws.handleStatus)
 	mux.HandleFunc("/api/v1/upload", ws.handleUpload)
 	mux.HandleFunc("/api/v1/files", ws.handleFiles)
+	mux.HandleFunc("/api/v1/protocols", ws.handleProtocols)
 
 	// Serve static frontend if built
 	if _, err := os.Stat(webDir); err == nil {
@@ -303,6 +309,9 @@ func (ws *webServer) handleInstanceByID(w http.ResponseWriter, r *http.Request) 
 			if req.XLSXFile == "" {
 				req.XLSXFile = existing.XLSXFile
 			}
+			if req.Protocol == "" {
+				req.Protocol = existing.Protocol
+			}
 			if !req.HttpEnabled && req.HttpPort == 0 {
 				req.HttpPort = existing.HttpPort
 			}
@@ -408,6 +417,8 @@ func (ws *webServer) handleStatus(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"version":    version,
+		"git_commit": gitCommit,
+		"git_branch": gitBranch,
 		"mode":       "serve",
 		"configured": len(states),
 		"running":    running,
@@ -502,7 +513,6 @@ func (ws *webServer) handleFiles(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	// 扫描 configDir 下的 .xlsx 文件
 	entries, err := os.ReadDir(ws.cfgDir)
 	if err != nil {
 		writeJSON(w, http.StatusOK, map[string]interface{}{"files": []interface{}{}})
@@ -530,18 +540,31 @@ func (ws *webServer) handleFiles(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{"files": files})
 }
 
+func (ws *webServer) handleProtocols(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"protocols": protocol.SupportedProtocols()})
+}
+
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 func instanceStateToMap(s *model.InstanceState) map[string]interface{} {
+	proto := s.Config.Protocol
+	if proto == "" {
+		proto = "iec104"
+	}
 	m := map[string]interface{}{
-		"id":          s.Config.ID,
-		"name":        s.Config.Name,
-		"iec104_port": s.Config.IEC104Port,
-		"xlsx_file":   s.Config.XLSXFile,
-		"enabled":     s.Config.Enabled,
+		"id":           s.Config.ID,
+		"name":         s.Config.Name,
+		"iec104_port":  s.Config.IEC104Port,
+		"xlsx_file":    s.Config.XLSXFile,
+		"enabled":      s.Config.Enabled,
 		"http_enabled": s.Config.HttpEnabled,
 		"http_port":    s.Config.HttpPort,
-		"status":      string(s.Status),
+		"protocol":     proto,
+		"status":       string(s.Status),
 	}
 	if s.Status == model.StatusRunning {
 		m["stats"] = map[string]interface{}{
@@ -563,7 +586,15 @@ func validateConfig(cfg model.InstanceConfig) error {
 	if cfg.Name == "" {
 		return fmt.Errorf("name is required")
 	}
-	if cfg.IEC104Port < 1 || cfg.IEC104Port > 65535 {
+	proto := cfg.Protocol
+	if proto == "" {
+		proto = "iec104"
+	}
+	port := cfg.IEC104Port
+	if proto == "modbus_tcp" && cfg.ModbusConfig != nil && cfg.ModbusConfig.Port > 0 {
+		port = cfg.ModbusConfig.Port
+	}
+	if port < 1 || port > 65535 {
 		return fmt.Errorf("port must be 1-65535")
 	}
 	if cfg.XLSXFile == "" {
@@ -605,26 +636,16 @@ func (ws *webServer) handleAuthLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var matchedUser *model.User
-	if ws.userConfig != nil {
-		for i := range ws.userConfig.Users {
-			if ws.userConfig.Users[i].Username == req.Username {
-				matchedUser = &ws.userConfig.Users[i]
-				break
-			}
-		}
+	if ws.userConfig == nil {
+		writeError(w, http.StatusInternalServerError, "user config not loaded")
+		return
 	}
 
-	// Fallback: 当用户配置为空或未找到时，允许默认 admin/admin 登录
-	const defaultHash = "$2a$10$7dSwaeEyvftiwQigG9lUmeJokV/CV6IVcPPcCAxriAMQOxMX3n7FK"
-	if matchedUser == nil && req.Username == "admin" {
-		if err := bcrypt.CompareHashAndPassword([]byte(defaultHash), []byte(req.Password)); err == nil {
-			matchedUser = &model.User{
-				ID:           "user-admin-001",
-				Username:     "admin",
-				PasswordHash: defaultHash,
-				Role:         "admin",
-			}
+	var matchedUser *model.User
+	for i := range ws.userConfig.Users {
+		if ws.userConfig.Users[i].Username == req.Username {
+			matchedUser = &ws.userConfig.Users[i]
+			break
 		}
 	}
 
@@ -672,7 +693,7 @@ func (ws *webServer) saveUploadedFile(file multipart.File, header *multipart.Fil
 func newHTTPServer(addr string, handler http.Handler) *http.Server {
 	return &http.Server{
 		Addr:           addr,
-		Handler:        middleware.Recovery(middleware.Logger(handler)),
+		Handler:        handler,
 		ReadTimeout:    15 * time.Second,
 		WriteTimeout:   15 * time.Second,
 		IdleTimeout:    60 * time.Second,
@@ -721,26 +742,11 @@ func countByType(points []*config.Point) map[string]int {
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	if data == nil {
-		return
-	}
-	if err := json.NewEncoder(w).Encode(data); err != nil {
-		slog.Warn("write JSON failed", "error", err)
-	}
-}
-
-type ErrorResponse struct {
-	Error   string `json:"error"`
-	Code    string `json:"code,omitempty"`
-	Details any    `json:"details,omitempty"`
+	json.NewEncoder(w).Encode(data)
 }
 
 func writeError(w http.ResponseWriter, status int, msg string) {
-	writeJSON(w, status, ErrorResponse{Error: msg})
-}
-
-func writeErrorWithCode(w http.ResponseWriter, status int, code, msg string) {
-	writeJSON(w, status, ErrorResponse{Error: msg, Code: code})
+	writeJSON(w, status, map[string]string{"error": msg})
 }
 
 func sanitizeFilename(name string) string {

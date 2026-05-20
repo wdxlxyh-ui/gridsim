@@ -1,76 +1,15 @@
 import axios from 'axios'
 
-const STORAGE_KEY = 'iec104_auth_token'
-
 const http = axios.create({
   baseURL: '/api/v1',
   timeout: 10000,
 })
 
-// ── Auth token management ──────────────────────────────────────
-
-export function getToken(): string | null {
-  try {
-    return localStorage.getItem(STORAGE_KEY)
-  } catch {
-    return null
-  }
+export interface ModbusConfig {
+  port?: number
+  byte_order?: string
+  slave_id?: number
 }
-
-export function setToken(token: string): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, token)
-  } catch { /* ignore */ }
-}
-
-export function clearToken(): void {
-  try {
-    localStorage.removeItem(STORAGE_KEY)
-  } catch { /* ignore */ }
-}
-
-// ── Axios request interceptor: attach Bearer token ─────────────
-
-http.interceptors.request.use((config) => {
-  const token = getToken()
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config
-})
-
-// ── Axios response interceptor: handle 401 ─────────────────────
-
-http.interceptors.response.use(
-  (res) => res,
-  (error) => {
-    if (error.response && error.response.status === 401) {
-      clearToken()
-      if (!window.location.hash.includes('/login')) {
-        window.history.replaceState(null, '', '#/login')
-      }
-    }
-    return Promise.reject(error)
-  },
-)
-
-// ── Auth API ───────────────────────────────────────────────────
-
-export interface LoginResponse {
-  token: string
-  user: {
-    id: string
-    username: string
-    role: string
-  }
-}
-
-export async function login(username: string, password: string): Promise<LoginResponse> {
-  const res = await http.post('/auth/login', { username, password })
-  return res.data
-}
-
-// ── Shared types ───────────────────────────────────────────────
 
 export interface InstanceConfig {
   id?: string
@@ -80,6 +19,8 @@ export interface InstanceConfig {
   enabled?: boolean
   http_enabled?: boolean
   http_port?: number
+  protocol?: string
+  modbus_config?: ModbusConfig
 }
 
 export interface InstanceStats {
@@ -99,6 +40,7 @@ export interface InstanceState {
   enabled: boolean
   http_enabled?: boolean
   http_port?: number
+  protocol?: string
   status: 'running' | 'stopped' | 'error'
   stats?: InstanceStats
   error?: string
@@ -171,8 +113,6 @@ export async function listFiles(): Promise<{ name: string; size: number; modtime
   return res.data.files
 }
 
-// ── Point types and snapshots ─────────────────────────────────
-
 export interface PointSnapshot {
   ioa: number
   name: string
@@ -182,6 +122,9 @@ export interface PointSnapshot {
   int_value: number
   updated_at: string
   unit: string
+  function_code?: number
+  register_address?: number
+  byte_order?: string
 }
 
 export interface PointsResponse {
@@ -200,6 +143,7 @@ export interface StrategyParams {
    csv_file?: string
    time_format?: string
    time_unit?: string
+   csv_column_map?: string
    para_a?: string
    para_b?: string
    init_soc?: number
@@ -214,7 +158,7 @@ export interface StrategyParams {
    api_init_value?: number
    custom_ioas?: string
    custom_formula?: string
- }
+  }
 
 export interface AutoChangeConfig {
   ioa: number
@@ -232,8 +176,6 @@ export interface BatchAutoChangeRequest {
     params: StrategyParams
   }
 }
-
-// ── Detail page API (points, auto-change) ──────────────────────
 
 export async function getPoints(instanceId: string): Promise<PointsResponse> {
   const res = await http.get(`/instances/${instanceId}/points`)
@@ -296,4 +238,9 @@ export async function uploadCSV(instanceId: string, file: File): Promise<any> {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
   return res.data
+}
+
+export async function getProtocols(): Promise<string[]> {
+  const res = await http.get('/protocols')
+  return res.data.protocols
 }

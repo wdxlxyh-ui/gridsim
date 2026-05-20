@@ -2,6 +2,7 @@ package detail
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"math"
@@ -67,13 +68,16 @@ type strategyState struct {
 	csvRows      []csvRow
 	csvIndex     int
 	csvMTime     int64
+	csvStartTime time.Time
 	currentSOC   float64
 	currentEnergy float64
 }
 
 type csvRow struct {
-	delay time.Duration
-	value float64
+	delay   time.Duration
+	absTime time.Time
+	value   float64
+	values  map[int]float64
 }
 
 func (sr *strategyRunner) doIncrement(cfg *model.AutoChangeConfig, state *strategyState) {
@@ -113,23 +117,64 @@ func (sr *strategyRunner) doCSV(cfg *model.AutoChangeConfig, state *strategyStat
 	if !sr.ensureCSVRows(cfg, state) {
 		return
 	}
-	if state.csvIndex >= len(state.csvRows) {
-		if strings.EqualFold(cfg.Params.TimeFormat, "absolute") {
-			return
-		}
-		state.csvIndex = 0
-	}
-	row := state.csvRows[state.csvIndex]
-	state.csvIndex++
-	if state.csvIndex >= len(state.csvRows) && strings.EqualFold(cfg.Params.TimeFormat, "absolute") {
-		state.csvIndex = len(state.csvRows)
-	}
-	p, ok := sr.store.Get(cfg.PointIOA)
-	if !ok {
+	if len(state.csvRows) == 0 {
 		return
 	}
-	sr.store.SetValue(cfg.PointIOA, row.value)
-	sr.publisher.Publish(p)
+
+	if state.csvStartTime.IsZero() {
+		state.csvStartTime = time.Now()
+		state.csvIndex = 0
+	}
+
+	elapsed := time.Since(state.csvStartTime)
+	isAbsolute := strings.EqualFold(cfg.Params.TimeFormat, "absolute")
+	isMulti := cfg.Params.CSVColumnMap != ""
+
+	for state.csvIndex < len(state.csvRows) {
+		row := state.csvRows[state.csvIndex]
+		var apply bool
+		if isAbsolute {
+			apply = !time.Now().Before(row.absTime)
+		} else {
+			apply = elapsed >= row.delay
+		}
+		if apply {
+			if isMulti {
+				var colMap map[int]uint32
+				if err := json.Unmarshal([]byte(cfg.Params.CSVColumnMap), &colMap); err != nil {
+					return
+				}
+				for colIdx, ioa := range colMap {
+					if val, ok := row.values[colIdx]; ok {
+						p, ok := sr.store.Get(ioa)
+						if !ok {
+							continue
+						}
+						sr.store.SetValue(ioa, val)
+						sr.publisher.Publish(p)
+					}
+				}
+			} else {
+				p, ok := sr.store.Get(cfg.PointIOA)
+				if !ok {
+					return
+				}
+				sr.store.SetValue(cfg.PointIOA, row.value)
+				sr.publisher.Publish(p)
+			}
+			state.csvIndex++
+		} else {
+			break
+		}
+	}
+
+	if state.csvIndex >= len(state.csvRows) {
+		if isAbsolute {
+			return
+		}
+		state.csvStartTime = time.Now()
+		state.csvIndex = 0
+	}
 }
 
 func (sr *strategyRunner) ensureCSVRows(cfg *model.AutoChangeConfig, state *strategyState) bool {
@@ -159,10 +204,8 @@ func (sr *strategyRunner) ensureCSVRows(cfg *model.AutoChangeConfig, state *stra
 }
 
 func (sr *strategyRunner) loadCSVRows(cfg *model.AutoChangeConfig) []csvRow {
-	// Check instance-specific directory first (upload-csv saves here)
 	csvPath := filepath.Join(sr.configDir, "csv", sr.instanceID, cfg.Params.CSVFileName)
 	if _, err := os.Stat(csvPath); os.IsNotExist(err) {
-		// Fall back to shared directory
 		csvPath = filepath.Join(sr.configDir, "csv", cfg.Params.CSVFileName)
 	}
 	f, err := os.Open(csvPath)
@@ -176,10 +219,15 @@ func (sr *strategyRunner) loadCSVRows(cfg *model.AutoChangeConfig) []csvRow {
 		return nil
 	}
 
+	var colMap map[int]uint32
+	if cfg.Params.CSVColumnMap != "" {
+		json.Unmarshal([]byte(cfg.Params.CSVColumnMap), &colMap)
+	}
+	isMulti := len(colMap) > 0
+
 	var result []csvRow
 	if strings.EqualFold(cfg.Params.TimeFormat, "absolute") {
 		now := time.Now()
-		startIdx := -1
 		for i := 1; i < len(rows); i++ {
 			if len(rows[i]) < 2 {
 				continue
@@ -189,17 +237,18 @@ func (sr *strategyRunner) loadCSVRows(cfg *model.AutoChangeConfig) []csvRow {
 				continue
 			}
 			rowTime := time.Date(now.Year(), now.Month(), now.Day(), t.Hour(), t.Minute(), t.Second(), 0, now.Location())
-			val, err := strconv.ParseFloat(strings.TrimSpace(rows[i][1]), 64)
-			if err != nil {
-				continue
+
+			r := csvRow{absTime: rowTime}
+			if len(rows[i]) >= 2 {
+				r.value, _ = strconv.ParseFloat(strings.TrimSpace(rows[i][1]), 64)
 			}
-			result = append(result, csvRow{value: val})
-			if startIdx < 0 && !rowTime.Before(now) {
-				startIdx = len(result) - 1
+			if isMulti {
+				r.values = make(map[int]float64)
+				for colIdx := 1; colIdx < len(rows[i]); colIdx++ {
+					r.values[colIdx], _ = strconv.ParseFloat(strings.TrimSpace(rows[i][colIdx]), 64)
+				}
 			}
-		}
-		if startIdx > 0 {
-			result = append(result[startIdx:], result[:startIdx]...)
+			result = append(result, r)
 		}
 	} else {
 		for i := 1; i < len(rows); i++ {
@@ -207,10 +256,6 @@ func (sr *strategyRunner) loadCSVRows(cfg *model.AutoChangeConfig) []csvRow {
 				continue
 			}
 			delayStr := strings.TrimSpace(rows[i][0])
-			val, err := strconv.ParseFloat(strings.TrimSpace(rows[i][1]), 64)
-			if err != nil {
-				continue
-			}
 			d, err := strconv.Atoi(delayStr)
 			if err != nil {
 				continue
@@ -219,7 +264,19 @@ func (sr *strategyRunner) loadCSVRows(cfg *model.AutoChangeConfig) []csvRow {
 			if strings.EqualFold(cfg.Params.TimeUnit, "s") {
 				unit = time.Second
 			}
-			result = append(result, csvRow{delay: time.Duration(d) * unit, value: val})
+
+			r := csvRow{}
+			if len(rows[i]) >= 2 {
+				r.value, _ = strconv.ParseFloat(strings.TrimSpace(rows[i][1]), 64)
+			}
+			if isMulti {
+				r.values = make(map[int]float64)
+				for colIdx := 1; colIdx < len(rows[i]); colIdx++ {
+					r.values[colIdx], _ = strconv.ParseFloat(strings.TrimSpace(rows[i][colIdx]), 64)
+				}
+			}
+			r.delay = time.Duration(d) * unit
+			result = append(result, r)
 		}
 	}
 	return result
