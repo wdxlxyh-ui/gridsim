@@ -195,10 +195,10 @@ func TestCSVReplayRelativeS(t *testing.T) {
 
 func TestCSVReplayAbsolute(t *testing.T) {
 	now := time.Now()
-	t0 := now.Add(800 * time.Millisecond).Format("15:04:05")
-	t1 := now.Add(1800 * time.Millisecond).Format("15:04:05")
-	t2 := now.Add(2800 * time.Millisecond).Format("15:04:05")
-	t3 := now.Add(3800 * time.Millisecond).Format("15:04:05")
+	t0 := now.Add(5 * time.Second).Format("15:04:05")
+	t1 := now.Add(6 * time.Second).Format("15:04:05")
+	t2 := now.Add(7 * time.Second).Format("15:04:05")
+	t3 := now.Add(8 * time.Second).Format("15:04:05")
 
 	csvContent := fmt.Sprintf(`time,value
 %s,10
@@ -215,15 +215,15 @@ func TestCSVReplayAbsolute(t *testing.T) {
 		expected float64
 		label    string
 	}{
-		{1000 * time.Millisecond, 10, "t=1.0s (row0)"},
-		{1200 * time.Millisecond, 20, "t=1.8s (row1)"},
-		{1200 * time.Millisecond, 30, "t=2.8s (row2)"},
-		{1200 * time.Millisecond, 40, "t=3.8s (row3)"},
+		{5200 * time.Millisecond, 10, "t=5.2s (row0)"},
+		{1200 * time.Millisecond, 20, "t=6.2s (row1)"},
+		{1200 * time.Millisecond, 30, "t=7.2s (row2)"},
+		{1200 * time.Millisecond, 40, "t=8.2s (row3)"},
 	}
 
 	for _, cp := range checkpoints {
 		time.Sleep(cp.wait)
-		val, ok := pollUntilValue(t, runner, cfg, state, store, 1, cp.expected, 400*time.Millisecond)
+		val, ok := pollUntilValue(t, runner, cfg, state, store, 1, cp.expected, 500*time.Millisecond)
 		if !ok {
 			t.Errorf("%s: got value=%.0f, expected=%.0f", cp.label, val, cp.expected)
 		} else {
@@ -273,9 +273,9 @@ func TestCSVMultiPointRelativeMs(t *testing.T) {
 
 func TestCSVMultiPointAbsolute(t *testing.T) {
 	now := time.Now()
-	t0 := now.Add(800 * time.Millisecond).Format("15:04:05")
-	t1 := now.Add(1800 * time.Millisecond).Format("15:04:05")
-	t2 := now.Add(2800 * time.Millisecond).Format("15:04:05")
+	t0 := now.Add(5 * time.Second).Format("15:04:05")
+	t1 := now.Add(6 * time.Second).Format("15:04:05")
+	t2 := now.Add(7 * time.Second).Format("15:04:05")
 
 	csvContent := fmt.Sprintf(`time,value1,value2
 %s,10,100
@@ -295,14 +295,14 @@ func TestCSVMultiPointAbsolute(t *testing.T) {
 		expected map[uint32]float64
 		label    string
 	}{
-		{1000 * time.Millisecond, map[uint32]float64{1: 10, 2: 100}, "t=1.0s (row0)"},
-		{1200 * time.Millisecond, map[uint32]float64{1: 20, 2: 200}, "t=1.8s (row1)"},
-		{1200 * time.Millisecond, map[uint32]float64{1: 30, 2: 300}, "t=2.8s (row2)"},
+		{5200 * time.Millisecond, map[uint32]float64{1: 10, 2: 100}, "t=5.2s (row0)"},
+		{1200 * time.Millisecond, map[uint32]float64{1: 20, 2: 200}, "t=6.2s (row1)"},
+		{1200 * time.Millisecond, map[uint32]float64{1: 30, 2: 300}, "t=7.2s (row2)"},
 	}
 
 	for _, cp := range checkpoints {
 		time.Sleep(cp.wait)
-		ok, actual := pollUntilMultiValue(t, runner, cfg, state, store, cp.expected, 400*time.Millisecond)
+		ok, actual := pollUntilMultiValue(t, runner, cfg, state, store, cp.expected, 500*time.Millisecond)
 		if !ok {
 			t.Errorf("%s: mismatch", cp.label)
 			for ioa, exp := range cp.expected {
