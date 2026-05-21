@@ -80,7 +80,7 @@ const username = ref('')
 function updateUserFromToken() {
   username.value = ''
   try {
-    const raw = localStorage.getItem('iec104_auth_token')
+    const raw = localStorage.getItem('iec104_token')
     if (!raw) return
     const parts = raw.split('.')
     if (parts.length !== 3) return

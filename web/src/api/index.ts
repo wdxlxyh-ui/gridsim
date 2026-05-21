@@ -10,7 +10,7 @@ export function getToken(): string | null { return localStorage.getItem(TOKEN_KE
 export function setToken(token: string) { localStorage.setItem(TOKEN_KEY, token) }
 export function clearToken() { localStorage.removeItem(TOKEN_KEY) }
 export async function login(username: string, password: string): Promise<{ token: string }> {
-  const res = await axios.post('/api/v1/login', { username, password })
+  const res = await axios.post('/api/v1/auth/login', { username, password })
   return res.data
 }
 
