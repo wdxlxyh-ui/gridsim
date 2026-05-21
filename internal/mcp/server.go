@@ -202,7 +202,16 @@ func NewDataInterfaceServer(client *SimulatorClient) *server.MCPServer {
 		mcp.WithString("instance_id", mcp.Description("实例ID")),
 		mcp.WithArray("points",
 			mcp.Description("要写入的测点列表，每个元素包含 {ioa, value?, bool_value?, int_value?}"),
-			mcp.Items("object"),
+			mcp.Items(map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"ioa":        map[string]any{"type": "number"},
+					"value":      map[string]any{"type": "number"},
+					"bool_value": map[string]any{"type": "boolean"},
+					"int_value":  map[string]any{"type": "number"},
+				},
+				"required": []string{"ioa"},
+			}),
 			mcp.Required(),
 		),
 	), toolHandler(client, func(c *SimulatorClient, args map[string]any) (any, error) {
