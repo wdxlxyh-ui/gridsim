@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IEC104 Simulator — CSV 多测点映射配置</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg-primary:#0a0e14;
+  --bg-secondary:#111820;
+  --bg-tertiary:#1a2332;
+  --bg-card:#151d2a;
+  --bg-hover:#1e2a3a;
+  --border:#2a3a4e;
+  --border-active:#3b82f6;
+  --text-primary:#e2e8f0;
+  --text-secondary:#94a3b8;
+  --text-muted:#64748b;
+  --accent:#3b82f6;
+  --accent-glow:rgba(59,130,246,.15);
+  --success:#10b981;
+  --success-glow:rgba(16,185,129,.12);
+  --warning:#f59e0b;
+  --danger:#ef4444;
+  --danger-glow:rgba(239,68,68,.1);
+  --radius:8px;
+  --radius-lg:12px;
+  --shadow:0 4px 24px rgba(0,0,0,.4);
+  --transition:all .2s cubic-bezier(.4,0,.2,1);
+}
+html{font-size:14px}
+body{
+  font-family:'Noto Sans SC','Outfit',sans-serif;
+  background:var(--bg-primary);
+  color:var(--text-primary);
+  min-height:100vh;
+  overflow-x:hidden;
+}
+body::before{
+  content:'';position:fixed;inset:0;
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 10%,rgba(59,130,246,.06),transparent),
+    radial-gradient(ellipse 60% 50% at 80% 80%,rgba(16,185,129,.04),transparent);
+  pointer-events:none;z-index:0;
+}
+
+/* ── Layout ── */
+.app{position:relative;z-index:1;max-width:1200px;margin:0 auto;padding:32px 24px}
+
+/* ── Header ── */
+.header{
+  display:flex;align-items:center;gap:16px;
+  margin-bottom:32px;padding-bottom:20px;
+  border-bottom:1px solid var(--border);
+}
+.header-icon{
+  width:44px;height:44px;border-radius:var(--radius);
+  background:linear-gradient(135deg,var(--accent),#6366f1);
+  display:flex;align-items:center;justify-content:center;
+  font-size:20px;box-shadow:0 0 20px rgba(59,130,246,.3);
+}
+.header h1{font-size:1.5rem;font-weight:600;letter-spacing:-.02em}
+.header p{font-size:.85rem;color:var(--text-secondary);margin-top:2px}
+.badge{
+  margin-left:auto;padding:4px 12px;border-radius:20px;
+  font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;
+  background:var(--accent-glow);color:var(--accent);border:1px solid rgba(59,130,246,.25);
+}
+
+/* ── Grid ── */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:860px){.grid{grid-template-columns:1fr}}
+
+/* ── Card ── */
+.card{
+  background:var(--bg-card);border:1px solid var(--border);
+  border-radius:var(--radius-lg);padding:24px;
+  transition:var(--transition);
+}
+.card:hover{border-color:rgba(59,130,246,.3)}
+.card-title{
+  font-size:.8rem;font-weight:600;text-transform:uppercase;
+  letter-spacing:.1em;color:var(--text-muted);margin-bottom:16px;
+  display:flex;align-items:center;gap:8px;
+}
+.card-title .dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+
+/* ── Form Elements ── */
+.form-group{margin-bottom:16px}
+.form-group:last-child{margin-bottom:0}
+.form-label{
+  display:block;font-size:.78rem;font-weight:500;
+  color:var(--text-secondary);margin-bottom:6px;
+  letter-spacing:.02em;
+}
+.input,.select{
+  width:100%;padding:8px 12px;border-radius:var(--radius);
+  border:1px solid var(--border);background:var(--bg-secondary);
+  color:var(--text-primary);font-size:.88rem;
+  font-family:inherit;transition:var(--transition);
+  outline:none;
+}
+.input:focus,.select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.input::placeholder{color:var(--text-muted)}
+.select{cursor:pointer;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;padding-right:32px;
+}
+
+/* ── Radio Group ── */
+.radio-group{display:flex;gap:8px;flex-wrap:wrap}
+.radio-btn{
+  padding:6px 14px;border-radius:var(--radius);
+  border:1px solid var(--border);background:var(--bg-secondary);
+  color:var(--text-secondary);font-size:.82rem;cursor:pointer;
+  transition:var(--transition);user-select:none;
+}
+.radio-btn:hover{border-color:var(--accent);color:var(--text-primary)}
+.radio-btn.active{
+  background:var(--accent-glow);border-color:var(--accent);
+  color:var(--accent);font-weight:500;
+}
+
+/* ── Upload Area ── */
+.upload-area{
+  border:2px dashed var(--border);border-radius:var(--radius-lg);
+  padding:24px;text-align:center;cursor:pointer;
+  transition:var(--transition);position:relative;overflow:hidden;
+}
+.upload-area:hover{border-color:var(--accent);background:var(--accent-glow)}
+.upload-area.has-file{border-color:var(--success);background:var(--success-glow)}
+.upload-icon{font-size:28px;margin-bottom:8px;opacity:.6}
+.upload-text{font-size:.85rem;color:var(--text-secondary)}
+.upload-hint{font-size:.72rem;color:var(--text-muted);margin-top:4px}
+.file-name{
+  display:inline-flex;align-items:center;gap:6px;
+  margin-top:8px;padding:4px 12px;border-radius:20px;
+  background:var(--success-glow);color:var(--success);
+  font-size:.78rem;font-weight:500;
+}
+
+/* ── Mapping Table ── */
+.mapping-section{margin-top:4px}
+.mapping-row{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 12px;border-radius:var(--radius);
+  background:var(--bg-secondary);border:1px solid var(--border);
+  margin-bottom:8px;transition:var(--transition);
+  animation:slideIn .3s ease;
+}
+@keyframes slideIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+.mapping-row:hover{border-color:rgba(59,130,246,.3)}
+.mapping-label{
+  font-family:'JetBrains Mono',monospace;font-size:.78rem;
+  font-weight:600;color:var(--accent);min-width:56px;
+  padding:3px 8px;background:var(--accent-glow);border-radius:4px;
+  text-align:center;
+}
+.mapping-row .select{flex:1;min-width:0}
+.mapping-remove{
+  width:28px;height:28px;border-radius:50%;border:none;
+  background:transparent;color:var(--text-muted);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:var(--transition);font-size:16px;flex-shrink:0;
+}
+.mapping-remove:hover{background:var(--danger-glow);color:var(--danger)}
+.mapping-remove:disabled{opacity:.25;cursor:not-allowed}
+.mapping-remove:disabled:hover{background:transparent;color:var(--text-muted)}
+
+.btn-add{
+  width:100%;padding:10px;border-radius:var(--radius);
+  border:1px dashed var(--border);background:transparent;
+  color:var(--text-secondary);font-size:.82rem;cursor:pointer;
+  transition:var(--transition);font-family:inherit;
+  display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.btn-add:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-glow)}
+.btn-add:disabled{opacity:.3;cursor:not-allowed}
+.btn-add:disabled:hover{border-color:var(--border);color:var(--text-muted);background:transparent}
+
+/* ── CSV Preview ── */
+.csv-preview{margin-top:16px;overflow-x:auto}
+.csv-table{width:100%;border-collapse:collapse;font-size:.78rem}
+.csv-table th{
+  padding:8px 10px;text-align:left;font-weight:600;
+  color:var(--text-muted);border-bottom:1px solid var(--border);
+  font-family:'JetBrains Mono',monospace;font-size:.72rem;
+  text-transform:uppercase;letter-spacing:.06em;
+}
+.csv-table td{
+  padding:6px 10px;border-bottom:1px solid rgba(42,58,78,.4);
+  font-family:'JetBrains Mono',monospace;color:var(--text-secondary);
+}
+.csv-table tr:hover td{color:var(--text-primary);background:var(--bg-hover)}
+.csv-table .time-col{color:var(--accent)}
+
+/* ── Toggle Switch ── */
+.toggle-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px;border-radius:var(--radius);
+  background:var(--bg-secondary);border:1px solid var(--border);
+}
+.toggle-label{font-size:.88rem;font-weight:500}
+.toggle-desc{font-size:.72rem;color:var(--text-muted);margin-top:2px}
+.toggle{
+  position:relative;width:44px;height:24px;cursor:pointer;
+}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-track{
+  position:absolute;inset:0;border-radius:12px;
+  background:var(--border);transition:var(--transition);
+}
+.toggle-track::after{
+  content:'';position:absolute;top:3px;left:3px;
+  width:18px;height:18px;border-radius:50%;
+  background:white;transition:var(--transition);
+  box-shadow:0 1px 3px rgba(0,0,0,.3);
+}
+.toggle input:checked+.toggle-track{background:var(--success)}
+.toggle input:checked+.toggle-track::after{transform:translateX(20px)}
+
+/* ── Status Indicator ── */
+.status-bar{
+  display:flex;align-items:center;gap:12px;
+  padding:12px 16px;border-radius:var(--radius);
+  background:var(--bg-secondary);border:1px solid var(--border);
+  margin-top:12px;
+}
+.status-dot{
+  width:8px;height:8px;border-radius:50%;
+  background:var(--text-muted);transition:var(--transition);
+}
+.status-dot.active{
+  background:var(--success);
+  box-shadow:0 0 8px rgba(16,185,129,.5);
+  animation:pulse 2s infinite;
+}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.status-text{font-size:.82rem;color:var(--text-secondary)}
+.status-text strong{color:var(--text-primary);font-weight:600}
+
+/* ── Action Buttons ── */
+.actions{display:flex;gap:10px;margin-top:20px}
+.btn{
+  padding:10px 24px;border-radius:var(--radius);font-size:.88rem;
+  font-weight:500;cursor:pointer;transition:var(--transition);
+  font-family:inherit;border:none;
+}
+.btn-primary{
+  background:linear-gradient(135deg,var(--accent),#6366f1);
+  color:white;box-shadow:0 4px 12px rgba(59,130,246,.3);
+}
+.btn-primary:hover{box-shadow:0 6px 20px rgba(59,130,246,.4);transform:translateY(-1px)}
+.btn-secondary{
+  background:var(--bg-tertiary);color:var(--text-secondary);
+  border:1px solid var(--border);
+}
+.btn-secondary:hover{border-color:var(--accent);color:var(--text-primary)}
+
+/* ── Live Activity Panel ── */
+.activity-panel{grid-column:1/-1}
+.activity-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:12px}
+.activity-card{
+  padding:14px;border-radius:var(--radius);
+  background:var(--bg-secondary);border:1px solid var(--border);
+  transition:var(--transition);
+}
+.activity-card.active{border-color:var(--success);background:var(--success-glow)}
+.activity-card .label{font-size:.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em}
+.activity-card .value{
+  font-family:'JetBrains Mono',monospace;font-size:1.3rem;
+  font-weight:600;margin-top:6px;color:var(--text-primary);
+}
+.activity-card .value.live{color:var(--success)}
+.activity-card .meta{font-size:.72rem;color:var(--text-muted);margin-top:4px}
+
+/* ── JSON Output ── */
+.json-output{
+  margin-top:16px;padding:16px;border-radius:var(--radius);
+  background:var(--bg-secondary);border:1px solid var(--border);
+  font-family:'JetBrains Mono',monospace;font-size:.75rem;
+  color:var(--text-secondary);white-space:pre-wrap;
+  word-break:break-all;max-height:200px;overflow-y:auto;
+  line-height:1.6;
+}
+.json-output .key{color:#7dd3fc}
+.json-output .string{color:#86efac}
+.json-output .number{color:#fbbf24}
+.json-output .bool{color:#c084fc}
+
+/* ── Tooltip ── */
+.info-tip{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:16px;height:16px;border-radius:50%;
+  background:var(--bg-tertiary);color:var(--text-muted);
+  font-size:.65rem;cursor:help;margin-left:4px;
+  border:1px solid var(--border);
+}
+
+/* ── Divider ── */
+.divider{height:1px;background:var(--border);margin:16px 0}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--text-muted)}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Header -->
+  <div class="header">
+    <div class="header-icon">⚡</div>
+    <div>
+      <h1>CSV 多测点映射配置</h1>
+      <p>IEC104 Simulator v2.5 — 自动变化策略</p>
+    </div>
+    <span class="badge">Interactive Demo</span>
+  </div>
+
+  <div class="grid">
+    <!-- Left Column -->
+    <div style="display:flex;flex-direction:column;gap:20px">
+      <!-- CSV File Upload -->
+      <div class="card">
+        <div class="card-title"><span class="dot"></span>CSV 文件</div>
+        <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+          <input type="file" id="fileInput" accept=".csv" style="display:none" onchange="handleFileSelect(event)">
+          <div id="uploadPlaceholder">
+            <div class="upload-icon">📄</div>
+            <div class="upload-text">点击上传 CSV 文件或拖拽到此处</div>
+            <div class="upload-hint">格式: time,value1,value2,... — 最多 10 列</div>
+          </div>
+          <div id="uploadFile" style="display:none">
+            <div class="upload-icon" style="opacity:.8">✅</div>
+            <div class="file-name" id="fileName"></div>
+            <div class="upload-hint" style="margin-top:6px">点击更换文件</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Time Configuration -->
+      <div class="card">
+        <div class="card-title"><span class="dot"></span>时间配置</div>
+        <div class="form-group">
+          <label class="form-label">时间格式</label>
+          <div class="radio-group" id="timeFormatGroup">
+            <div class="radio-btn active" data-value="relative" onclick="setTimeFormat('relative')">相对时间</div>
+            <div class="radio-btn" data-value="absolute" onclick="setTimeFormat('absolute')">绝对时间</div>
+          </div>
+        </div>
+        <div class="form-group" id="timeUnitGroup">
+          <label class="form-label">时间单位</label>
+          <div class="radio-group" id="timeUnitGroupInner">
+            <div class="radio-btn active" data-value="ms" onclick="setTimeUnit('ms')">毫秒 (ms)</div>
+            <div class="radio-btn" data-value="s" onclick="setTimeUnit('s')">秒 (s)</div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">变化周期 <span class="info-tip" title="CSV 回放中此参数不影响回放节奏，仅用于调度器心跳">?</span></label>
+          <input type="number" class="input" value="100" min="100" step="100" id="periodMs" style="width:120px">
+          <span style="font-size:.72rem;color:var(--text-muted);margin-left:6px">ms（≥100）</span>
+        </div>
+      </div>
+
+      <!-- Point Mapping -->
+      <div class="card">
+        <div class="card-title"><span class="dot"></span>测点映射 <span class="info-tip" title="将 CSV 的每一列 value 映射到具体的测点 IOA">?</span></div>
+        <div class="mapping-section" id="mappingSection">
+          <!-- Mapping rows injected by JS -->
+        </div>
+        <button class="btn-add" id="btnAddMapping" onclick="addMapping()">
+          <span style="font-size:16px">+</span> 添加映射列
+        </button>
+        <div style="font-size:.72rem;color:var(--text-muted);margin-top:10px">
+          最多支持 10 列 value 映射
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column -->
+    <div style="display:flex;flex-direction:column;gap:20px">
+      <!-- Enable Toggle -->
+      <div class="card">
+        <div class="card-title"><span class="dot"></span>策略控制</div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">启用 CSV 回放</div>
+            <div class="toggle-desc">启用后按 CSV 时间序列自动更新测点值</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="enableToggle" onchange="onToggleChange()">
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+        <div class="status-bar" id="statusBar">
+          <div class="status-dot" id="statusDot"></div>
+          <div class="status-text" id="statusText">策略未启用</div>
+        </div>
+      </div>
+
+      <!-- CSV Preview -->
+      <div class="card">
+        <div class="card-title"><span class="dot"></span>CSV 预览</div>
+        <div class="csv-preview" id="csvPreview">
+          <div style="text-align:center;padding:24px;color:var(--text-muted);font-size:.82rem">
+            上传 CSV 文件后显示预览
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Activity -->
+      <div class="card activity-panel">
+        <div class="card-title"><span class="dot"></span>实时回放状态</div>
+        <div class="activity-grid" id="activityGrid">
+          <div class="activity-card" id="act-time">
+            <div class="label">回放时间</div>
+            <div class="value" id="actTimeValue">--:--</div>
+            <div class="meta">已运行时长</div>
+          </div>
+          <div class="activity-card" id="act-row">
+            <div class="label">当前行</div>
+            <div class="value" id="actRowValue">0 / 0</div>
+            <div class="meta">CSV 数据行</div>
+          </div>
+          <div class="activity-card" id="act-points">
+            <div class="label">活跃测点</div>
+            <div class="value" id="actPointsValue">0</div>
+            <div class="meta">映射 IOA 数量</div>
+          </div>
+          <div class="activity-card" id="act-status">
+            <div class="label">策略状态</div>
+            <div class="value" id="actStatusValue">IDLE</div>
+            <div class="meta">运行状态</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- JSON Output -->
+      <div class="card">
+        <div class="card-title"><span class="dot"></span>API 请求体预览</div>
+        <div class="json-output" id="jsonOutput">{
+  <span class="key">"strategy"</span>: <span class="string">"csv"</span>,
+  <span class="key">"enabled"</span>: <span class="bool">false</span>,
+  <span class="key">"params"</span>: {
+    <span class="key">"csv_file"</span>: <span class="string">""</span>,
+    <span class="key">"time_format"</span>: <span class="string">"relative"</span>,
+    <span class="key">"time_unit"</span>: <span class="string">"ms"</span>,
+    <span class="key">"csv_column_map"</span>: <span class="string">"{}"</span>
+  }
+}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="actions">
+    <button class="btn btn-primary" onclick="applyConfig()">应用配置</button>
+    <button class="btn btn-secondary" onclick="resetConfig()">重置</button>
+    <button class="btn btn-secondary" onclick="loadDemo()">加载示例</button>
+  </div>
+</div>
+
+<script>
+// ── State ──
+const state = {
+  csvFile: '',
+  timeFormat: 'relative',
+  timeUnit: 'ms',
+  periodMs: 100,
+  enabled: false,
+  mappings: [{ ioa: 0 }],
+  csvData: [],
+  maxColumns: 10
+};
+
+// Mock IOA points for dropdown
+const mockPoints = [
+  { ioa: 16385, name: 'BS.CtrlState', type: 'DI' },
+  { ioa: 16386, name: 'BS.ActivePW', type: 'AI' },
+  { ioa: 16387, name: 'BS.Soc', type: 'AI' },
+  { ioa: 16388, name: 'BS.SysAPSetPoint', type: 'AO' },
+  { ioa: 16389, name: 'BS.Stop', type: 'AO' },
+  { ioa: 16390, name: 'BS.GridMeterP', type: 'AI' },
+  { ioa: 16391, name: 'BS.GridMeterQ', type: 'AI' },
+  { ioa: 16392, name: 'BS.BatterySOC', type: 'AI' },
+  { ioa: 16393, name: 'BS.PCS_Power', type: 'AI' },
+  { ioa: 16394, name: 'BS.Frequency', type: 'AI' },
+];
+
+// ── Init ──
+function init() {
+  renderMappings();
+  updateJsonOutput();
+}
+
+// ── File Upload ──
+function handleFileSelect(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  state.csvFile = file.name;
+  document.getElementById('uploadPlaceholder').style.display = 'none';
+  document.getElementById('uploadFile').style.display = 'block';
+  document.getElementById('fileName').textContent = file.name;
+  document.getElementById('uploadArea').classList.add('has-file');
+  
+  // Parse CSV
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    parseCSV(ev.target.result);
+  };
+  reader.readAsText(file);
+}
+
+function parseCSV(text) {
+  const lines = text.trim().split('\n').map(l => l.split(',').map(c => c.trim()));
+  if (lines.length < 2) return;
+  
+  state.csvData = lines.slice(1);
+  const colCount = lines[0].length - 1; // minus time column
+  
+  // Auto-add mappings to match CSV columns
+  while (state.mappings.length < colCount) {
+    state.mappings.push({ ioa: 0 });
+  }
+  renderMappings();
+  renderCSVPreview(lines[0], state.csvData);
+  updateJsonOutput();
+}
+
+// ── CSV Preview ──
+function renderCSVPreview(headers, rows) {
+  const container = document.getElementById('csvPreview');
+  const displayRows = rows.slice(0, 8);
+  let html = '<table class="csv-table"><thead><tr>';
+  headers.forEach(h => {
+    html += `<th>${h}</th>`;
+  });
+  html += '</tr></thead><tbody>';
+  displayRows.forEach(row => {
+    html += '<tr>';
+    row.forEach((cell, i) => {
+      html += i === 0 ? `<td class="time-col">${cell}</td>` : `<td>${cell}</td>`;
+    });
+    html += '</tr>';
+  });
+  if (rows.length > 8) {
+    html += `<tr><td colspan="${headers.length}" style="text-align:center;color:var(--text-muted)">... 共 ${rows.length} 行 ...</td></tr>`;
+  }
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+// ── Time Format ──
+function setTimeFormat(fmt) {
+  state.timeFormat = fmt;
+  document.querySelectorAll('#timeFormatGroup .radio-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.value === fmt);
+  });
+  document.getElementById('timeUnitGroup').style.display = fmt === 'relative' ? 'block' : 'none';
+  updateJsonOutput();
+}
+
+function setTimeUnit(unit) {
+  state.timeUnit = unit;
+  document.querySelectorAll('#timeUnitGroupInner .radio-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.value === unit);
+  });
+  updateJsonOutput();
+}
+
+// ── Mappings ──
+function renderMappings() {
+  const section = document.getElementById('mappingSection');
+  let html = '';
+  state.mappings.forEach((m, idx) => {
+    const colLabel = `Value${idx + 1}`;
+    html += `<div class="mapping-row">
+      <span class="mapping-label">${colLabel}</span>
+      <select class="select" onchange="onMappingChange(${idx}, this.value)">
+        <option value="0">— 选择测点 —</option>`;
+    mockPoints.forEach(p => {
+      const sel = m.ioa === p.ioa ? 'selected' : '';
+      html += `<option value="${p.ioa}" ${sel}>${p.name} (IOA:${p.ioa}) [${p.type}]</option>`;
+    });
+    html += `</select>
+      <button class="mapping-remove" onclick="removeMapping(${idx})" ${state.mappings.length <= 1 ? 'disabled' : ''}>×</button>
+    </div>`;
+  });
+  section.innerHTML = html;
+  
+  const btn = document.getElementById('btnAddMapping');
+  btn.disabled = state.mappings.length >= state.maxColumns;
+  
+  // Update activity
+  const activeCount = state.mappings.filter(m => m.ioa > 0).length;
+  document.getElementById('actPointsValue').textContent = activeCount;
+}
+
+function addMapping() {
+  if (state.mappings.length >= state.maxColumns) return;
+  state.mappings.push({ ioa: 0 });
+  renderMappings();
+  updateJsonOutput();
+}
+
+function removeMapping(idx) {
+  if (state.mappings.length <= 1) return;
+  state.mappings.splice(idx, 1);
+  renderMappings();
+  updateJsonOutput();
+}
+
+function onMappingChange(idx, value) {
+  state.mappings[idx].ioa = parseInt(value);
+  renderMappings();
+  updateJsonOutput();
+}
+
+// ── Toggle ──
+function onToggleChange() {
+  state.enabled = document.getElementById('enableToggle').checked;
+  const dot = document.getElementById('statusDot');
+  const text = document.getElementById('statusText');
+  
+  if (state.enabled) {
+    dot.classList.add('active');
+    text.innerHTML = '策略运行中 — <strong>CSV 回放</strong>';
+    document.getElementById('actStatusValue').textContent = 'RUNNING';
+    document.getElementById('actStatusValue').style.color = 'var(--success)';
+    // Simulate activity
+    simulateActivity();
+  } else {
+    dot.classList.remove('active');
+    text.textContent = '策略未启用';
+    document.getElementById('actStatusValue').textContent = 'IDLE';
+    document.getElementById('actStatusValue').style.color = '';
+  }
+  updateJsonOutput();
+}
+
+// ── Simulate Activity ──
+let simInterval = null;
+function simulateActivity() {
+  if (simInterval) clearInterval(simInterval);
+  let elapsed = 0;
+  let rowIdx = 0;
+  simInterval = setInterval(() => {
+    if (!state.enabled) { clearInterval(simInterval); simInterval = null; return; }
+    elapsed += 100;
+    const mins = Math.floor(elapsed / 60000);
+    const secs = Math.floor((elapsed % 60000) / 1000);
+    const ms = elapsed % 1000;
+    document.getElementById('actTimeValue').textContent = 
+      `${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}.${String(ms).padStart(3,'0')}`;
+    document.getElementById('actTimeValue').classList.add('live');
+    
+    if (state.csvData.length > 0) {
+      rowIdx = Math.min(Math.floor(elapsed / 500), state.csvData.length - 1);
+      document.getElementById('actRowValue').textContent = `${rowIdx + 1} / ${state.csvData.length}`;
+      
+      // Flash active cards
+      state.mappings.forEach((m, i) => {
+        if (m.ioa > 0) {
+          const card = document.getElementById('act-points');
+          card.classList.add('active');
+          setTimeout(() => card.classList.remove('active'), 300);
+        }
+      });
+    }
+  }, 100);
+}
+
+// ── JSON Output ──
+function updateJsonOutput() {
+  const colMap = {};
+  state.mappings.forEach((m, idx) => {
+    if (m.ioa > 0) colMap[idx + 1] = m.ioa;
+  });
+  
+  const json = {
+    strategy: "csv",
+    enabled: state.enabled,
+    params: {
+      csv_file: state.csvFile || "",
+      time_format: state.timeFormat,
+      time_unit: state.timeUnit,
+      csv_column_map: JSON.stringify(colMap)
+    }
+  };
+  
+  const el = document.getElementById('jsonOutput');
+  el.innerHTML = syntaxHighlight(JSON.stringify(json, null, 2));
+}
+
+function syntaxHighlight(json) {
+  return json
+    .replace(/"([^"]+)":/g, '<span class="key">"$1"</span>:')
+    .replace(/: "([^"]*)"/g, ': <span class="string">"$1"</span>')
+    .replace(/: (\d+)/g, ': <span class="number">$1</span>')
+    .replace(/: (true|false)/g, ': <span class="bool">$1</span>');
+}
+
+// ── Actions ──
+function applyConfig() {
+  const activeMappings = state.mappings.filter(m => m.ioa > 0);
+  if (activeMappings.length === 0) {
+    alert('请至少映射一个测点');
+    return;
+  }
+  if (!state.csvFile) {
+    alert('请先上传 CSV 文件');
+    return;
+  }
+  alert(`配置已应用！\n\n映射测点数: ${activeMappings.length}\nCSV 文件: ${state.csvFile}\n时间格式: ${state.timeFormat}${state.timeFormat === 'relative' ? ' (' + state.timeUnit + ')' : ''}`);
+}
+
+function resetConfig() {
+  state.csvFile = '';
+  state.timeFormat = 'relative';
+  state.timeUnit = 'ms';
+  state.enabled = false;
+  state.mappings = [{ ioa: 0 }];
+  state.csvData = [];
+  
+  document.getElementById('enableToggle').checked = false;
+  document.getElementById('uploadPlaceholder').style.display = 'block';
+  document.getElementById('uploadFile').style.display = 'none';
+  document.getElementById('uploadArea').classList.remove('has-file');
+  document.getElementById('csvPreview').innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-muted);font-size:.82rem">上传 CSV 文件后显示预览</div>';
+  document.getElementById('statusDot').classList.remove('active');
+  document.getElementById('statusText').textContent = '策略未启用';
+  document.getElementById('actTimeValue').textContent = '--:--';
+  document.getElementById('actTimeValue').classList.remove('live');
+  document.getElementById('actRowValue').textContent = '0 / 0';
+  document.getElementById('actPointsValue').textContent = '0';
+  document.getElementById('actStatusValue').textContent = 'IDLE';
+  document.getElementById('actStatusValue').style.color = '';
+  document.getElementById('timeUnitGroup').style.display = 'block';
+  
+  setTimeFormat('relative');
+  setTimeUnit('ms');
+  renderMappings();
+  updateJsonOutput();
+}
+
+function loadDemo() {
+  state.csvFile = 'demo-multi-value.csv';
+  document.getElementById('uploadPlaceholder').style.display = 'none';
+  document.getElementById('uploadFile').style.display = 'block';
+  document.getElementById('fileName').textContent = 'demo-multi-value.csv';
+  document.getElementById('uploadArea').classList.add('has-file');
+  
+  const demoCSV = `time,value1,value2,value3
+0,100,200,300
+500,110,210,310
+1000,120,220,320
+1500,130,230,330
+2000,140,240,340
+2500,150,250,350
+3000,160,260,360
+3500,170,270,370
+4000,180,280,380
+4500,190,290,390
+5000,200,300,400`;
+  
+  const lines = demoCSV.trim().split('\n').map(l => l.split(',').map(c => c.trim()));
+  state.csvData = lines.slice(1);
+  state.mappings = [
+    { ioa: 16386 },
+    { ioa: 16390 },
+    { ioa: 16393 }
+  ];
+  
+  renderCSVPreview(lines[0], state.csvData);
+  renderMappings();
+  updateJsonOutput();
+}
+
+init();
+</script>
+</body>
+</html>

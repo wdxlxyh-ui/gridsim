@@ -1,6 +1,6 @@
 # IEC 104 模拟器 MCP 使用指南
 
-> 版本: 1.1 | 更新日期: 2026-05-20
+> 版本: 1.1 | 更新日期: 2026-05-21
 
 ## 概述
 
@@ -181,6 +181,6 @@ Error: dial tcp connection refused
 
 ## 版本信息
 
-- IEC104 Simulator: 2.5.1+
+- IEC104 Simulator: 2.5.2+
 - MCP Server: 1.1.0
 - 工具总数: 26

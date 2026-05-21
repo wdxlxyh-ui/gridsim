@@ -1,0 +1,466 @@
+/* iec104-simulator — cyberpunk tech theme */
+.tpl-cyber {
+  --bg: #050510;
+  --bg-soft: #0a0a1a;
+  --surface: rgba(12, 12, 30, 0.85);
+  --surface-2: rgba(20, 20, 45, 0.7);
+  --border: rgba(0, 240, 255, 0.15);
+  --border-strong: rgba(0, 240, 255, 0.35);
+  --text-1: #e8ecf4;
+  --text-2: #9ca3b8;
+  --text-3: #5a6080;
+  --accent: #00f0ff;
+  --accent-2: #ff2bd6;
+  --accent-3: #f9f871;
+  --good: #39ff14;
+  --warn: #f9f871;
+  --bad: #ff2bd6;
+  --grad: linear-gradient(135deg, #00f0ff, #7a00ff 50%, #ff2bd6);
+  --grad-soft: linear-gradient(135deg, rgba(0,240,255,0.12), rgba(255,43,214,0.12));
+  --radius: 8px;
+  --radius-sm: 4px;
+  --radius-lg: 14px;
+  --shadow: 0 0 0 1px rgba(0,240,255,0.2), 0 0 20px rgba(0,240,255,0.15);
+  --shadow-lg: 0 0 0 1px rgba(255,43,214,0.3), 0 0 40px rgba(0,240,255,0.25);
+  --font-sans: 'Inter', 'Noto Sans SC', sans-serif;
+  --font-display: 'Inter', 'Noto Sans SC', sans-serif;
+  --font-mono: 'JetBrains Mono', 'IBM Plex Mono', monospace;
+}
+
+.tpl-cyber {
+  background: var(--bg);
+  color: var(--text-1);
+}
+
+.tpl-cyber .slide {
+  padding: 64px 80px;
+  background: var(--bg);
+  color: var(--text-1);
+}
+
+/* Background grid + glow effects */
+.tpl-cyber .slide::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 80% 10%, rgba(0,240,255,0.10), transparent 70%),
+    radial-gradient(ellipse 50% 50% at 15% 85%, rgba(255,43,214,0.08), transparent 60%),
+    linear-gradient(rgba(0,240,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,240,255,0.025) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 32px 32px, 32px 32px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.tpl-cyber .slide > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Typography overrides */
+.tpl-cyber .h1 {
+  font-size: 72px;
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #fff;
+  text-shadow: 0 0 20px rgba(0,240,255,0.3), 0 0 40px rgba(0,240,255,0.15);
+}
+
+.tpl-cyber .h2 {
+  font-size: 48px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #fff;
+  text-shadow: 0 0 12px rgba(0,240,255,0.25);
+}
+
+.tpl-cyber h3, .tpl-cyber h4 {
+  color: #fff;
+}
+
+.tpl-cyber .kicker {
+  color: var(--accent);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 8px rgba(0,240,255,0.5);
+}
+
+.tpl-cyber .kicker::before {
+  content: "> ";
+  opacity: 0.6;
+}
+
+.tpl-cyber .mono {
+  font-family: 'JetBrains Mono', 'IBM Plex Mono', monospace;
+}
+
+.tpl-cyber .lede {
+  color: var(--text-2);
+  font-size: 20px;
+}
+
+/* Terminal / code blocks */
+.tpl-cyber .terminal {
+  background: #030308;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(0,240,255,0.15), 0 20px 60px rgba(0,0,0,0.6);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.tpl-cyber .terminal .bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: rgba(15,15,30,0.9);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.tpl-cyber .terminal .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff5f56;
+}
+
+.tpl-cyber .terminal .dot:nth-child(2) { background: #ffbd2e; }
+.tpl-cyber .terminal .dot:nth-child(3) { background: #27c93f; }
+
+.tpl-cyber .terminal pre {
+  margin: 0;
+  padding: 20px 24px;
+  color: var(--text-1);
+  overflow: auto;
+  max-height: 380px;
+}
+
+.tpl-cyber .kw { color: #ff2bd6; }
+.tpl-cyber .fn { color: #00f0ff; }
+.tpl-cyber .str { color: #f9f871; }
+.tpl-cyber .cmt { color: #5a6080; font-style: italic; }
+.tpl-cyber .num { color: #7a00ff; }
+
+/* Cards */
+.tpl-cyber .card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(6px);
+}
+
+.tpl-cyber .card-accent {
+  border-top: 2px solid var(--accent);
+  box-shadow: 0 0 0 1px rgba(0,240,255,0.15), 0 0 16px rgba(0,240,255,0.1);
+}
+
+.tpl-cyber .card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 24px rgba(0,240,255,0.2);
+}
+
+/* Pills & tags */
+.tpl-cyber .pill {
+  background: var(--surface-2);
+  color: var(--text-2);
+  border-color: var(--border);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+}
+
+.tpl-cyber .pill-accent {
+  background: rgba(0,240,255,0.12);
+  color: var(--accent);
+  border-color: rgba(0,240,255,0.35);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+}
+
+.tpl-cyber .tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+}
+
+/* Pill row */
+.tpl-cyber .pill-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Data table */
+.tpl-cyber .data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+
+.tpl-cyber .data-table th {
+  text-align: left;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  color: var(--accent);
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--accent);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tpl-cyber .data-table td {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-2);
+}
+
+.tpl-cyber .data-table tr:hover td {
+  background: rgba(0,240,255,0.04);
+  color: var(--text-1);
+}
+
+.tpl-cyber .data-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* Strategy grid */
+.tpl-cyber .strat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.tpl-cyber .strat-item {
+  background: rgba(0,0,0,0.3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.tpl-cyber .strat-item:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(0,240,255,0.15);
+}
+
+.tpl-cyber .strat-item.highlighted {
+  border-color: var(--accent-2);
+  box-shadow: 0 0 16px rgba(255,43,214,0.2);
+}
+
+.tpl-cyber .strat-name {
+  display: block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+.tpl-cyber .strat-item.highlighted .strat-name {
+  color: var(--accent-2);
+}
+
+.tpl-cyber .strat-desc {
+  display: block;
+  font-size: 11px;
+  color: var(--text-3);
+  line-height: 1.3;
+}
+
+/* Pipeline steps */
+.tpl-cyber .pipeline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tpl-cyber .pipe-step {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 16px;
+  text-align: center;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.tpl-cyber .pipe-step:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 16px rgba(0,240,255,0.15);
+}
+
+.tpl-cyber .step-num {
+  display: block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--accent);
+  opacity: 0.3;
+  margin-bottom: 4px;
+}
+
+.tpl-cyber .pipe-step h4 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  margin: 0 0 6px;
+}
+
+.tpl-cyber .pipe-arrow {
+  color: var(--accent);
+  font-size: 20px;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+/* Tool list */
+.tpl-cyber .tool-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tpl-cyber .tool-list li {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: var(--text-2);
+  padding: 4px 0;
+}
+
+.tpl-cyber .tool-list li code {
+  color: var(--accent);
+  background: rgba(0,240,255,0.08);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+/* Divider */
+.tpl-cyber .divider {
+  height: 1px;
+  background: var(--border);
+  width: 100%;
+}
+
+/* Progress bar */
+.tpl-cyber .progress-bar > span {
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+}
+
+/* ============================================
+   INLINE EDITING STYLES
+   ============================================ */
+.edit-hotzone {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 80px;
+  height: 80px;
+  z-index: 10000;
+  cursor: pointer;
+}
+
+.edit-toggle {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  z-index: 10001;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--accent);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.edit-toggle.show,
+.edit-toggle.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.edit-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0,240,255,0.12);
+  border-bottom: 1px solid var(--accent);
+  padding: 8px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: var(--accent);
+  z-index: 10002;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.edit-banner.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.edit-banner .edit-hints kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: rgba(0,0,0,0.3);
+  color: var(--text-1);
+  font-size: 11px;
+}
+
+body.edit-active [contenteditable] {
+  outline: 1px dashed rgba(0,240,255,0.3);
+  outline-offset: 2px;
+  cursor: text;
+}
+
+body.edit-active [contenteditable]:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  background: rgba(0,240,255,0.05);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .tpl-cyber .slide { padding: 40px 32px; }
+  .tpl-cyber .h1 { font-size: 42px; }
+  .tpl-cyber .h2 { font-size: 32px; }
+  .tpl-cyber .pipeline { flex-direction: column; }
+  .tpl-cyber .pipe-arrow { transform: rotate(90deg); }
+  .tpl-cyber .grid.g2,
+  .tpl-cyber .grid.g3 { grid-template-columns: 1fr; }
+}

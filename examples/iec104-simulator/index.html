@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>IEC 60870-5-104 Simulator · 项目介绍与使用说明</title>
+<link rel="stylesheet" href="./fonts.css">
+<link rel="stylesheet" href="./base.css">
+<link rel="stylesheet" href="./animations.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="tpl-cyber" data-themes="cyberpunk-neon,tokyo-night,dracula,catppuccin-mocha,terminal-green,blueprint" data-theme-base="./themes/">
+<div class="deck">
+
+  <!-- 1. Cover -->
+  <section class="slide" data-title="封面">
+    <p class="kicker">IEC 60870-5-104 Simulator</p>
+    <h1 class="h1 anim-fade-up" data-anim="fade-up">变电站自动化<br><span class="gradient-text">测试平台</span></h1>
+    <p class="lede mt-m">多实例并行 · 11种自动策略 · MCP AI Agent 集成</p>
+    <div class="pill-row mt-l">
+      <span class="pill pill-accent">v2.2.0</span>
+      <span class="pill">Go 1.21+</span>
+      <span class="pill">Vue 3</span>
+      <span class="pill">MCP</span>
+      <span class="pill">MIT</span>
+    </div>
+    <div class="deck-footer"><span class="mono">IEC104 Simulator · 2026</span><span class="slide-number" data-current="1" data-total="12"></span></div>
+    <div class="notes">各位好，今天给大家介绍的是 IEC 60870-5-104 模拟器项目。这是一个用于变电站自动化测试的从站模拟器，当前版本 v2.2.0。</div>
+  </section>
+
+  <!-- 2. 项目概述 -->
+  <section class="slide" data-title="项目概述">
+    <p class="kicker">// overview</p>
+    <h2 class="h2">这是什么？解决什么问题？</h2>
+    <div class="grid g2 mt-l" style="align-items:start">
+      <div>
+        <p class="lede">IEC104 从站模拟器，用于<span class="gradient-text">变电站自动化测试</span>。模拟 RTU 及间隔层设备，适用于 SCADA 系统开发和集成测试。</p>
+        <div class="stack mt-m">
+          <div class="tag">✦ 替代真实硬件，降低测试成本</div>
+          <div class="tag">✦ 支持最多 1000 个实例并行运行</div>
+          <div class="tag">✦ 完整 IEC 60870-5-104 协议栈</div>
+          <div class="tag">✦ AI Agent 可通过 MCP 程序化控制</div>
+        </div>
+      </div>
+      <div class="terminal">
+        <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>quick-start.sh</span></div>
+<pre><span class="cmt"># 解压即用</span>
+tar xzf iec104-sim-v2.2.0.tar.gz
+cd iec104-sim-v2.2.0
+./start.sh
+<span class="cmt"># → http://localhost:8989</span></pre>
+      </div>
+    </div>
+    <div class="notes">这个项目的核心价值是替代真实硬件设备。在 SCADA 系统开发中，我们不需要等待真实的 RTU 设备到位，用模拟器就可以完成大部分集成测试工作。而且支持最多 1000 个实例并行，这在真实硬件环境下是不可能做到的。</div>
+  </section>
+
+  <!-- 3. 核心特性 -->
+  <section class="slide" data-title="核心特性">
+    <p class="kicker">// features</p>
+    <h2 class="h2">六大核心能力</h2>
+    <div class="grid g3 mt-l anim-stagger-list" data-anim-target>
+      <div class="card card-accent"><h4>⚡ 双运行模式</h4><p class="dim">传统 CLI 单实例 / Serve 多实例管理，按需切换</p></div>
+      <div class="card card-accent"><h4>📊 Excel 点表</h4><p class="dim">.xlsx 定义 IOA、类型、系数、初始值，即配即用</p></div>
+      <div class="card card-accent"><h4>🔄 11种策略</h4><p class="dim">递增/随机/CSV回放/SOC/电量/自定义公式等</p></div>
+      <div class="card card-accent"><h4>🌐 RESTful API</h4><p class="dim">完整的实例 CRUD、测点读写、批量操作接口</p></div>
+      <div class="card card-accent"><h4>🤖 MCP 集成</h4><p class="dim">AI Agent 通过 MCP 协议程序化控制模拟器</p></div>
+      <div class="card card-accent"><h4>📦 跨平台</h4><p class="dim">Linux amd64/arm64、Windows、.deb 打包、UPX 压缩</p></div>
+    </div>
+    <div class="notes">这六个特性覆盖了从配置、运行、监控到自动化测试的完整链路。特别是 MCP 集成，让 AI Agent 可以直接控制模拟器，这是 v2.2.0 的重要能力。</div>
+  </section>
+
+  <!-- 4. 双运行模式 -->
+  <section class="slide" data-title="双运行模式">
+    <p class="kicker">// dual-modes</p>
+    <h2 class="h2">传统模式 vs 服务模式</h2>
+    <div class="grid g2 mt-l">
+      <div class="card">
+        <h4 class="mono" style="color:var(--accent)">传统模式</h4>
+        <p class="dim mt-s">单进程 = 单端口 + 单客户端</p>
+        <div class="terminal mt-m">
+          <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>legacy mode</span></div>
+<pre><span class="fn">./iec104-sim</span> <span class="str">-p 2404</span> \
+  <span class="str">-c samples/point.xlsx</span> \
+  <span class="str">-H :8080 -l info</span></pre>
+        </div>
+        <div class="stack mt-m">
+          <span class="tag">纯 CLI 操作</span>
+          <span class="tag">快速调试</span>
+          <span class="tag">HTTP API :8080</span>
+        </div>
+      </div>
+      <div class="card">
+        <h4 class="mono" style="color:var(--accent-2)">Serve 模式</h4>
+        <p class="dim mt-s">多实例生命周期管理 + Web UI</p>
+        <div class="terminal mt-m">
+          <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>serve mode</span></div>
+<pre><span class="fn">./iec104-sim</span> <span class="str">serve</span> \
+  <span class="str">--http :8989</span> \
+  <span class="str">--config-dir ./config</span> \
+  <span class="str">--log-dir ./logs</span></pre>
+        </div>
+        <div class="stack mt-m">
+          <span class="tag">最多 1000 实例</span>
+          <span class="tag">Vue 3 管理界面</span>
+          <span class="tag">JSON 持久化</span>
+        </div>
+      </div>
+    </div>
+    <div class="notes">传统模式适合快速调试——一个命令启动，连上 IEC104 客户端就能测。Serve 模式是生产用法，通过 Web 界面管理多个变电站实例，每个实例独立端口、独立点表、独立运行。</div>
+  </section>
+
+  <!-- 5. 测点类型 -->
+  <section class="slide" data-title="测点类型">
+    <p class="kicker">// point-types</p>
+    <h2 class="h2">五种测点类型</h2>
+    <table class="data-table mt-l anim-stagger-list" data-anim-target>
+      <thead>
+        <tr><th>类型</th><th>中文</th><th>功能</th><th>IEC 104 标识</th><th>数据格式</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="pill pill-accent">AI</span></td><td>遥测 YC</td><td>模拟量监视</td><td class="mono">M_ME_NC_1 (13)</td><td>float32</td></tr>
+        <tr><td><span class="pill pill-accent">DI</span></td><td>遥信 YX</td><td>数字量监视</td><td class="mono">M_SP_NA_1 (1)</td><td>bool 0/1</td></tr>
+        <tr><td><span class="pill pill-accent">PI</span></td><td>遥脉 YM</td><td>脉冲计数</td><td class="mono">M_IT_NA_1 (15)</td><td>int32</td></tr>
+        <tr><td><span class="pill">DO</span></td><td>遥控</td><td>远程控制</td><td class="mono">C_SC_NA_1 (45)</td><td>控制 → 更新 DI</td></tr>
+        <tr><td><span class="pill">AO</span></td><td>遥调</td><td>远程调节</td><td class="mono">C_SE_NC_1 (48)</td><td>控制 → 更新 AI</td></tr>
+      </tbody>
+    </table>
+    <p class="lede mt-l dim" style="font-size:16px">支持总召唤 C_IC_NA_1、电度召唤 C_CI_NA_1、变化上送 COT=3、品质描述 QDS</p>
+    <div class="notes">AI 是遥测，比如电压电流温度这些连续量。DI 是遥信，开关状态、断路器位置这些 0/1 信号。PI 是遥脉，电表累计读数。DO 和 AO 是反向的——外部系统发控制命令过来，模拟器接收后更新对应的 DI 或 AI 点。</div>
+  </section>
+
+  <!-- 6. 自动变化策略 -->
+  <section class="slide" data-title="自动变化策略">
+    <p class="kicker">// auto-change-strategies</p>
+    <h2 class="h2">11 种自动变化策略</h2>
+    <div class="strat-grid mt-l anim-stagger-list" data-anim-target>
+      <div class="strat-item"><span class="strat-name">increment</span><span class="strat-desc">每周期 += 步长，达最大值后回起始</span></div>
+      <div class="strat-item"><span class="strat-name">random</span><span class="strat-desc">在 [min, max] 范围内随机取值</span></div>
+      <div class="strat-item"><span class="strat-name">csv</span><span class="strat-desc">按 CSV 时间序列文件回放真实数据</span></div>
+      <div class="strat-item"><span class="strat-name">max</span><span class="strat-desc">取多个 IOA 测点的最大值</span></div>
+      <div class="strat-item"><span class="strat-name">min</span><span class="strat-desc">取多个 IOA 测点的最小值</span></div>
+      <div class="strat-item"><span class="strat-name">soc</span><span class="strat-desc">基于功率积分计算电池 SOC</span></div>
+      <div class="strat-item"><span class="strat-name">energy</span><span class="strat-desc">基于功率积分计算累计电量</span></div>
+      <div class="strat-item"><span class="strat-name">aofollow</span><span class="strat-desc">跟随 AO 遥控值同步更新</span></div>
+      <div class="strat-item"><span class="strat-name">apiupdate</span><span class="strat-desc">仅允许 HTTP API 写入</span></div>
+      <div class="strat-item"><span class="strat-name">manual</span><span class="strat-desc">引擎不计算，需 API 手动置数</span></div>
+      <div class="strat-item highlighted"><span class="strat-name">custom ⭐</span><span class="strat-desc">自定义公式，2~50 个关联测点</span></div>
+    </div>
+    <div class="notes">每个策略都是独立 goroutine 运行，周期可配置，最小 100ms。increment 模拟缓慢上升的遥测量，random 模拟噪声波动，csv 回放真实录波数据，SOC 和 energy 用于储能系统仿真。custom 是 v2.2.0 新增的重磅功能，下一页细讲。</div>
+  </section>
+
+  <!-- 7. 自定义公式策略 -->
+  <section class="slide" data-title="自定义公式策略">
+    <p class="kicker">// custom-formula · v2.2.0</p>
+    <h2 class="h2">自定义公式策略</h2>
+    <div class="grid g2 mt-l" style="align-items:start">
+      <div>
+        <p class="lede">通过按钮式编辑器构造四则运算公式，实时计算关联测点值。</p>
+        <div class="stack mt-m">
+          <div class="tag">✦ 运算符：+ - * / ( )</div>
+          <div class="tag">✦ 2~50 个关联测点，{0} {1} ... 占位符</div>
+          <div class="tag">✦ 递归下降解析器，支持括号优先级</div>
+          <div class="tag">✦ 除零保护，计算周期 ≥ 100ms</div>
+          <div class="tag">✦ CSV 导入导出（策略代码 11）</div>
+        </div>
+      </div>
+      <div class="terminal">
+        <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>formula-example</span></div>
+<pre><span class="cmt">// 公式：(P1 + P2) / 2 × P3</span>
+<span class="str">"({0}+{1})/2*{2}"</span>
+
+<span class="cmt">// CSV 格式：</span>
+<span class="cmt">// A:IOA  | B:公式        | C:周期(ms)</span>
+<span class="num">16385</span>, <span class="str">({0}+{1})/2</span>, <span class="num">1000</span>
+<span class="num">16386</span>, <span class="str">{0}*{1}/{2}</span>,  <span class="num">500</span></pre>
+      </div>
+    </div>
+    <div class="notes">这个功能的核心价值是：不需要写代码，通过 UI 就能构造复杂的测点联动关系。比如温度 = (传感器A + 传感器B) / 2 × 补偿系数。前端有按钮式编辑器，点选测点、点选运算符，公式实时预览。后端用递归下降解析器，支持括号优先级和除零保护。</div>
+  </section>
+
+  <!-- 8. Web 管理界面 -->
+  <section class="slide" data-title="Web 管理界面">
+    <p class="kicker">// web-ui</p>
+    <h2 class="h2">Vue 3 管理界面</h2>
+    <div class="grid g3 mt-l anim-stagger-list" data-anim-target>
+      <div class="card card-accent">
+        <h4>⚙️ 配置管理页</h4>
+        <p class="dim mt-s">实例增删改查、启停控制、上传 .xlsx 点表文件、端口管理</p>
+        <div class="divider mt-m"></div>
+        <p class="dim2 mt-s" style="font-size:13px">http://localhost:8989</p>
+      </div>
+      <div class="card card-accent">
+        <h4>📈 运行监控页</h4>
+        <p class="dim mt-s">实例运行状态、客户端连接、总召唤次数、遥控次数、变化上送统计</p>
+        <div class="divider mt-m"></div>
+        <p class="dim2 mt-s" style="font-size:13px">自动刷新 · 实时数据</p>
+      </div>
+      <div class="card card-accent">
+        <h4>🔍 实例详情页</h4>
+        <p class="dim mt-s">测点 100ms~5s 高频刷新、置数操作、自动策略配置、SVG 趋势图</p>
+        <div class="divider mt-m"></div>
+        <p class="dim2 mt-s" style="font-size:13px">v2.1+ · 测点级操作</p>
+      </div>
+    </div>
+    <div class="notes">三个页面覆盖了从配置到监控到细粒度操作的完整工作流。配置页管实例生命周期，监控页看全局运行状态，详情页深入到每个测点——可以实时看值、手动置数、配置自动变化策略、看 SVG 趋势图。</div>
+  </section>
+
+  <!-- 9. HTTP API -->
+  <section class="slide" data-title="HTTP API">
+    <p class="kicker">// rest-api</p>
+    <h2 class="h2">RESTful API 接口</h2>
+    <div class="grid g2 mt-l">
+      <div>
+        <h4 style="color:var(--accent)">实例管理</h4>
+        <table class="data-table mt-s">
+          <thead><tr><th>方法</th><th>端点</th></tr></thead>
+          <tbody>
+            <tr><td class="mono" style="color:var(--good)">GET</td><td class="mono">/api/v1/instances</td></tr>
+            <tr><td class="mono" style="color:var(--accent-2)">POST</td><td class="mono">/api/v1/instances</td></tr>
+            <tr><td class="mono" style="color:var(--good)">GET</td><td class="mono">/api/v1/instances/{id}</td></tr>
+            <tr><td class="mono" style="color:var(--warn)">PUT</td><td class="mono">/api/v1/instances/{id}</td></tr>
+            <tr><td class="mono" style="color:var(--bad)">DELETE</td><td class="mono">/api/v1/instances/{id}</td></tr>
+            <tr><td class="mono" style="color:var(--accent-2)">POST</td><td class="mono">/api/v1/instances/{id}/start</td></tr>
+            <tr><td class="mono" style="color:var(--accent-2)">POST</td><td class="mono">/api/v1/instances/{id}/stop</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <h4 style="color:var(--accent-2)">测点操作</h4>
+        <table class="data-table mt-s">
+          <thead><tr><th>方法</th><th>端点</th></tr></thead>
+          <tbody>
+            <tr><td class="mono" style="color:var(--good)">GET</td><td class="mono">.../points</td></tr>
+            <tr><td class="mono" style="color:var(--warn)">PUT</td><td class="mono">.../points/{ioa}</td></tr>
+            <tr><td class="mono" style="color:var(--warn)">PUT</td><td class="mono">.../auto-change/{ioa}</td></tr>
+            <tr><td class="mono" style="color:var(--warn)">PUT</td><td class="mono">.../auto-change/batch</td></tr>
+            <tr><td class="mono" style="color:var(--good)">GET</td><td class="mono">.../auto-change/export</td></tr>
+            <tr><td class="mono" style="color:var(--accent-2)">POST</td><td class="mono">.../auto-change/import</td></tr>
+            <tr><td class="mono" style="color:var(--accent-2)">POST</td><td class="mono">.../upload-csv</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="notes">API 分两层：实例管理管生命周期，测点操作管数据。置数用 PUT /points/{ioa}，配策略用 PUT /auto-change/{ioa}，批量配置用 batch 端点。所有接口都支持 JSON 请求和响应。</div>
+  </section>
+
+  <!-- 10. MCP 集成 -->
+  <section class="slide" data-title="MCP 集成">
+    <p class="kicker">// mcp-server</p>
+    <h2 class="h2">MCP — AI Agent 程序化控制</h2>
+    <div class="grid g2 mt-l">
+      <div>
+        <h4 style="color:var(--accent)">实例管理工具</h4>
+        <ul class="tool-list mt-s">
+          <li><code>list_instances</code> — 列出所有实例</li>
+          <li><code>create_instance</code> — 创建新实例</li>
+          <li><code>start_instance</code> — 启动实例</li>
+          <li><code>stop_instance</code> — 停止实例</li>
+          <li><code>restart_instance</code> — 重启实例</li>
+          <li><code>get_server_status</code> — 全局状态</li>
+        </ul>
+      </div>
+      <div>
+        <h4 style="color:var(--accent-2)">数据接口工具</h4>
+        <ul class="tool-list mt-s">
+          <li><code>write_points</code> — 批量写入测点 ⭐</li>
+          <li><code>read_points</code> — 批量读取测点</li>
+          <li><code>config_auto_change</code> — 配置策略</li>
+          <li><code>export_auto_changes</code> — 导出 CSV</li>
+          <li><code>import_auto_changes</code> — 导入 CSV</li>
+          <li><code>upload_csv</code> — 上传回放文件</li>
+        </ul>
+      </div>
+    </div>
+    <div class="terminal mt-l">
+      <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>mcp-server</span></div>
+<pre><span class="cmt"># 启动 MCP 服务器</span>
+<span class="fn">./bin/mcp-server</span> <span class="str">-simulator http://localhost:8989</span> <span class="str">-mode both</span></pre>
+    </div>
+    <div class="notes">MCP 是 Model Context Protocol，让 AI Agent 像调用函数一样控制模拟器。write_points 是核心工具——一次写入多个测点，模拟真实设备同一时刻上报数据。这对自动化测试至关重要，因为真实场景下多个测点是同时变化的。</div>
+  </section>
+
+  <!-- 11. 快速开始 -->
+  <section class="slide" data-title="快速开始">
+    <p class="kicker">// quick-start</p>
+    <h2 class="h2">四步上手</h2>
+    <div class="pipeline mt-l anim-stagger-list" data-anim-target>
+      <div class="pipe-step">
+        <span class="step-num">01</span>
+        <h4>下载解压</h4>
+        <p class="dim mono" style="font-size:12px">tar xzf iec104-sim-v2.2.0.tar.gz</p>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step">
+        <span class="step-num">02</span>
+        <h4>启动服务</h4>
+        <p class="dim mono" style="font-size:12px">./start.sh</p>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step">
+        <span class="step-num">03</span>
+        <h4>打开 Web UI</h4>
+        <p class="dim mono" style="font-size:12px">http://localhost:8989</p>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step">
+        <span class="step-num">04</span>
+        <h4>创建实例</h4>
+        <p class="dim" style="font-size:12px">上传 .xlsx → 创建 → 启动 → 连接客户端</p>
+      </div>
+    </div>
+    <div class="terminal mt-l">
+      <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>build-from-source</span></div>
+<pre><span class="cmt"># 源码构建</span>
+<span class="kw">cd</span> web && <span class="fn">npm install</span> && <span class="fn">npm run build</span> && <span class="kw">cd</span> ..
+<span class="fn">go build</span> <span class="str">-o bin/iec104-sim ./cmd/iec104-sim/</span>
+
+<span class="cmt"># 跨平台编译</span>
+<span class="fn">make build-all</span>        <span class="cmt"># Linux + Windows</span>
+<span class="fn">make build-full</span>       <span class="cmt"># + Web UI</span>
+<span class="fn">make deb-amd64</span>        <span class="cmt"># .deb 包</span>
+<span class="fn">make compress</span>         <span class="cmt"># UPX 压缩 ~60%</span></pre>
+    </div>
+    <div class="notes">最快的方式是下载解压包，./start.sh 一键启动。如果需要从源码构建，先 build 前端再 build 后端。Makefile 提供了跨平台编译、.deb 打包、UPX 压缩等完整构建流程。</div>
+  </section>
+
+  <!-- 12. 致谢 -->
+  <section class="slide center tc" data-title="致谢">
+    <div>
+      <p class="kicker">IEC 60870-5-104 Simulator</p>
+      <h1 class="h1" style="font-size:64px">变电站自动化<br><span class="gradient-text">完整解决方案</span></h1>
+      <p class="lede mt-m" style="margin:14px auto">Complete Solution for Substation Automation Testing</p>
+      <div class="pill-row mt-l" style="justify-content:center">
+        <span class="pill pill-accent">v2.2.0</span>
+        <span class="pill">Go 1.21+</span>
+        <span class="pill">Vue 3 + TypeScript</span>
+        <span class="pill">Element Plus</span>
+        <span class="pill">MCP</span>
+      </div>
+      <div class="row mt-l" style="justify-content:center">
+        <span class="tag">MIT License</span>
+        <span class="tag">github.com/IEC-SIM/iec104-sim-master</span>
+      </div>
+    </div>
+    <div class="notes">这就是 IEC104 Simulator 项目的完整介绍。从 v1.0 单实例到 v2.2.0 的多实例 + MCP + 自定义公式，项目已经覆盖了变电站自动化测试的完整场景。MIT 协议开源，欢迎使用和贡献代码。</div>
+  </section>
+
+</div>
+
+<!-- Progress bar -->
+<div class="progress-bar"><span></span></div>
+
+<!-- Edit mode UI -->
+<button class="edit-toggle" id="editToggle" title="编辑模式 (E)">✏️</button>
+<div class="edit-banner" id="editBanner">
+  <span>✏️ 编辑模式已开启 — 点击任意文字即可编辑</span>
+  <span class="edit-hints">
+    <kbd>Ctrl+S</kbd> 保存 &nbsp;
+    <kbd>E</kbd> 退出编辑
+  </span>
+</div>
+
+<script src="./runtime.js"></script>
+<script>
+/* ============================================
+   INLINE EDITING — JS-based hover with 400ms delay
+   ============================================ */
+(function() {
+  const editor = {
+    isActive: false,
+    editableEls: [],
+
+    toggleEditMode() {
+      this.isActive = !this.isActive;
+      document.body.classList.toggle('edit-active', this.isActive);
+      const toggle = document.getElementById('editToggle');
+      const banner = document.getElementById('editBanner');
+      toggle?.classList.toggle('active', this.isActive);
+      banner?.classList.toggle('active', this.isActive);
+
+      if (this.isActive) {
+        this.editableEls = Array.from(
+          document.querySelectorAll('.h1, .h2, .h3, .h4, .lede, .dim, .kicker, .tag, .pill, code, pre, td, th, h4, p.dim, p.dim2, p.lede, span.strat-name, span.strat-desc, .step-num, .pipe-arrow, .mono')
+        );
+        this.editableEls.forEach(el => el.setAttribute('contenteditable', 'true'));
+      } else {
+        this.editableEls.forEach(el => el.removeAttribute('contenteditable'));
+        this.editableEls = [];
+      }
+    },
+
+    exportFile() {
+      // Temporarily strip edit state so saved file opens cleanly
+      const editableEls = Array.from(document.querySelectorAll('[contenteditable]'));
+      editableEls.forEach(el => el.removeAttribute('contenteditable'));
+      document.body.classList.remove('edit-active');
+      const toggle = document.getElementById('editToggle');
+      const banner = document.getElementById('editBanner');
+      toggle?.classList.remove('active', 'show');
+      banner?.classList.remove('active', 'show');
+
+      const html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+
+      // Restore
+      document.body.classList.add('edit-active');
+      editableEls.forEach(el => el.setAttribute('contenteditable', 'true'));
+      toggle?.classList.add('active');
+      banner?.classList.add('active');
+
+      const blob = new Blob([html], { type: 'text/html' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'iec104-simulator-presentation.html';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+  };
+
+  // Toggle button click
+  document.getElementById('editToggle').addEventListener('click', () => editor.toggleEditMode());
+
+  // Hotzone hover with 400ms grace period
+  const hotzone = document.querySelector('.edit-hotzone');
+  const editToggle = document.getElementById('editToggle');
+  let hideTimeout = null;
+
+  if (hotzone) {
+    hotzone.addEventListener('mouseenter', () => {
+      clearTimeout(hideTimeout);
+      editToggle.classList.add('show');
+    });
+    hotzone.addEventListener('mouseleave', () => {
+      hideTimeout = setTimeout(() => {
+        if (!editor.isActive) editToggle.classList.remove('show');
+      }, 400);
+    });
+    editToggle.addEventListener('mouseenter', () => clearTimeout(hideTimeout));
+    editToggle.addEventListener('mouseleave', () => {
+      hideTimeout = setTimeout(() => {
+        if (!editor.isActive) editToggle.classList.remove('show');
+      }, 400);
+    });
+    hotzone.addEventListener('click', () => editor.toggleEditMode());
+  }
+
+  // Keyboard: E to toggle (skip when editing text), Ctrl+S to save
+  document.addEventListener('keydown', (e) => {
+    // Don't interfere with runtime.js shortcuts (T/F/O/S/N/A)
+    if (e.metaKey || e.ctrlKey || e.altKey) {
+      // Only handle Ctrl+S in edit mode
+      if (e.key === 's' && editor.isActive) {
+        e.preventDefault();
+        editor.exportFile();
+      }
+      return;
+    }
+    if (e.key === 'e' || e.key === 'E') {
+      // Don't steal E if user is actively typing in a contenteditable
+      if (e.target.getAttribute('contenteditable') === 'true') return;
+      e.preventDefault();
+      editor.toggleEditMode();
+    }
+  });
+})();
+</script>
+</body>
+</html>

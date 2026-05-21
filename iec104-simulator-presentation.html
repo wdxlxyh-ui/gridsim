@@ -1,0 +1,1296 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IEC 60870-5-104 Simulator — Project Introduction</title>
+
+    <!-- Fonts: JetBrains Mono for technical feel, Plus Jakarta Sans for display -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" />
+
+    <style>
+        /* ===========================================
+           CSS CUSTOM PROPERTIES — Industrial SCADA Theme
+           Deep dark backgrounds, cyan/teal accents
+           =========================================== */
+        :root {
+            --bg-primary: #0a0e17;
+            --bg-secondary: #111827;
+            --bg-card: rgba(17, 24, 39, 0.85);
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent: #06d6a0;
+            --accent-glow: rgba(6, 214, 160, 0.25);
+            --accent-secondary: #3b82f6;
+            --accent-warm: #f59e0b;
+            --border: rgba(100, 116, 139, 0.2);
+            --font-display: "Plus Jakarta Sans", sans-serif;
+            --font-mono: "JetBrains Mono", monospace;
+            --title-size: clamp(1.75rem, 5vw, 3.5rem);
+            --h2-size: clamp(1.25rem, 3vw, 2rem);
+            --h3-size: clamp(0.9rem, 2vw, 1.35rem);
+            --body-size: clamp(0.75rem, 1.4vw, 1rem);
+            --small-size: clamp(0.65rem, 1vw, 0.8rem);
+            --code-size: clamp(0.6rem, 1.1vw, 0.85rem);
+            --slide-padding: clamp(1.25rem, 4vw, 3.5rem);
+            --content-gap: clamp(0.75rem, 2vw, 1.75rem);
+            --element-gap: clamp(0.35rem, 1vw, 0.75rem);
+            --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+            --duration-normal: 0.6s;
+        }
+
+        /* ===========================================
+           BASE STYLES
+           =========================================== */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body {
+            height: 100%;
+            overflow-x: hidden;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: var(--font-display);
+        }
+
+        html {
+            scroll-snap-type: y mandatory;
+            scroll-behavior: smooth;
+        }
+
+        /* === VIEWPORT BASE (mandatory from skill) === */
+        .slide {
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            overflow: hidden;
+            scroll-snap-align: start;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .slide-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            max-height: 100%;
+            overflow: hidden;
+            padding: var(--slide-padding);
+        }
+
+        .card, .container, .content-box {
+            max-width: min(90vw, 1000px);
+            max-height: min(80vh, 700px);
+        }
+
+        .feature-list, .bullet-list {
+            gap: clamp(0.4rem, 1vh, 1rem);
+        }
+
+        .feature-list li, .bullet-list li {
+            font-size: var(--body-size);
+            line-height: 1.5;
+            list-style: none;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+            gap: clamp(0.5rem, 1.5vw, 1rem);
+        }
+
+        img, .image-container {
+            max-width: 100%;
+            max-height: min(50vh, 400px);
+            object-fit: contain;
+        }
+
+        /* Responsive breakpoints */
+        @media (max-height: 700px) {
+            :root {
+                --slide-padding: clamp(0.75rem, 3vw, 2rem);
+                --content-gap: clamp(0.4rem, 1.5vw, 1rem);
+                --title-size: clamp(1.25rem, 4.5vw, 2.5rem);
+                --h2-size: clamp(1rem, 3vw, 1.75rem);
+            }
+        }
+        @media (max-height: 600px) {
+            :root {
+                --slide-padding: clamp(0.5rem, 2.5vw, 1.5rem);
+                --content-gap: clamp(0.3rem, 1vw, 0.75rem);
+                --title-size: clamp(1.1rem, 4vw, 2rem);
+                --body-size: clamp(0.7rem, 1.2vw, 0.95rem);
+            }
+            .nav-dots, .keyboard-hint, .decorative { display: none; }
+        }
+        @media (max-height: 500px) {
+            :root {
+                --slide-padding: clamp(0.4rem, 2vw, 1rem);
+                --title-size: clamp(1rem, 3.5vw, 1.5rem);
+                --h2-size: clamp(0.9rem, 2.5vw, 1.25rem);
+                --body-size: clamp(0.65rem, 1vw, 0.85rem);
+            }
+        }
+        @media (max-width: 600px) {
+            :root { --title-size: clamp(1.25rem, 7vw, 2.5rem); }
+            .grid { grid-template-columns: 1fr; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.2s !important;
+            }
+            html { scroll-behavior: auto; }
+        }
+
+        /* ===========================================
+           SCADA-THEME SPECIFIC STYLES
+           =========================================== */
+
+        /* Grid background pattern */
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(6, 214, 160, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(6, 214, 160, 0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Scanline effect */
+        body::after {
+            content: "";
+            position: fixed;
+            inset: 0;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 0, 0, 0.03) 2px,
+                rgba(0, 0, 0, 0.03) 4px
+            );
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .slide { z-index: 2; }
+
+        /* Typography */
+        h1 {
+            font-size: var(--title-size);
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            line-height: 1.1;
+            color: var(--text-primary);
+        }
+
+        h2 {
+            font-size: var(--h2-size);
+            font-weight: 700;
+            letter-spacing: -0.01em;
+            line-height: 1.2;
+            color: var(--text-primary);
+            margin-bottom: var(--content-gap);
+        }
+
+        h3 {
+            font-size: var(--h3-size);
+            font-weight: 600;
+            color: var(--accent);
+            margin-bottom: var(--element-gap);
+        }
+
+        p, li {
+            font-size: var(--body-size);
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .mono {
+            font-family: var(--font-mono);
+            font-size: var(--code-size);
+        }
+
+        code {
+            font-family: var(--font-mono);
+            font-size: var(--code-size);
+            background: rgba(6, 214, 160, 0.1);
+            color: var(--accent);
+            padding: 0.15em 0.4em;
+            border-radius: 4px;
+        }
+
+        pre {
+            font-family: var(--font-mono);
+            font-size: var(--code-size);
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: clamp(0.5rem, 1.5vw, 1rem);
+            overflow: hidden;
+            line-height: 1.5;
+            color: var(--text-secondary);
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+        }
+
+        /* Accent line */
+        .accent-line {
+            width: clamp(2rem, 5vw, 4rem);
+            height: 3px;
+            background: var(--accent);
+            border-radius: 2px;
+            margin-bottom: var(--content-gap);
+        }
+
+        /* Cards */
+        .scada-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: clamp(0.75rem, 2vw, 1.5rem);
+            backdrop-filter: blur(8px);
+            transition: border-color 0.3s ease;
+        }
+
+        .scada-card:hover {
+            border-color: var(--accent);
+        }
+
+        .scada-card .card-icon {
+            font-size: clamp(1.25rem, 2.5vw, 2rem);
+            margin-bottom: var(--element-gap);
+            display: block;
+        }
+
+        .scada-card h4 {
+            font-size: var(--body-size);
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 0.35rem;
+        }
+
+        .scada-card p {
+            font-size: var(--small-size);
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+
+        /* Badge */
+        .badge {
+            display: inline-block;
+            font-family: var(--font-mono);
+            font-size: var(--small-size);
+            font-weight: 600;
+            padding: 0.2em 0.6em;
+            border-radius: 4px;
+            background: var(--accent-glow);
+            color: var(--accent);
+            border: 1px solid rgba(6, 214, 160, 0.3);
+        }
+
+        .badge-warm {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--accent-warm);
+            border-color: rgba(245, 158, 11, 0.3);
+        }
+
+        .badge-blue {
+            background: rgba(59, 130, 246, 0.15);
+            color: var(--accent-secondary);
+            border-color: rgba(59, 130, 246, 0.3);
+        }
+
+        /* Table */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: var(--small-size);
+        }
+
+        .data-table th {
+            text-align: left;
+            font-family: var(--font-mono);
+            font-weight: 600;
+            color: var(--accent);
+            padding: 0.4rem 0.75rem;
+            border-bottom: 1px solid var(--accent);
+            font-size: var(--small-size);
+        }
+
+        .data-table td {
+            padding: 0.35rem 0.75rem;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+
+        .data-table tr:last-child td { border-bottom: none; }
+
+        /* Version tag */
+        .version-tag {
+            font-family: var(--font-mono);
+            font-size: var(--small-size);
+            color: var(--accent);
+            border: 1px solid var(--accent);
+            padding: 0.25em 0.75em;
+            border-radius: 20px;
+            display: inline-block;
+        }
+
+        /* Progress bar */
+        .progress-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 3px;
+            background: var(--accent);
+            z-index: 9999;
+            transition: width 0.3s ease;
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        /* Nav dots */
+        .nav-dots {
+            position: fixed;
+            right: clamp(0.75rem, 2vw, 1.5rem);
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 9998;
+        }
+
+        .nav-dots .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-muted);
+            opacity: 0.4;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .nav-dots .dot.active {
+            opacity: 1;
+            background: var(--accent);
+            box-shadow: 0 0 8px var(--accent-glow);
+            transform: scale(1.3);
+        }
+
+        /* Keyboard hint */
+        .keyboard-hint {
+            position: fixed;
+            bottom: clamp(0.5rem, 2vw, 1rem);
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: var(--font-mono);
+            font-size: var(--small-size);
+            color: var(--text-muted);
+            opacity: 0.5;
+            z-index: 9997;
+        }
+
+        .keyboard-hint kbd {
+            display: inline-block;
+            padding: 0.15em 0.5em;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: rgba(255,255,255,0.05);
+            margin: 0 0.15em;
+        }
+
+        /* ===========================================
+           REVEAL ANIMATIONS
+           =========================================== */
+        .reveal {
+            opacity: 0;
+            transform: translateY(30px);
+            transition:
+                opacity var(--duration-normal) var(--ease-out-expo),
+                transform var(--duration-normal) var(--ease-out-expo);
+        }
+
+        .slide.visible .reveal {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .reveal:nth-child(1) { transition-delay: 0.08s; }
+        .reveal:nth-child(2) { transition-delay: 0.16s; }
+        .reveal:nth-child(3) { transition-delay: 0.24s; }
+        .reveal:nth-child(4) { transition-delay: 0.32s; }
+        .reveal:nth-child(5) { transition-delay: 0.40s; }
+        .reveal:nth-child(6) { transition-delay: 0.48s; }
+        .reveal:nth-child(7) { transition-delay: 0.56s; }
+        .reveal:nth-child(8) { transition-delay: 0.64s; }
+
+        .reveal-left {
+            opacity: 0;
+            transform: translateX(-40px);
+            transition: opacity var(--duration-normal) var(--ease-out-expo),
+                        transform var(--duration-normal) var(--ease-out-expo);
+        }
+        .slide.visible .reveal-left { opacity: 1; transform: translateX(0); }
+
+        .reveal-scale {
+            opacity: 0;
+            transform: scale(0.92);
+            transition: opacity var(--duration-normal) var(--ease-out-expo),
+                        transform var(--duration-normal) var(--ease-out-expo);
+        }
+        .slide.visible .reveal-scale { opacity: 1; transform: scale(1); }
+
+        /* ===========================================
+           DECORATIVE ELEMENTS
+           =========================================== */
+        .deco-circle {
+            position: absolute;
+            border-radius: 50%;
+            border: 1px solid rgba(6, 214, 160, 0.08);
+            pointer-events: none;
+        }
+
+        .deco-circle-1 {
+            width: 300px; height: 300px;
+            top: -80px; right: -80px;
+        }
+
+        .deco-circle-2 {
+            width: 200px; height: 200px;
+            bottom: -60px; left: -60px;
+            border-color: rgba(59, 130, 246, 0.06);
+        }
+
+        /* Status indicator (SCADA-style) */
+        .status-dot {
+            display: inline-block;
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--accent);
+            box-shadow: 0 0 6px var(--accent-glow);
+            margin-right: 0.5em;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* Two-column layout */
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: clamp(1rem, 3vw, 2.5rem);
+            align-items: start;
+        }
+
+        @media (max-width: 768px) {
+            .two-col { grid-template-columns: 1fr; }
+        }
+
+        /* Strategy grid (3x4) */
+        .strategy-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+            gap: clamp(0.4rem, 1vw, 0.75rem);
+        }
+
+        .strategy-item {
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: clamp(0.4rem, 1vw, 0.75rem);
+            text-align: center;
+        }
+
+        .strategy-item .strat-name {
+            font-family: var(--font-mono);
+            font-size: var(--small-size);
+            font-weight: 600;
+            color: var(--accent);
+            margin-bottom: 0.2rem;
+        }
+
+        .strategy-item .strat-desc {
+            font-size: clamp(0.55rem, 0.9vw, 0.7rem);
+            color: var(--text-muted);
+            line-height: 1.3;
+        }
+
+        /* Architecture diagram */
+        .arch-flow {
+            display: flex;
+            flex-direction: column;
+            gap: clamp(0.3rem, 0.8vw, 0.6rem);
+        }
+
+        .arch-layer {
+            display: flex;
+            gap: clamp(0.3rem, 1vw, 0.75rem);
+            align-items: stretch;
+        }
+
+        .arch-block {
+            flex: 1;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--accent);
+            border-radius: 6px;
+            padding: clamp(0.3rem, 0.8vw, 0.6rem) clamp(0.5rem, 1vw, 0.75rem);
+        }
+
+        .arch-block .layer-label {
+            font-family: var(--font-mono);
+            font-size: clamp(0.5rem, 0.8vw, 0.65rem);
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.15rem;
+        }
+
+        .arch-block .layer-content {
+            font-size: clamp(0.55rem, 0.9vw, 0.75rem);
+            color: var(--text-secondary);
+            line-height: 1.3;
+        }
+
+        .arch-arrow {
+            text-align: center;
+            color: var(--accent);
+            font-size: var(--small-size);
+            opacity: 0.5;
+        }
+
+        /* Title slide special */
+        .title-slide {
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .title-slide .subtitle {
+            font-size: var(--subtitle-size);
+            color: var(--text-secondary);
+            margin-top: var(--content-gap);
+            max-width: 60ch;
+        }
+
+        .title-slide .version-tag {
+            margin-top: var(--content-gap);
+        }
+
+        /* Closing slide */
+        .closing-slide {
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .closing-links {
+            display: flex;
+            gap: var(--content-gap);
+            margin-top: var(--content-gap);
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .closing-link {
+            font-family: var(--font-mono);
+            font-size: var(--body-size);
+            color: var(--accent);
+            text-decoration: none;
+            border: 1px solid var(--accent);
+            padding: 0.5em 1.2em;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+
+        .closing-link:hover {
+            background: var(--accent-glow);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Progress Bar -->
+    <div class="progress-bar" id="progressBar"></div>
+
+    <!-- Navigation Dots -->
+    <nav class="nav-dots" id="navDots"></nav>
+
+    <!-- Keyboard Hint -->
+    <div class="keyboard-hint">
+        <kbd>↑</kbd> <kbd>↓</kbd> or <kbd>Space</kbd> to navigate
+    </div>
+
+    <!-- ==========================================
+         SLIDE 1: Title
+         ========================================== -->
+    <section class="slide title-slide">
+        <div class="deco-circle deco-circle-1"></div>
+        <div class="deco-circle deco-circle-2"></div>
+        <div class="slide-content" style="align-items: center; text-align: center;">
+            <div class="reveal">
+                <span class="badge">v2.2.0</span>
+            </div>
+            <h1 class="reveal" style="margin-top: 1rem;">IEC 60870-5-104<br/>Simulator</h1>
+            <div class="accent-line reveal" style="margin: 1rem auto;"></div>
+            <p class="subtitle reveal">变电站自动化测试平台 — 多实例并行 · 11种自动策略 · MCP 集成</p>
+            <p class="reveal" style="margin-top: 1.5rem; font-size: var(--small-size); color: var(--text-muted);">
+                Substation Automation Testing Platform for SCADA Systems
+            </p>
+        </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 2: What is IEC104 Simulator
+         ========================================== -->
+    <section class="slide">
+        <div class="deco-circle deco-circle-1"></div>
+        <div class="slide-content">
+            <div class="accent-line reveal"></div>
+            <h2 class="reveal">What is IEC104 Simulator?</h2>
+            <div class="two-col">
+                <div>
+                    <p class="reveal" style="margin-bottom: 1rem;">
+                        A <strong style="color: var(--accent);">slave station simulator</strong> for IEC 60870-5-104 protocol, designed for substation automation testing. It simulates RTUs and bay-level devices for SCADA system development and integration testing.
+                    </p>
+                    <ul class="feature-list reveal" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        <li><span class="status-dot"></span> <strong>Multi-instance</strong> — Up to 1000 parallel instances</li>
+                        <li><span class="status-dot"></span> <strong>Full protocol</strong> — AI/DI/PI/DO/AO point types</li>
+                        <li><span class="status-dot"></span> <strong>Web UI</strong> — Vue 3 management interface</li>
+                        <li><span class="status-dot"></span> <strong>MCP Server</strong> — AI Agent programmatic control</li>
+                    </ul>
+                </div>
+                <div class="reveal">
+                    <pre><code>// Traditional Mode (single instance)
+./iec104-sim -p 2404 -c point.xlsx
+
+// Serve Mode (multi-instance)
+./iec104-sim serve \
+  --http :8989 \
+  --config-dir ./config \
+  --log-dir ./logs</code></pre>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 3: Key Features Overview
+         ========================================== -->
+    <section class="slide">
+        <div class="slide-content">
+            <div class="accent-line reveal"></div>
+            <h2 class="reveal">Key Features</h2>
+            <div class="grid reveal" style="grid-template-columns: repeat(3, 1fr);">
+                <div class="scada-card">
+                    <span class="card-icon">⚡</span>
+                    <h4>Dual Modes</h4>
+                    <p>Traditional CLI single-instance or Serve mode with multi-instance management</p>
+                </div>
+                <div class="scada-card">
+                    <span class="card-icon">📊</span>
+                    <h4>Excel Point Config</h4>
+                    <p>Define IOA, point types, coefficients, and initial values in .xlsx files</p>
+                </div>
+                <div class="scada-card">
+                    <span class="card-icon">🔄</span>
+                    <h4>11 Auto Strategies</h4>
+                    <p>Increment, random, CSV replay, SOC, energy, custom formula, and more</p>
+                </div>
+                <div class="scada-card">
+                    <span class="card-icon">🌐</span>
+                    <h4>RESTful API</h4>
+                    <p>Full CRUD for instances, points, auto-change configs, and CSV operations</p>
+                </div>
+                <div class="scada-card">
+                    <span class="card-icon">🤖</span>
+                    <h4>MCP Integration</h4>
+                    <p>Model Context Protocol server for AI Agent automated testing</p>
+                </div>
+                <div class="scada-card">
+                    <span class="card-icon">📦</span>
+                    <h4>Cross-Platform</h4>
+                    <p>Linux amd64/arm64, Windows amd64, .deb packaging, UPX compression</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 4: Technology Stack
+         ========================================== -->
+    <section class="slide">
+        <div class="slide-content">
+            <div class="accent-line reveal"></div>
+            <h2 class="reveal">Technology Stack</h2>
+            <table class="data-table reveal">
+                <thead>
+                    <tr>
+                        <th>Layer</th>
+                        <th>Technology</th>
+                        <th>Purpose</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><span class="badge">Backend</span></td>
+                        <td><code>Go 1.21+</code></td>
+                        <td>Core engine, IEC104 server, HTTP API</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge">Protocol</span></td>
+                        <td><code>go-iecp5</code></td>
+                        <td>IEC 60870-5-104 protocol stack</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge">Data</span></td>
+                        <td><code>excelize v2</code></td>
+                        <td>Excel point table parsing</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge badge-blue">Frontend</span></td>
+                        <td><code>Vue 3 + TypeScript</code></td>
+                        <td>Web management interface</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge badge-blue">UI Lib</span></td>
+                        <td><code>Element Plus</code></td>
+                        <td>Component library</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge badge-blue">Build</span></td>
+                        <td><code>Vite</code></td>
+                        <td>Frontend bundler</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge-warm">AI</span></td>
+                        <td><code>mcp-go</code></td>
+                        <td>MCP server for AI agent integration</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge-warm">Auth</span></td>
+                        <td><code>jwt/v5</code></td>
+                        <td>JWT token authentication</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 5: Running Modes
+         ========================================== -->
+    <section class="slide">
+        <div class="slide-content">
+            <div class="accent-line reveal"></div>
+            <h2 class="reveal">Dual Running Modes</h2>
+            <div class="two-col">
+                <div class="reveal">
+                    <h3><span class="badge">Traditional</span> Single Instance</h3>
+                    <ul class="feature-list" style="display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.5rem;">
+                        <li>One process = one port + one client</li>
+                        <li>Pure CLI operation</li>
+                        <li>Quick testing & debugging</li>
+                        <li>HTTP API at <code>:8080</code></li>
+                    </ul>
+                    <pre style="margin-top: 0.75rem;"><code>./iec104-sim -p 2404 \
+  -c samples/point.xlsx \
+  -H :8080 -l info</code></pre>
+                </div>
+                <div class="reveal">
+                    <h3><span class="badge badge-blue">Serve</span> Multi-Instance</h3>
+                    <ul class="feature-list" style="display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.5rem;">
+                        <li>Up to <strong style="color: var(--accent);">1000</strong> parallel instances</li>
+                        <li>Vue 3 Web management UI</li>
+                        <li>Instance lifecycle management</li>
+                        <li>JSON config persistence</li>
+                    </ul>
+                    <pre style="margin-top: 0.75rem;"><code>./iec104-sim serve \
+  --http :8989 \
+  --config-dir ./config \
+  --log-dir ./logs</code></pre>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 6: Point Types
+         ========================================== -->
+    <section class="slide">
+        <div class="slide-content">
+            <div class="accent-line reveal"></div>
+            <h2 class="reveal">Point Types (测点类型)</h2>
+            <table class="data-table reveal">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>中文</th>
+                        <th>Function</th>
+                        <th>IEC 104 ID</th>
+                        <th>Data</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><span class="badge">AI</span></td>
+                        <td>遥测 YC</td>
+                        <td>Analog monitoring</td>
+                        <td><code>M_ME_NC_1 (13)</code></td>
+                        <td>float32</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge">DI</span></td>
+                        <td>遥信 YX</td>
+                        <td>Digital monitoring</td>
+                        <td><code>M_SP_NA_1 (1)</code></td>
+                        <td>bool 0/1</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge">PI</span></td>
+                        <td>遥脉 YM</td>
+                        <td>Pulse counting</td>
+                        <td><code>M_IT_NA_1 (15)</code></td>
+                        <td>int32</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge badge-blue">DO</span></td>
+                        <td>遥控</td>
+                        <td>Remote control</td>
+                        <td><code>C_SC_NA_1 (45)</code></td>
+                        <td>Control → DI</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge badge-blue">AO</span></td>
+                        <td>遥调</td>
+                        <td>Remote regulation</td>
+                        <td><code>C_SE_NC_1 (48)</code></td>
+                        <td>Control → AI</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p class="reveal" style="margin-top: 1rem; font-size: var(--small-size); color: var(--text-muted);">
+                Supports general interrogation (C_IC_NA_1), energy call (C_CI_NA_1), spontaneous upload (COT=3), and QDS quality descriptors.
+            </p>
+        </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 7: Auto-Change Strategies (Part 1)
+         ========================================== -->
+    <section class="slide">
+        <div class="slide-content">
+            <div class="accent-line reveal"></div>
+            <h2 class="reveal">Auto-Change Strategies (1/2)</h2>
+            <p class="reveal" style="margin-bottom: 1rem; font-size: var(--body-size);">
+                11 built-in strategies, each running in independent goroutines with configurable periods (≥100ms).
+            </p>
+            <div class="strategy-grid reveal">
+                <div class="strategy-item">
+                    <div class="strat-name">increment</div>
+                    <div class="strat-desc">Step += N per cycle, loops at max</div>
+                </div>
+                <div class="strategy-item">
+                    <div class="strat-name">random</div>
+                    <div class="strat-desc">Random value within [min, max]</div>
+                </div>
+                <div class="strategy-item">
+                    <div class="strat-name">csv</div>
+                    <div class="strat-desc">Time-series playback from CSV file</div>
+                </div>
+                <div class="strategy-item">
+                    <div class="strat-name">max</div>
+                    <div class="strat-desc">Maximum of multiple IOA points</div>
+                </div>
+                <div class="strategy-item">
+                    <div class="strat-name">min</div>
+                    <div class="strat-desc">Minimum of multiple IOA points</div>
+                </div>
+                <div class="strategy-item">
+                    <div class="strat-name">soc</div>
+                    <div class="strat-desc">Battery SOC via power integration</div>
+                </div>
+                <div class="strategy-item">
+                    <div class="strat-name">energy</div>
+                    <div class="strat-desc">Cumulative energy calculation</div>
+                </div>
+                <div class="strategy-item">
+                    <div class="strat-name">aofollow</div>
+                    <div class="strat-desc">Follow AO remote regulation value</div>
+                </div>
+                <div class="strategy-item">
+                    <div class="strat-name">apiupdate</div>
+                    <div class="strat-desc">HTTP API write only, engine skips</div>
+                </div>
+                <div class="strategy-item">
+                    <div class="strat-name">manual</div>
+                    <div class="strat-desc">Manual value set via API</div>
+                </div>
+                <div class="strategy-item" style="border-color: var(--accent);">
+                    <div class="strat-name">custom ⭐</div>
+                    <div class="strat-desc">Custom formula with 2-50 point refs</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 8: Custom Formula Strategy
+         ========================================== -->
+    <section class="slide">
+        <div class="slide-content">
+            <div class="accent-line reveal"></div>
+            <h2 class="reveal">Custom Formula Strategy <span class="badge">v2.2.0</span></h2>
+            <div class="two-col">
+                <div>
+                    <p class="reveal" style="margin-bottom: 0.75rem;">
+                        Build arithmetic formulas using a button-style editor with real-time preview.
+                    </p>
+                    <ul class="feature-list reveal" style="display: flex; flex-direction: column; gap: 0.4rem;">
+                        <li>Operators: <code>+</code> <code>-</code> <code>*</code> <code>/</code> <code>(</code> <code>)</code></li>
+                        <li><strong style="color: var(--accent);">2~50</strong> associated points via <code>{0}</code> <code>{1}</code>...</li>
+                        <li>Recursive descent parser with bracket priority</li>
+                        <li>Division-by-zero protection</li>
+                        <li>Configurable period (≥100ms)</li>
+                        <li>CSV import/export support (strategy code 11)</li>
+                    </ul>
+                </div>
+                <div class="reveal">
+                    <pre><code>// Formula example:
+// Temperature = (P1 + P2) / 2 * P3
+"{0}+{1})/2*{2}"
+
+// CSV format:
+// A: IOA | B: Formula | C: Period(ms)
+16385, ({0}+{1})/2, 1000
+16386, {0}*{1}/{2}, 500</code></pre>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 9: Web Management UI
+         ========================================== -->
+    <section class="slide">
+        <div class="slide-content">
+            <div class="accent-line reveal"></div>
+            <h2 class="reveal">Web Management Interface</h2>
+            <div class="grid reveal" style="grid-template-columns: repeat(3, 1fr);">
+                <div class="scada-card">
+                    <span class="card-icon">⚙️</span>
+                    <h4>Config Page</h4>
+                    <p>Create, edit, start/stop instances. Upload .xlsx point tables. Manage instance lifecycle.</p>
+                </div>
+                <div class="scada-card">
+                    <span class="card-icon">📈</span>
+                    <h4>Monitor Page</h4>
+                    <p>Real-time instance status, connection state, interrogation counts, control counts, spontaneous uploads.</p>
+                </div>
+                <div class="scada-card">
+                    <span class="card-icon">🔍</span>
+                    <h4>Detail Page</h4>
+                    <p>Point-level view with 100ms-5s polling, value setting, auto-strategy config, SVG trend charts.</p>
+                </div>
+            </div>
+            <div class="reveal" style="margin-top: 1rem;">
+                <p style="font-size: var(--small-size); color: var(--text-muted);">
+                    <span class="status-dot"></span> Access at <code>http://localhost:8989</code> after starting serve mode
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 10: HTTP API
+         ========================================== -->
+    <section class="slide">
+        <div class="slide-content">
+            <div class="accent-line reveal"></div>
+            <h2 class="reveal">HTTP API</h2>
+            <div class="two-col">
+                <div class="reveal">
+                    <h3>Instance Management</h3>
+                    <table class="data-table" style="margin-top: 0.5rem;">
+                        <thead><tr><th>Method</th><th>Endpoint</th></tr></thead>
+                        <tbody>
+                            <tr><td><code>GET</code></td><td>/api/v1/instances</td></tr>
+                            <tr><td><code>POST</code></td><td>/api/v1/instances</td></tr>
+                            <tr><td><code>GET</code></td><td>/api/v1/instances/{id}</td></tr>
+                            <tr><td><code>PUT</code></td><td>/api/v1/instances/{id}</td></tr>
+                            <tr><td><code>DELETE</code></td><td>/api/v1/instances/{id}</td></tr>
+                            <tr><td><code>POST</code></td><td>/api/v1/instances/{id}/start</td></tr>
+                            <tr><td><code>POST</code></td><td>/api/v1/instances/{id}/stop</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="reveal">
+                    <h3>Point Operations</h3>
+                    <table class="data-table" style="margin-top: 0.5rem;">
+                        <thead><tr><th>Method</th><th>Endpoint</th></tr></thead>
+                        <tbody>
+                            <tr><td><code>GET</code></td><td>/api/v1/instances/{id}/points</td></tr>
+                            <tr><td><code>PUT</code></td><td>/api/v1/instances/{id}/points/{ioa}</td></tr>
+                            <tr><td><code>PUT</code></td><td>.../auto-change/{ioa}</td></tr>
+                            <tr><td><code>PUT</code></td><td>.../auto-change/batch</td></tr>
+                            <tr><td><code>GET</code></td><td>.../auto-change/export</td></tr>
+                            <tr><td><code>POST</code></td><td>.../auto-change/import</td></tr>
+                            <tr><td><code>POST</code></td><td>.../upload-csv</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 11: MCP Integration
+         ========================================== -->
+    <section class="slide">
+        <div class="slide-content">
+            <div class="accent-line reveal"></div>
+            <h2 class="reveal">MCP Server — AI Agent Integration</h2>
+            <p class="reveal" style="margin-bottom: 1rem;">
+                Model Context Protocol server enables AI Agents to programmatically control the simulator for automated testing.
+            </p>
+            <div class="two-col">
+                <div class="reveal">
+                    <h3>Instance Tools</h3>
+                    <ul class="feature-list" style="display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.5rem;">
+                        <li><code>list_instances</code> — List all instances</li>
+                        <li><code>create_instance</code> — Create new instance</li>
+                        <li><code>start_instance</code> — Start instance</li>
+                        <li><code>stop_instance</code> — Stop instance</li>
+                        <li><code>restart_instance</code> — Restart instance</li>
+                        <li><code>get_server_status</code> — Global status</li>
+                    </ul>
+                </div>
+                <div class="reveal">
+                    <h3>Data Tools</h3>
+                    <ul class="feature-list" style="display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.5rem;">
+                        <li><code>write_points</code> — Batch point writes</li>
+                        <li><code>read_points</code> — Batch point reads</li>
+                        <li><code>config_auto_change</code> — Set strategy</li>
+                        <li><code>export_auto_changes</code> — Export CSV</li>
+                        <li><code>import_auto_changes</code> — Import CSV</li>
+                        <li><code>upload_csv</code> — Upload replay file</li>
+                    </ul>
+                </div>
+            </div>
+            <pre class="reveal" style="margin-top: 1rem;"><code># Start MCP server
+./bin/mcp-server -simulator http://localhost:8989 -mode both</code></pre>
+        </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 12: Quick Start
+         ========================================== -->
+    <section class="slide">
+        <div class="slide-content">
+            <div class="accent-line reveal"></div>
+            <h2 class="reveal">Quick Start</h2>
+            <div class="arch-flow reveal">
+                <div class="arch-layer">
+                    <div class="arch-block">
+                        <div class="layer-label">Step 1 — Download & Extract</div>
+                        <div class="layer-content"><code>tar xzf iec104-sim-v2.2.0.tar.gz && cd iec104-sim-v2.2.0</code></div>
+                    </div>
+                </div>
+                <div class="arch-arrow">&#9660;</div>
+                <div class="arch-layer">
+                    <div class="arch-block">
+                        <div class="layer-label">Step 2 — Start Service</div>
+                        <div class="layer-content"><code>./start.sh</code> or <code>./bin/iec104-sim serve --http :8989</code></div>
+                    </div>
+                </div>
+                <div class="arch-arrow">&#9660;</div>
+                <div class="arch-layer">
+                    <div class="arch-block">
+                        <div class="layer-label">Step 3 — Open Web UI</div>
+                        <div class="layer-content">Browser → <code>http://localhost:8989</code></div>
+                    </div>
+                </div>
+                <div class="arch-arrow">&#9660;</div>
+                <div class="arch-layer">
+                    <div class="arch-block">
+                        <div class="layer-label">Step 4 — Create Instance</div>
+                        <div class="layer-content">Upload .xlsx point table → Create instance → Start → Connect IEC104 client</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 13: Build & Version History
+         ========================================== -->
+    <section class="slide">
+        <div class="slide-content">
+            <div class="accent-line reveal"></div>
+            <h2 class="reveal">Build & Version History</h2>
+            <div class="two-col">
+                <div class="reveal">
+                    <h3>Build Commands</h3>
+                    <pre style="margin-top: 0.5rem;"><code># Local dev
+go build -o bin/iec104-sim ./cmd/
+
+# Cross-platform
+make build-all      # Linux + Windows
+make build-full     # + Web UI
+make deb-amd64      # .deb package
+make compress       # UPX (~60% smaller)</code></pre>
+                </div>
+                <div class="reveal">
+                    <h3>Version Timeline</h3>
+                    <table class="data-table" style="margin-top: 0.5rem;">
+                        <thead><tr><th>Version</th><th>Key Feature</th></tr></thead>
+                        <tbody>
+                            <tr><td><code>v1.0</code></td><td>Single instance mode</td></tr>
+                            <tr><td><code>v2.0</code></td><td>Multi-instance + Vue 3 UI</td></tr>
+                            <tr><td><code>v2.1</code></td><td>Detail page + 10 strategies</td></tr>
+                            <tr><td><code>v2.1.3</code></td><td>Manual strategy</td></tr>
+                            <tr><td><code>v2.2.0</code></td><td>Custom formula + MCP + Trends</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 14: Closing
+         ========================================== -->
+    <section class="slide closing-slide">
+        <div class="deco-circle deco-circle-1"></div>
+        <div class="deco-circle deco-circle-2"></div>
+        <div class="slide-content" style="align-items: center; text-align: center;">
+            <h1 class="reveal">IEC104 Simulator</h1>
+            <div class="accent-line reveal" style="margin: 1rem auto;"></div>
+            <p class="reveal" style="font-size: var(--body-size); max-width: 50ch; margin-bottom: 1.5rem;">
+                变电站自动化测试的完整解决方案<br/>
+                <span style="color: var(--text-muted); font-size: var(--small-size);">Complete Solution for Substation Automation Testing</span>
+            </p>
+            <div class="closing-links reveal">
+                <span class="version-tag">v2.2.0</span>
+                <span class="badge">Go 1.21+</span>
+                <span class="badge badge-blue">Vue 3</span>
+                <span class="badge-warm">MCP</span>
+            </div>
+            <p class="reveal" style="margin-top: 2rem; font-size: var(--small-size); color: var(--text-muted);">
+                MIT License
+            </p>
+        </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE PRESENTATION CONTROLLER
+         ========================================== -->
+    <script>
+        class SlidePresentation {
+            constructor() {
+                this.slides = document.querySelectorAll(".slide");
+                this.currentSlide = 0;
+                this.setupIntersectionObserver();
+                this.setupKeyboardNav();
+                this.setupTouchNav();
+                this.setupProgressBar();
+                this.setupNavDots();
+            }
+
+            setupIntersectionObserver() {
+                const observer = new IntersectionObserver(
+                    (entries) => {
+                        entries.forEach((entry) => {
+                            if (entry.isIntersecting) {
+                                entry.target.classList.add("visible");
+                                const idx = Array.from(this.slides).indexOf(entry.target);
+                                this.currentSlide = idx;
+                                this.updateProgress();
+                                this.updateNavDots();
+                            }
+                        });
+                    },
+                    { threshold: 0.5 }
+                );
+                this.slides.forEach((slide) => observer.observe(slide));
+            }
+
+            setupKeyboardNav() {
+                document.addEventListener("keydown", (e) => {
+                    if (e.key === "ArrowDown" || e.key === " " || e.key === "PageDown") {
+                        e.preventDefault();
+                        this.goToSlide(Math.min(this.currentSlide + 1, this.slides.length - 1));
+                    } else if (e.key === "ArrowUp" || e.key === "PageUp") {
+                        e.preventDefault();
+                        this.goToSlide(Math.max(this.currentSlide - 1, 0));
+                    } else if (e.key === "Home") {
+                        e.preventDefault();
+                        this.goToSlide(0);
+                    } else if (e.key === "End") {
+                        e.preventDefault();
+                        this.goToSlide(this.slides.length - 1);
+                    }
+                });
+            }
+
+            setupTouchNav() {
+                let startY = 0;
+                document.addEventListener("touchstart", (e) => { startY = e.touches[0].clientY; }, { passive: true });
+                document.addEventListener("touchend", (e) => {
+                    const diff = startY - e.changedTouches[0].clientY;
+                    if (Math.abs(diff) > 50) {
+                        if (diff > 0) this.goToSlide(Math.min(this.currentSlide + 1, this.slides.length - 1));
+                        else this.goToSlide(Math.max(this.currentSlide - 1, 0));
+                    }
+                }, { passive: true });
+            }
+
+            setupProgressBar() {
+                this.progressBar = document.getElementById("progressBar");
+            }
+
+            updateProgress() {
+                if (this.progressBar) {
+                    const pct = ((this.currentSlide + 1) / this.slides.length) * 100;
+                    this.progressBar.style.width = pct + "%";
+                }
+            }
+
+            setupNavDots() {
+                const container = document.getElementById("navDots");
+                container.innerHTML = "";
+                this.slides.forEach((_, i) => {
+                    const dot = document.createElement("div");
+                    dot.className = "dot" + (i === 0 ? " active" : "");
+                    dot.addEventListener("click", () => this.goToSlide(i));
+                    container.appendChild(dot);
+                });
+            }
+
+            updateNavDots() {
+                const dots = document.querySelectorAll(".nav-dots .dot");
+                dots.forEach((d, i) => d.classList.toggle("active", i === this.currentSlide));
+            }
+
+            goToSlide(index) {
+                this.slides[index].scrollIntoView({ behavior: "smooth" });
+            }
+        }
+
+        new SlidePresentation();
+    </script>
+</body>
+</html>

@@ -74,7 +74,7 @@ const currentRoute = computed(() => {
 })
 const isLoginPage = computed(() => route.path === '/login')
 const status = ref<GlobalStatus | null>(null)
-const version = ref('2.3.0')
+const version = ref('2.5.2')
 const username = ref('')
 
 function updateUserFromToken() {

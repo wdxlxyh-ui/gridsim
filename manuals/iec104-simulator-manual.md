@@ -1,6 +1,6 @@
 # IEC 60870-5-104 模拟器 — 使用手册
 
-> 版本: 2.5.1 | 更新日期: 2026-05-20
+> 版本: 2.5.2 | 更新日期: 2026-05-21
 
 ---
 
@@ -84,8 +84,8 @@ IEC 104 从站模拟器用于变电站自动化测试，支持多实例并行运
 
 ```bash
 # Linux amd64
-tar xzf iec104-sim-v2.5.1-linux-amd64.tar.gz
-cd iec104-sim-v2.5.1-linux-amd64
+tar xzf iec104-sim-v2.5.2-linux-amd64.tar.gz
+cd iec104-sim-v2.5.2-linux-amd64
 
 # 启动服务
 ./bin/start.sh
@@ -124,7 +124,7 @@ go build -o bin/iec104-sim ./cmd/iec104-sim/
 ### 3.5 发行包目录结构
 
 ```
-iec104-sim-v2.5.1-linux-amd64/
+iec104-sim-v2.5.2-linux-amd64/
 ├── bin/
 │   ├── iec104-sim         ← 主程序
 │   ├── iec104-mcp         ← MCP 服务器（可选）
@@ -812,7 +812,7 @@ make dist                  # 三平台发行包
 cd web && npm install && npm run build && cd ..
 
 # 2. 构建二进制（当前平台）
-go build -ldflags="-s -w -X main.version=2.5.1" -o bin/iec104-sim ./cmd/iec104-sim/
+go build -ldflags="-s -w -X main.version=2.5.2" -o bin/iec104-sim ./cmd/iec104-sim/
 
 # 3. 全平台一键打包
 make dist
@@ -821,9 +821,9 @@ make dist
 ### 11.3 发行包
 
 构建产物在 `dist/` 目录：
-- `iec104-sim-v2.5.1-linux-amd64.tar.gz`
-- `iec104-sim-v2.5.1-linux-arm64.tar.gz`
-- `iec104-sim-v2.5.1-windows-amd64.zip`
+- `iec104-sim-v2.5.2-linux-amd64.tar.gz`
+- `iec104-sim-v2.5.2-linux-arm64.tar.gz`
+- `iec104-sim-v2.5.2-windows-amd64.zip`
 
 ---
 
