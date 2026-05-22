@@ -50,7 +50,8 @@
                     <span v-if="f.shared" style="color: #909399; font-size: 11px; margin-left: 6px">共享</span>
                   </el-option>
                 </el-select>
-                <el-button size="small" @click="triggerCsvMultiUpload">上传</el-button>
+                <el-button size="small" type="success" @click="loadCSVMappings" :disabled="!csvMultiForm.csv_file || csvUploading">加载映射</el-button>
+                <el-button size="small" @click="triggerCsvMultiUpload" :disabled="csvUploading">上传</el-button>
                 <input ref="csvMultiUploadRef" type="file" accept=".csv" style="display: none" @change="uploadCsvMultiFile" />
                 <span v-if="csvMultiFileLoaded" style="font-size: 12px; color: #10b981">✓ 已加载 {{ csvMultiColCount }} 列</span>
               </div>
@@ -466,7 +467,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown } from '@element-plus/icons-vue'
@@ -506,7 +507,8 @@ const csvMultiForm = reactive({
 })
 const csvMultiMappings = reactive<{ ioa: number }[]>([])
 const csvMultiIoas = ref<number[]>([])
-const csvMultiColNames = ref<string[]>([]) // original CSV column names
+const csvMultiColNames = ref<string[]>([])
+const csvUploading = ref(false) // original CSV column names
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
@@ -1142,27 +1144,25 @@ function parseCSVContent(text: string) {
   }
 }
 
-// Watch for CSV file selection from dropdown — fetch content from server
-watch(csvMultiForm, async (val, oldVal) => {
-  if (val.csv_file && val.csv_file !== oldVal?.csv_file) {
-    csvMultiFileLoaded.value = false
-    try {
-      const content = await readCSVHeaders(instanceId.value, val.csv_file)
-      parseCSVContent(content)
-      csvMultiFileLoaded.value = true
-    } catch {
-      csvMultiMappings.length = 0
-      csvMultiColCount.value = 0
-      csvMultiColNames.value = []
-      ElMessage.warning('无法读取 CSV 文件内容')
-    }
-  } else if (!val.csv_file) {
-    csvMultiFileLoaded.value = false
+// 从服务器加载 CSV 文件内容并解析列映射
+async function loadCSVMappings() {
+  if (!csvMultiForm.csv_file) return
+  csvUploading.value = true
+  csvMultiFileLoaded.value = false
+  try {
+    const content = await readCSVHeaders(instanceId.value, csvMultiForm.csv_file)
+    parseCSVContent(content)
+    csvMultiFileLoaded.value = true
+    ElMessage.success(`已解析 ${csvMultiColCount.value} 列`)
+  } catch {
     csvMultiMappings.length = 0
     csvMultiColCount.value = 0
     csvMultiColNames.value = []
+    ElMessage.warning('无法读取 CSV 文件内容')
+  } finally {
+    csvUploading.value = false
   }
-}, { deep: true })
+}
 
 function addCsvMultiMapping() {
   if (csvMultiMappings.length >= csvMultiColCount.value || csvMultiMappings.length >= 10) return
