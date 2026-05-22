@@ -257,60 +257,24 @@ func (ws *webServer) handleInstanceByID(w http.ResponseWriter, r *http.Request) 
 		switch parts[1] {
 		case "start":
 			ws.execAction(w, id, ws.mgr.StartInstance)
-			return
 		case "stop":
 			ws.execAction(w, id, ws.mgr.StopInstance)
-			return
 		case "restart":
 			ws.execAction(w, id, ws.mgr.RestartInstance)
-			return
 		case "points":
 			ws.handleInstancePoints(w, r, id)
-			return
 		case "upload-csv":
-			store := ws.mgr.GetStore(id)
-			engine := ws.mgr.GetEngine(id)
-			if store == nil || engine == nil {
-				writeError(w, http.StatusNotFound, "instance not running")
-				return
-			}
-			dh := detail.NewDetailHandler(id, store, engine, ws.mgr.CfgDir())
-			dh.HandleUploadCSV(w, r)
-			return
+			ws.withDetailHandler(w, r, id, func(dh *detail.DetailHandler) { dh.HandleUploadCSV(w, r) })
 		case "csv-files":
-			store := ws.mgr.GetStore(id)
-			engine := ws.mgr.GetEngine(id)
-			if store == nil || engine == nil {
-				writeError(w, http.StatusNotFound, "instance not running")
-				return
-			}
-			dh := detail.NewDetailHandler(id, store, engine, ws.mgr.CfgDir())
-			dh.HandleListCSVFiles(w, r)
-			return
+			ws.withDetailHandler(w, r, id, func(dh *detail.DetailHandler) { dh.HandleListCSVFiles(w, r) })
 		case "csv-content":
-			store := ws.mgr.GetStore(id)
-			engine := ws.mgr.GetEngine(id)
-			if store == nil || engine == nil {
-				writeError(w, http.StatusNotFound, "instance not running")
-				return
-			}
-			dh := detail.NewDetailHandler(id, store, engine, ws.mgr.CfgDir())
-			dh.HandleReadCSVHeaders(w, r)
-			return
+			ws.withDetailHandler(w, r, id, func(dh *detail.DetailHandler) { dh.HandleReadCSVHeaders(w, r) })
 		case "csv-replay":
-			store := ws.mgr.GetStore(id)
-			engine := ws.mgr.GetEngine(id)
-			if store == nil || engine == nil {
-				writeError(w, http.StatusNotFound, "instance not running")
-				return
-			}
-			dh := detail.NewDetailHandler(id, store, engine, ws.mgr.CfgDir())
-			dh.HandleConfigCSVReplay(w, r)
-			return
+			ws.withDetailHandler(w, r, id, func(dh *detail.DetailHandler) { dh.HandleConfigCSVReplay(w, r) })
 		default:
 			writeError(w, http.StatusBadRequest, "unknown action: "+parts[1])
-			return
 		}
+		return
 	}
 
 	switch r.Method {
@@ -369,7 +333,6 @@ type actionFunc func(string) error
 func (ws *webServer) execAction(w http.ResponseWriter, id string, fn actionFunc) {
 	if err := fn(id); err != nil {
 		errMsg := err.Error()
-		// "not found" and "not running" are 404; everything else is 409
 		if strings.Contains(errMsg, "not found") || strings.Contains(errMsg, "not running") {
 			writeError(w, http.StatusNotFound, errMsg)
 		} else {
@@ -378,6 +341,16 @@ func (ws *webServer) execAction(w http.ResponseWriter, id string, fn actionFunc)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "id": id})
+}
+
+func (ws *webServer) withDetailHandler(w http.ResponseWriter, r *http.Request, id string, fn func(*detail.DetailHandler)) {
+	store := ws.mgr.GetStore(id)
+	engine := ws.mgr.GetEngine(id)
+	if store == nil || engine == nil {
+		writeError(w, http.StatusNotFound, "instance not running")
+		return
+	}
+	fn(detail.NewDetailHandler(id, store, engine, ws.mgr.CfgDir()))
 }
 
 func (ws *webServer) handleInstancePoints(w http.ResponseWriter, r *http.Request, id string) {

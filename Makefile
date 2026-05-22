@@ -53,8 +53,14 @@ build-mcp-windows:
 	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
 		go build $(LDFLAGS) -o $(BIN_DIR)/iec104-mcp.exe ./cmd/mcp-server/
 
+# ── 版本号文件 ──────────────────────────────────────────
+version-file:
+	@mkdir -p $(BIN_DIR)
+	@echo "$(VERSION)" > $(BIN_DIR)/VERSION
+	@echo "  ✔ VERSION = $(VERSION)"
+
 # ── 全部二进制 ──────────────────────────────────────────
-build-all: build-linux-amd64 build-linux-arm64 build-windows build-mcp-linux-amd64 build-mcp-linux-arm64 build-mcp-windows
+build-all: version-file build-linux-amd64 build-linux-arm64 build-windows build-mcp-linux-amd64 build-mcp-linux-arm64 build-mcp-windows
 	@echo "  ✔ all binaries built"
 
 # ── Web 前端构建 (需要 Node.js) ─────────────────────────
@@ -80,9 +86,11 @@ dist: web-build build-all
 	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-amd64/resources
 	cp $(BIN_DIR)/$(PROJECT) $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-amd64/bin/$(PROJECT)
 	cp $(BIN_DIR)/iec104-mcp $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-amd64/bin/iec104-mcp
+	cp $(BIN_DIR)/VERSION $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-amd64/bin/VERSION
 	cp scripts/start.sh scripts/stop.sh scripts/restart.sh $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-amd64/bin/
 	chmod +x $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-amd64/bin/*.sh
 	echo '[]' > $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-amd64/config/instances.json
+	cp config/users.json $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-amd64/config/users.json
 	touch $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-amd64/logs/.gitkeep
 	touch $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-amd64/resources/.gitkeep
 	@if [ -d web/dist ]; then \
@@ -99,9 +107,11 @@ dist: web-build build-all
 	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-arm64/resources
 	cp $(BIN_DIR)/$(PROJECT)-arm64 $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-arm64/bin/$(PROJECT)
 	cp $(BIN_DIR)/iec104-mcp-arm64 $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-arm64/bin/iec104-mcp
+	cp $(BIN_DIR)/VERSION $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-arm64/bin/VERSION
 	cp scripts/start.sh scripts/stop.sh scripts/restart.sh $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-arm64/bin/
 	chmod +x $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-arm64/bin/*.sh
 	echo '[]' > $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-arm64/config/instances.json
+	cp config/users.json $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-arm64/config/users.json
 	touch $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-arm64/logs/.gitkeep
 	touch $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-arm64/resources/.gitkeep
 	@if [ -d web/dist ]; then \
@@ -119,8 +129,10 @@ dist: web-build build-all
 	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-windows-amd64/resources
 	cp $(BIN_DIR)/$(PROJECT).exe $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-windows-amd64/bin/$(PROJECT).exe
 	cp $(BIN_DIR)/iec104-mcp.exe $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-windows-amd64/bin/iec104-mcp.exe
+	cp $(BIN_DIR)/VERSION $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-windows-amd64/bin/VERSION
 	cp scripts/start.bat scripts/stop.bat scripts/restart.bat $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-windows-amd64/scripts/
 	echo '[]' > $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-windows-amd64/config/instances.json
+	cp config/users.json $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-windows-amd64/config/users.json
 	touch $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-windows-amd64/logs/.gitkeep
 	touch $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-windows-amd64/resources/.gitkeep
 	@if [ -d web/dist ]; then \

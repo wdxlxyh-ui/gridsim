@@ -68,6 +68,10 @@
                 <el-radio value="s">秒</el-radio>
               </el-radio-group>
             </el-form-item>
+            <el-form-item label="循环播放">
+              <el-switch v-model="csvMultiForm.csv_loop" active-text="循环" inactive-text="播一次" style="--el-switch-on-color: #10b981" />
+              <span style="font-size: 12px; color: #909399; margin-left: 8px">{{ csvMultiForm.csv_loop ? '播完后从头继续' : '播完后保持最后一个值' }}</span>
+            </el-form-item>
             <el-form-item label="测点映射">
               <div style="display: flex; flex-direction: column; gap: 8px; width: 100%">
                 <div v-for="(m, idx) in csvMultiMappings" :key="idx" style="display: flex; align-items: center; gap: 8px">
@@ -275,6 +279,10 @@
                 <el-radio value="s">秒</el-radio>
               </el-radio-group>
             </el-form-item>
+            <el-form-item label="循环播放">
+              <el-switch v-model="autoForm.csv_loop" active-text="循环" inactive-text="播一次" style="--el-switch-on-color: #10b981" />
+              <span style="font-size: 12px; color: #909399; margin-left: 8px">{{ autoForm.csv_loop ? '播完后从头继续' : '播完后保持最后一个值' }}</span>
+            </el-form-item>
           </el-form>
         </el-tab-pane>
         <el-tab-pane label="MAX" name="max">
@@ -475,6 +483,7 @@ import {
   getPoints, setPointValue, setAutoChange, getAutoChange, batchAutoChange,
   exportAutoConfig as fetchExport, importAutoConfig as fetchImport,
   exportPointsCSV, uploadCSV, getInstance, listInstances, listCSVFiles, readCSVHeaders,
+  deleteAutoChange,
   type PointSnapshot, type InstanceState,
 } from '../api'
 
@@ -504,6 +513,7 @@ const csvMultiForm = reactive({
   csv_file: '',
   time_format: 'relative',
   time_unit: 'ms',
+  csv_loop: true,
 })
 const csvMultiMappings = reactive<{ ioa: number }[]>([])
 const csvMultiIoas = ref<number[]>([])
@@ -531,6 +541,7 @@ const autoForm = reactive({
   time_format: 'absolute',
   time_unit: 'ms',
   csv_column_map: '',
+  csv_loop: true,
   para_a: '',
   para_b: '',
   init_soc: 50,
@@ -969,6 +980,7 @@ async function confirmAutoChange() {
       params.csv_file = autoForm.csv_file
       params.time_format = autoForm.time_format
       params.time_unit = autoForm.time_unit
+      params.csv_loop = autoForm.csv_loop
       break
     case 'max':
     case 'min':
@@ -1189,6 +1201,7 @@ async function saveCsvMultiConfig() {
         time_format: csvMultiForm.time_format,
         time_unit: csvMultiForm.time_unit,
         csv_column_map: JSON.stringify({ [idx + 1]: m.ioa }),
+        csv_loop: csvMultiForm.csv_loop,
       },
     })
   )
@@ -1217,12 +1230,7 @@ async function stopCsvMultiConfig() {
   await Promise.all(stopPromises)
 
   const delPromises = csvMultiIoas.value.map(ioa =>
-    (async () => {
-      try {
-        const api = await import('../api')
-        await api.deleteAutoChange(instanceId.value, ioa)
-      } catch {}
-    })()
+    deleteAutoChange(instanceId.value, ioa).catch(() => {})
   )
   await Promise.all(delPromises)
 
@@ -1242,21 +1250,21 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 
 async function restoreCsvMultiState() {
-  const csvPoints: { ioa: number; col: number; file: string; timeFormat: string; timeUnit: string }[] = []
-  for (const p of points.value) {
-    try {
-      const cfg = await getAutoChange(instanceId.value, p.ioa)
-      if (cfg && cfg.strategy === 'csv' && cfg.enabled && cfg.params.csv_column_map) {
-        try {
-          const map = JSON.parse(cfg.params.csv_column_map)
-          const entries = Object.entries(map)
-          if (entries.length === 1) {
-            const col = parseInt(entries[0][0])
-            csvPoints.push({ ioa: p.ioa, col, file: cfg.params.csv_file || '', timeFormat: cfg.params.time_format || 'relative', timeUnit: cfg.params.time_unit || 'ms' })
-          }
-        } catch {}
-      }
-    } catch {}
+  const csvPoints: { ioa: number; col: number; file: string; timeFormat: string; timeUnit: string; csvLoop: boolean }[] = []
+  const results = await Promise.all(
+    points.value.map(p => getAutoChange(instanceId.value, p.ioa).catch(() => null))
+  )
+  for (const cfg of results) {
+    if (cfg && cfg.strategy === 'csv' && cfg.enabled && cfg.params.csv_column_map) {
+      try {
+        const map = JSON.parse(cfg.params.csv_column_map)
+        const entries = Object.entries(map)
+        if (entries.length === 1) {
+          const col = parseInt(entries[0][0])
+          csvPoints.push({ ioa: cfg.ioa, col, file: cfg.params.csv_file || '', timeFormat: cfg.params.time_format || 'relative', timeUnit: cfg.params.time_unit || 'ms', csvLoop: cfg.params.csv_loop !== false })
+        }
+      } catch {}
+    }
   }
   if (csvPoints.length === 0) return
 
@@ -1266,6 +1274,7 @@ async function restoreCsvMultiState() {
   csvMultiForm.csv_file = csvPoints[0].file
   csvMultiForm.time_format = csvPoints[0].timeFormat
   csvMultiForm.time_unit = csvPoints[0].timeUnit
+  csvMultiForm.csv_loop = csvPoints[0].csvLoop
   csvMultiFileLoaded.value = true
 
   const maxCol = Math.max(...csvPoints.map(p => p.col))
