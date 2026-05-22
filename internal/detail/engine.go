@@ -195,6 +195,9 @@ func (e *Engine) startTaskLocked(cfg *model.AutoChangeConfig) {
 				e.mu.RLock()
 				s := e.state[cfg.PointIOA]
 				e.mu.RUnlock()
+				if s == nil {
+					return
+				}
 				e.strategy.runOnce(cfg, s)
 			}
 		}
