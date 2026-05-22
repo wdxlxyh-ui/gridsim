@@ -184,4 +184,4 @@ Error: dial tcp connection refused
 
 - IEC104 Simulator: 2.5.2+
 - MCP Server: 1.1.0
-- 工具总数: 26
+- 工具总数: 27
