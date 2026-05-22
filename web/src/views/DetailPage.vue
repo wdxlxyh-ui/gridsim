@@ -475,6 +475,7 @@ import {
   getPoints, setPointValue, setAutoChange, getAutoChange, batchAutoChange,
   exportAutoConfig as fetchExport, importAutoConfig as fetchImport,
   exportPointsCSV, uploadCSV, getInstance, listInstances, listCSVFiles, readCSVHeaders,
+  deleteAutoChange,
   type PointSnapshot, type InstanceState,
 } from '../api'
 
@@ -1217,12 +1218,7 @@ async function stopCsvMultiConfig() {
   await Promise.all(stopPromises)
 
   const delPromises = csvMultiIoas.value.map(ioa =>
-    (async () => {
-      try {
-        const api = await import('../api')
-        await api.deleteAutoChange(instanceId.value, ioa)
-      } catch {}
-    })()
+    deleteAutoChange(instanceId.value, ioa).catch(() => {})
   )
   await Promise.all(delPromises)
 
@@ -1243,20 +1239,20 @@ function downloadBlob(blob: Blob, filename: string) {
 
 async function restoreCsvMultiState() {
   const csvPoints: { ioa: number; col: number; file: string; timeFormat: string; timeUnit: string }[] = []
-  for (const p of points.value) {
-    try {
-      const cfg = await getAutoChange(instanceId.value, p.ioa)
-      if (cfg && cfg.strategy === 'csv' && cfg.enabled && cfg.params.csv_column_map) {
-        try {
-          const map = JSON.parse(cfg.params.csv_column_map)
-          const entries = Object.entries(map)
-          if (entries.length === 1) {
-            const col = parseInt(entries[0][0])
-            csvPoints.push({ ioa: p.ioa, col, file: cfg.params.csv_file || '', timeFormat: cfg.params.time_format || 'relative', timeUnit: cfg.params.time_unit || 'ms' })
-          }
-        } catch {}
-      }
-    } catch {}
+  const results = await Promise.all(
+    points.value.map(p => getAutoChange(instanceId.value, p.ioa).catch(() => null))
+  )
+  for (const cfg of results) {
+    if (cfg && cfg.strategy === 'csv' && cfg.enabled && cfg.params.csv_column_map) {
+      try {
+        const map = JSON.parse(cfg.params.csv_column_map)
+        const entries = Object.entries(map)
+        if (entries.length === 1) {
+          const col = parseInt(entries[0][0])
+          csvPoints.push({ ioa: cfg.ioa, col, file: cfg.params.csv_file || '', timeFormat: cfg.params.time_format || 'relative', timeUnit: cfg.params.time_unit || 'ms' })
+        }
+      } catch {}
+    }
   }
   if (csvPoints.length === 0) return
 

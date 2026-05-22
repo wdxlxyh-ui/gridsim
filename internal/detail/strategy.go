@@ -178,9 +178,9 @@ func (sr *strategyRunner) doCSV(cfg *model.AutoChangeConfig, state *strategyStat
 }
 
 func (sr *strategyRunner) ensureCSVRows(cfg *model.AutoChangeConfig, state *strategyState) bool {
-	csvPath := filepath.Join(sr.configDir, "csv", sr.instanceID, cfg.Params.CSVFileName)
+	csvPath := filepath.Join(sr.configDir, "csv", sr.instanceID, filepath.Base(cfg.Params.CSVFileName))
 	if _, err := os.Stat(csvPath); os.IsNotExist(err) {
-		csvPath = filepath.Join(sr.configDir, "csv", cfg.Params.CSVFileName)
+		csvPath = filepath.Join(sr.configDir, "csv", filepath.Base(cfg.Params.CSVFileName))
 	}
 
 	if state.csvRows != nil {
@@ -204,9 +204,9 @@ func (sr *strategyRunner) ensureCSVRows(cfg *model.AutoChangeConfig, state *stra
 }
 
 func (sr *strategyRunner) loadCSVRows(cfg *model.AutoChangeConfig) []csvRow {
-	csvPath := filepath.Join(sr.configDir, "csv", sr.instanceID, cfg.Params.CSVFileName)
+	csvPath := filepath.Join(sr.configDir, "csv", sr.instanceID, filepath.Base(cfg.Params.CSVFileName))
 	if _, err := os.Stat(csvPath); os.IsNotExist(err) {
-		csvPath = filepath.Join(sr.configDir, "csv", cfg.Params.CSVFileName)
+		csvPath = filepath.Join(sr.configDir, "csv", filepath.Base(cfg.Params.CSVFileName))
 	}
 	f, err := os.Open(csvPath)
 	if err != nil {

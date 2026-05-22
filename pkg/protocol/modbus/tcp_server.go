@@ -142,6 +142,7 @@ func (s *ModbusTCPServer) acceptLoop(ln net.Listener) {
 
 func (s *ModbusTCPServer) handleConnection(conn net.Conn) {
 	for {
+		conn.SetReadDeadline(time.Now().Add(30 * time.Second))
 		mbap := make([]byte, 7)
 		if _, err := io.ReadFull(conn, mbap); err != nil {
 			return

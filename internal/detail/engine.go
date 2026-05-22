@@ -215,19 +215,32 @@ func (e *Engine) stopTaskLocked(ioa uint32) {
 }
 
 func (e *Engine) HandleAOFollow(aoIOA uint32) {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
+	// Collect targets under RLock, then process without lock
+	type followTarget struct {
+		IOA    uint32
+		Value  float64
+	}
+	var targets []followTarget
 
-	for _, cfg := range e.acStore.All(e.instanceID) {
-		if cfg.Strategy == model.StrategyAOFollow && cfg.Enabled && cfg.Params.FollowAOIOA == aoIOA {
-			p, ok := e.store.Get(aoIOA)
-			if !ok {
-				continue
+	func() {
+		e.mu.RLock()
+		defer e.mu.RUnlock()
+
+		for _, cfg := range e.acStore.All(e.instanceID) {
+			if cfg.Strategy == model.StrategyAOFollow && cfg.Enabled && cfg.Params.FollowAOIOA == aoIOA {
+				p, ok := e.store.Get(aoIOA)
+				if !ok {
+					continue
+				}
+				targets = append(targets, followTarget{IOA: cfg.PointIOA, Value: p.Value})
 			}
-			e.store.SetValue(cfg.PointIOA, p.Value)
-			if target, ok := e.store.Get(cfg.PointIOA); ok {
-				e.pub.Publish(target)
-			}
+		}
+	}()
+
+	for _, t := range targets {
+		e.store.SetValue(t.IOA, t.Value)
+		if target, ok := e.store.Get(t.IOA); ok {
+			e.pub.Publish(target)
 		}
 	}
 }
