@@ -253,3 +253,15 @@ export async function getProtocols(): Promise<string[]> {
   const res = await http.get('/protocols')
   return res.data.protocols
 }
+
+export interface CSVFileInfo {
+  name: string
+  size: number
+  modtime: string
+  shared: boolean
+}
+
+export async function listCSVFiles(instanceId: string): Promise<CSVFileInfo[]> {
+  const res = await http.get(`/instances/${instanceId}/csv-files`)
+  return res.data.files
+}

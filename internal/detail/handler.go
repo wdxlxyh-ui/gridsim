@@ -39,6 +39,7 @@ func (h *DetailHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/instances/"+h.instID+"/points", h.handlePoints)
 	mux.HandleFunc("/api/v1/instances/"+h.instID+"/points/", h.handlePointsByIOA)
 	mux.HandleFunc("/api/v1/instances/"+h.instID+"/upload-csv", h.handleUploadCSV)
+	mux.HandleFunc("/api/v1/instances/"+h.instID+"/csv-files", h.handleListCSVFiles)
 }
 
 func (h *DetailHandler) handlePoints(w http.ResponseWriter, r *http.Request) {
@@ -717,6 +718,64 @@ func (h *DetailHandler) handleUploadCSV(w http.ResponseWriter, r *http.Request) 
 		"filename": filename,
 		"path":     "csv/" + h.instID + "/" + filename,
 	})
+}
+
+func (h *DetailHandler) handleListCSVFiles(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
+	}
+
+	seen := make(map[string]bool)
+	var files []map[string]interface{}
+
+	sharedDir := filepath.Join(h.cfgDir, "csv")
+	instDir := filepath.Join(h.cfgDir, "csv", h.instID)
+
+	// Read shared directory first (files visible to all instances)
+	if entries, err := os.ReadDir(sharedDir); err == nil {
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(strings.ToLower(e.Name()), ".csv") {
+				continue
+			}
+			info, _ := e.Info()
+			files = append(files, map[string]interface{}{
+				"name":    e.Name(),
+				"size":    info.Size(),
+				"modtime": info.ModTime().Format("2006-01-02T15:04:05Z"),
+				"shared":  true,
+			})
+			seen[e.Name()] = true
+		}
+	}
+
+	// Read instance-specific directory
+	if entries, err := os.ReadDir(instDir); err == nil {
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(strings.ToLower(e.Name()), ".csv") {
+				continue
+			}
+			if seen[e.Name()] {
+				continue
+			}
+			info, _ := e.Info()
+			files = append(files, map[string]interface{}{
+				"name":    e.Name(),
+				"size":    info.Size(),
+				"modtime": info.ModTime().Format("2006-01-02T15:04:05Z"),
+				"shared":  false,
+			})
+		}
+	}
+
+	// Sort by modtime descending (newest first)
+	sort.Slice(files, func(i, j int) bool {
+		ti, _ := files[i]["modtime"].(string)
+		tj, _ := files[j]["modtime"].(string)
+		return ti > tj
+	})
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{"files": files})
 }
 
 func pointToSnapshot(p *config.Point) model.PointSnapshot {

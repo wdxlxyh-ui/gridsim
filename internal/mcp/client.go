@@ -168,6 +168,10 @@ func (c *SimulatorClient) UpdateQDS(ioa uint32, body json.RawMessage) (json.RawM
 	return c.put(fmt.Sprintf("/api/points/%d/qds", ioa), body)
 }
 
+func (c *SimulatorClient) ListCSVFiles(instID string) (json.RawMessage, error) {
+	return c.get(fmt.Sprintf("/api/v1/instances/%s/csv-files", instID))
+}
+
 // ---- HTTP helpers ----
 
 func (c *SimulatorClient) get(path string) (json.RawMessage, error) {

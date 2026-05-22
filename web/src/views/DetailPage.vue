@@ -44,7 +44,12 @@
           <el-form label-width="90px" size="small">
             <el-form-item label="CSV文件">
               <div style="display: flex; gap: 8px; align-items: center">
-                <el-input v-model="csvMultiForm.csv_file" placeholder="文件名" style="width: 200px" readonly />
+                <el-select v-model="csvMultiForm.csv_file" placeholder="选择已有 CSV 文件" filterable clearable style="width: 200px" @visible-change="loadCSVFileList">
+                  <el-option v-for="f in csvFileList" :key="f.name" :label="f.name + (f.shared ? ' (共享)' : '')" :value="f.name">
+                    <span>{{ f.name }}</span>
+                    <span v-if="f.shared" style="color: #909399; font-size: 11px; margin-left: 6px">共享</span>
+                  </el-option>
+                </el-select>
                 <el-button size="small" @click="triggerCsvMultiUpload">上传</el-button>
                 <input ref="csvMultiUploadRef" type="file" accept=".csv" style="display: none" @change="uploadCsvMultiFile" />
                 <span v-if="csvMultiFileLoaded" style="font-size: 12px; color: #10b981">✓ 已加载 {{ csvMultiColCount }} 列</span>
@@ -247,7 +252,12 @@
           <el-form label-width="100px" size="small">
             <el-form-item label="CSV文件">
               <div style="display: flex; gap: 8px">
-                <el-input v-model="autoForm.csv_file" placeholder="文件名" style="width: 200px" />
+                <el-select v-model="autoForm.csv_file" placeholder="选择已有 CSV 文件" filterable clearable style="width: 200px" @visible-change="loadCSVFileList">
+                  <el-option v-for="f in csvFileList" :key="f.name" :label="f.name + (f.shared ? ' (共享)' : '')" :value="f.name">
+                    <span>{{ f.name }}</span>
+                    <span v-if="f.shared" style="color: #909399; font-size: 11px; margin-left: 6px">共享</span>
+                  </el-option>
+                </el-select>
                 <el-button size="small" @click="triggerCSVUpload">上传</el-button>
                 <input ref="csvUploadRef" type="file" accept=".csv" style="display: none" @change="uploadCSVFile" />
               </div>
@@ -463,7 +473,7 @@ import { ArrowDown } from '@element-plus/icons-vue'
 import {
   getPoints, setPointValue, setAutoChange, getAutoChange, batchAutoChange,
   exportAutoConfig as fetchExport, importAutoConfig as fetchImport,
-  exportPointsCSV, uploadCSV, getInstance, listInstances,
+  exportPointsCSV, uploadCSV, getInstance, listInstances, listCSVFiles,
   type PointSnapshot, type InstanceState,
 } from '../api'
 
@@ -531,6 +541,18 @@ const autoForm = reactive({
   follow_ao_ioa: 20,
   api_init_value: 0,
 })
+
+// ---- CSV 文件列表 ----
+const csvFileList = ref<{ name: string; size: number; modtime: string; shared: boolean }[]>([])
+let csvFilesLoaded = false
+async function loadCSVFileList(visible?: boolean) {
+  if (visible === false) return
+  if (csvFilesLoaded) return
+  try {
+    csvFileList.value = await listCSVFiles(instanceId.value)
+    csvFilesLoaded = true
+  } catch { /* ignore */ }
+}
 
 // ---- 自定义公式相关状态 ----
 const customSelectedIoas = ref<string[]>([])
@@ -871,6 +893,7 @@ async function openAutoModal(row: PointSnapshot) {
 
   resetAutoForm()
   loadRemoteInstances()
+  loadCSVFileList()
 
   try {
     const cfg = await (await import('../api')).getAutoChange(instanceId.value, row.ioa)
@@ -1056,6 +1079,8 @@ async function uploadCSVFile(e: Event) {
     autoForm.csv_file = res.filename
     ElMessage.success('CSV 上传成功')
     input.value = ''
+    csvFilesLoaded = false
+    loadCSVFileList()
   } catch (e: any) {
     ElMessage.error('CSV 上传失败: ' + (e?.response?.data?.error || e.message))
   }
@@ -1075,6 +1100,8 @@ async function uploadCsvMultiFile(e: Event) {
     csvMultiFileLoaded.value = true
     ElMessage.success('CSV 上传成功')
     input.value = ''
+    csvFilesLoaded = false
+    loadCSVFileList()
 
     const text = await file.text()
     const lines = text.trim().split('\n')
@@ -1227,6 +1254,7 @@ onMounted(async () => {
   } else {
     pollingEnabled.value = false
   }
+  loadCSVFileList()
 })
 
 onUnmounted(() => {

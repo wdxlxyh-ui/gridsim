@@ -331,6 +331,14 @@ func NewDataInterfaceServer(client *SimulatorClient) *server.MCPServer {
 		return c.UploadCSV(getStringArg(args, "instance_id"), getStringArg(args, "csv_content"))
 	}))
 
+	// list_csv_files
+	s.AddTool(mcp.NewTool("list_csv_files",
+		mcp.WithDescription("列出实例可用的 CSV 回放文件列表（共享目录 + 实例私有目录）"),
+		mcp.WithString("instance_id", mcp.Description("实例ID")),
+	), toolHandler(client, func(c *SimulatorClient, args map[string]any) (any, error) {
+		return c.ListCSVFiles(getStringArg(args, "instance_id"))
+	}))
+
 	// upload_file — 上传 xlsx 点表文件
 	s.AddTool(mcp.NewTool("upload_file",
 		mcp.WithDescription("上传 .xlsx 点表文件到模拟器 config 目录。文件内容需 base64 编码。"),
