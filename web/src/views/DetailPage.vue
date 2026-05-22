@@ -466,14 +466,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown } from '@element-plus/icons-vue'
 import {
   getPoints, setPointValue, setAutoChange, getAutoChange, batchAutoChange,
   exportAutoConfig as fetchExport, importAutoConfig as fetchImport,
-  exportPointsCSV, uploadCSV, getInstance, listInstances, listCSVFiles,
+  exportPointsCSV, uploadCSV, getInstance, listInstances, listCSVFiles, readCSVHeaders,
   type PointSnapshot, type InstanceState,
 } from '../api'
 
@@ -1097,53 +1097,72 @@ async function uploadCsvMultiFile(e: Event) {
   const file = input.files[0]
   try {
     const res = await uploadCSV(instanceId.value, file)
-    csvMultiForm.csv_file = res.filename
-    csvMultiFileLoaded.value = true
     ElMessage.success('CSV 上传成功')
     input.value = ''
     csvFilesLoaded = false
     loadCSVFileList()
 
+    // Parse content from local file object
     const text = await file.text()
-    const lines = text.trim().split('\n')
-    if (lines.length >= 1) {
-      const headers = lines[0].split(',').map(h => h.trim())
-      const valueCols = headers.slice(1) // skip 'time' column
-      csvMultiColCount.value = Math.min(valueCols.length, 10)
-      csvMultiColNames.value = valueCols
-
-      // Auto-map: collect AI points sorted by IOA
-      const aiPoints = points.value
-        .filter(p => p.point_type === 'AI')
-        .sort((a, b) => a.ioa - b.ioa)
-
-      csvMultiMappings.length = 0
-      for (let i = 0; i < csvMultiColCount.value; i++) {
-        let matchedIoa = 0
-        const colName = valueCols[i] || ''
-
-        // Try matching column header to point name first
-        if (colName) {
-          const exact = points.value.find(p =>
-            p.name.toLowerCase().trim() === colName.toLowerCase().trim()
-          )
-          if (exact) {
-            matchedIoa = exact.ioa
-          }
-        }
-
-        // Fallback: assign to next AI point in sequence
-        if (matchedIoa === 0 && i < aiPoints.length) {
-          matchedIoa = aiPoints[i].ioa
-        }
-
-        csvMultiMappings.push({ ioa: matchedIoa })
-      }
-    }
+    parseCSVContent(text)
+    csvMultiForm.csv_file = res.filename
+    csvMultiFileLoaded.value = true
   } catch (e: any) {
     ElMessage.error('CSV 上传失败: ' + (e?.response?.data?.error || e.message))
   }
 }
+
+function parseCSVContent(text: string) {
+  const lines = text.trim().split('\n')
+  if (lines.length >= 1) {
+    const headers = lines[0].split(',').map(h => h.trim())
+    const valueCols = headers.slice(1)
+    csvMultiColCount.value = Math.min(valueCols.length, 10)
+    csvMultiColNames.value = valueCols
+
+    const aiPoints = points.value
+      .filter(p => p.point_type === 'AI')
+      .sort((a, b) => a.ioa - b.ioa)
+
+    csvMultiMappings.length = 0
+    for (let i = 0; i < csvMultiColCount.value; i++) {
+      let matchedIoa = 0
+      const colName = valueCols[i] || ''
+      if (colName) {
+        const exact = points.value.find(p =>
+          p.name.toLowerCase().trim() === colName.toLowerCase().trim()
+        )
+        if (exact) matchedIoa = exact.ioa
+      }
+      if (matchedIoa === 0 && i < aiPoints.length) {
+        matchedIoa = aiPoints[i].ioa
+      }
+      csvMultiMappings.push({ ioa: matchedIoa })
+    }
+  }
+}
+
+// Watch for CSV file selection from dropdown — fetch content from server
+watch(csvMultiForm, async (val, oldVal) => {
+  if (val.csv_file && val.csv_file !== oldVal?.csv_file) {
+    csvMultiFileLoaded.value = false
+    try {
+      const content = await readCSVHeaders(instanceId.value, val.csv_file)
+      parseCSVContent(content)
+      csvMultiFileLoaded.value = true
+    } catch {
+      csvMultiMappings.length = 0
+      csvMultiColCount.value = 0
+      csvMultiColNames.value = []
+      ElMessage.warning('无法读取 CSV 文件内容')
+    }
+  } else if (!val.csv_file) {
+    csvMultiFileLoaded.value = false
+    csvMultiMappings.length = 0
+    csvMultiColCount.value = 0
+    csvMultiColNames.value = []
+  }
+}, { deep: true })
 
 function addCsvMultiMapping() {
   if (csvMultiMappings.length >= csvMultiColCount.value || csvMultiMappings.length >= 10) return

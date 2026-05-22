@@ -265,3 +265,8 @@ export async function listCSVFiles(instanceId: string): Promise<CSVFileInfo[]> {
   const res = await http.get(`/instances/${instanceId}/csv-files`)
   return res.data.files
 }
+
+export async function readCSVHeaders(instanceId: string, filename: string): Promise<string> {
+  const res = await http.get(`/instances/${instanceId}/csv-content/${encodeURIComponent(filename)}`)
+  return res.data.content
+}

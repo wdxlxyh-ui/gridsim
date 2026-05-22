@@ -778,6 +778,49 @@ func (h *DetailHandler) handleListCSVFiles(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, map[string]interface{}{"files": files})
 }
 
+func (h *DetailHandler) handleReadCSVHeaders(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
+	}
+
+	// Path: /api/v1/instances/{id}/csv-content/{filename}
+	path := strings.TrimPrefix(r.URL.Path, "/api/v1/instances/")
+	parts := strings.Split(path, "/")
+	if len(parts) < 3 || parts[2] == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing filename"})
+		return
+	}
+	filename := filepath.Base(parts[2])
+
+	// Try instance directory first, then shared
+	csvPath := filepath.Join(h.cfgDir, "csv", h.instID, filename)
+	if _, err := os.Stat(csvPath); os.IsNotExist(err) {
+		csvPath = filepath.Join(h.cfgDir, "csv", filename)
+	}
+	if _, err := os.Stat(csvPath); os.IsNotExist(err) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "CSV file not found"})
+		return
+	}
+
+	data, err := os.ReadFile(csvPath)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to read CSV"})
+		return
+	}
+
+	// Return first 100 lines max (header + data sample)
+	lines := strings.SplitN(string(data), "\n", 102)
+	if len(lines) > 101 {
+		lines = lines[:101]
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"filename": filename,
+		"content":  strings.Join(lines, "\n"),
+	})
+}
+
 func pointToSnapshot(p *config.Point) model.PointSnapshot {
 	return model.PointSnapshot{
 		IOA:       p.IOA,
@@ -1007,6 +1050,11 @@ func (h *DetailHandler) HandleBatchSetValue(w http.ResponseWriter, r *http.Reque
 func (h *DetailHandler) HandleListCSVFiles(w http.ResponseWriter, r *http.Request) {
 	defer h.recoverPanic(w)
 	h.handleListCSVFiles(w, r)
+}
+
+func (h *DetailHandler) HandleReadCSVHeaders(w http.ResponseWriter, r *http.Request) {
+	defer h.recoverPanic(w)
+	h.handleReadCSVHeaders(w, r)
 }
 
 func (h *DetailHandler) recoverPanic(w http.ResponseWriter) {
