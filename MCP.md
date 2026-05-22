@@ -60,13 +60,14 @@ go build -o bin/mcp-server ./cmd/mcp-server/
 | `write_point` | 写入单个测点的值 |
 | `write_points` | **【核心】** 批量写入多个测点的值 |
 | `config_auto_change` | 配置测点的自动变化策略 |
-| `batch_config_auto_change` | **【新增】** 批量配置多个测点的自动变化策略 |
+| `batch_config_auto_change` | 批量配置多个测点的自动变化策略 |
 | `get_auto_change` | 查看测点的自动变化配置 |
 | `delete_auto_change` | 删除测点的自动变化配置 |
 | `export_auto_changes` | 导出实例所有自动变化配置为 CSV |
 | `import_auto_changes` | 从 CSV 内容导入自动变化配置 |
 | `upload_csv` | 上传 CSV 时间序列文件（用于 CSV 回放） |
 | `list_csv_files` | 列出实例可用的 CSV 回放文件 |
+| `config_csv_replay` | **【核心】** 配置 CSV 多测点同步回放（一键设置文件/时间/映射） |
 | `upload_file` | 上传 .xlsx 点表文件 |
 | `export_points_csv` | 导出实例所有测点实时数据为 CSV |
 | `update_qds` | 更新测点的品质描述 QDS |
@@ -130,6 +131,32 @@ upload_file(
 )
 ```
 
+### 4. CSV 多测点同步回放
+
+```python
+# 上传多列 CSV 文件
+upload_csv(
+    instance_id="a1b2c3d4e5f6",
+    csv_content="""time,母线电压,线路电流,有功功率
+0,220.0,5.2,1144.0
+1000,221.5,5.3,1173.9
+2000,219.8,5.1,1120.9"""
+)
+
+# 一次调用配置全部测点映射
+config_csv_replay(
+    instance_id="a1b2c3d4e5f6",
+    csv_file="replay_data.csv",
+    time_format="relative",
+    time_unit="ms",
+    mappings=[
+        {"column": 1, "ioa": 16385},
+        {"column": 2, "ioa": 16386},
+        {"column": 3, "ioa": 16387},
+    ]
+)
+```
+
 ## 一键安装包
 
 使用项目根目录的 `iec104-autotester-pack.tar.gz` 快速部署：
@@ -184,4 +211,4 @@ Error: dial tcp connection refused
 
 - IEC104 Simulator: 2.5.2+
 - MCP Server: 1.1.0
-- 工具总数: 27
+- 工具总数: 28

@@ -452,6 +452,7 @@ curl -X POST http://localhost:8989/api/v1/upload \
 | GET | `/api/v1/instances/{id}/points/export` | 导出测点 CSV |
 | POST | `/api/v1/instances/{id}/upload-csv` | 上传 CSV 回放文件 |
 | GET | `/api/v1/instances/{id}/csv-files` | 列出可用 CSV 回放文件 |
+| POST | `/api/v1/instances/{id}/csv-replay` | 配置 CSV 多测点同步回放 |
 
 > CSV 文件存储位置：`{configDir}/csv/{instanceID}/`（实例私有）和 `{configDir}/csv/`（共享）。引擎查找时实例目录优先，共享目录作为 fallback。
 
@@ -489,6 +490,19 @@ curl -X PUT http://localhost:8989/api/v1/instances/{id}/points/auto-change/16385
       "period_ms": 1000,
       "max_value": 100
     }
+  }'
+
+# CSV 多测点同步回放（一键配置所有映射）
+curl -X POST http://localhost:8989/api/v1/instances/{id}/csv-replay \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "csv_file": "replay_data.csv",
+    "time_format": "relative",
+    "time_unit": "ms",
+    "mappings": [
+      {"column": 1, "ioa": 16385},
+      {"column": 2, "ioa": 16386}
+    ]
   }'
 ```
 

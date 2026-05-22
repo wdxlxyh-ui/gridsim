@@ -584,6 +584,44 @@ MCP 服务器使用 **stdio 协议**，通过标准输入/输出与 AI 客户端
 
 ---
 
+#### config_csv_replay
+
+**【核心】** 配置 CSV 多测点同步回放。一次性指定 CSV 文件、时间格式、测点映射，自动为所有测点启用 CSV 回放策略。
+
+**参数：**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| instance_id | string | 是 | 实例 ID |
+| csv_file | string | 是 | CSV 文件名（需提前上传） |
+| time_format | string | 否 | 时间格式: `relative`(相对) / `absolute`(绝对)，默认 relative |
+| time_unit | string | 否 | 时间单位: `ms`(毫秒) / `s`(秒)，默认 ms |
+| mappings | array | 是 | 列到测点的映射列表 |
+
+**mappings 元素格式：**
+```json
+{"column": 1, "ioa": 16385}
+```
+
+- `column` (number): CSV 列序号（从 1 开始，跳过 time 列）
+- `ioa` (number): 目标测点 IOA
+
+**使用示例：**
+```python
+config_csv_replay(
+    instance_id="a1b2c3d4e5f6",
+    csv_file="replay_data.csv",
+    time_format="relative",
+    time_unit="ms",
+    mappings=[
+        {"column": 1, "ioa": 16385},
+        {"column": 2, "ioa": 16386},
+    ]
+)
+```
+
+---
+
 #### export_points_csv
 
 导出实例所有测点实时数据为 CSV 格式（信息体地址/名称/类型/值/时间）。
@@ -970,6 +1008,7 @@ MCP 工具与底层 HTTP API 的对应关系：
 | import_auto_changes | POST /api/v1/instances/{id}/points/auto-change/import |
 | upload_csv | POST /api/v1/instances/{id}/upload-csv |
 | list_csv_files | GET /api/v1/instances/{id}/csv-files |
+| config_csv_replay | POST /api/v1/instances/{id}/csv-replay |
 | upload_file | POST /api/v1/upload |
 | export_points_csv | GET /api/v1/instances/{id}/points/export |
 | batch_config_auto_change | PUT /api/v1/instances/{id}/points/auto-change/batch |
