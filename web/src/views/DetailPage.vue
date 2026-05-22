@@ -70,7 +70,7 @@
             <el-form-item label="测点映射">
               <div style="display: flex; flex-direction: column; gap: 8px; width: 100%">
                 <div v-for="(m, idx) in csvMultiMappings" :key="idx" style="display: flex; align-items: center; gap: 8px">
-                  <span style="min-width: 60px; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; color: #3b82f6; background: rgba(59,130,246,.1); padding: 2px 8px; border-radius: 4px; text-align: center;">Value{{ idx + 1 }}</span>
+                  <span style="min-width: 60px; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; color: #3b82f6; background: rgba(59,130,246,.1); padding: 2px 8px; border-radius: 4px; text-align: center;" :title="csvMultiColNames[idx] || 'Value' + (idx+1)">{{ csvMultiColNames[idx] || 'Value' + (idx+1) }}</span>
                   <el-select v-model="m.ioa" placeholder="选择测点" filterable clearable style="flex: 1; min-width: 0">
                     <el-option v-for="p in points" :key="p.ioa" :label="`${p.name} (IOA:${p.ioa})`" :value="p.ioa" />
                   </el-select>
@@ -506,6 +506,7 @@ const csvMultiForm = reactive({
 })
 const csvMultiMappings = reactive<{ ioa: number }[]>([])
 const csvMultiIoas = ref<number[]>([])
+const csvMultiColNames = ref<string[]>([]) // original CSV column names
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
@@ -1106,11 +1107,37 @@ async function uploadCsvMultiFile(e: Event) {
     const text = await file.text()
     const lines = text.trim().split('\n')
     if (lines.length >= 1) {
-      const cols = lines[0].split(',').length - 1
-      csvMultiColCount.value = Math.min(cols, 10)
+      const headers = lines[0].split(',').map(h => h.trim())
+      const valueCols = headers.slice(1) // skip 'time' column
+      csvMultiColCount.value = Math.min(valueCols.length, 10)
+      csvMultiColNames.value = valueCols
+
+      // Auto-map: collect AI points sorted by IOA
+      const aiPoints = points.value
+        .filter(p => p.point_type === 'AI')
+        .sort((a, b) => a.ioa - b.ioa)
+
       csvMultiMappings.length = 0
       for (let i = 0; i < csvMultiColCount.value; i++) {
-        csvMultiMappings.push({ ioa: 0 })
+        let matchedIoa = 0
+        const colName = valueCols[i] || ''
+
+        // Try matching column header to point name first
+        if (colName) {
+          const exact = points.value.find(p =>
+            p.name.toLowerCase().trim() === colName.toLowerCase().trim()
+          )
+          if (exact) {
+            matchedIoa = exact.ioa
+          }
+        }
+
+        // Fallback: assign to next AI point in sequence
+        if (matchedIoa === 0 && i < aiPoints.length) {
+          matchedIoa = aiPoints[i].ioa
+        }
+
+        csvMultiMappings.push({ ioa: matchedIoa })
       }
     }
   } catch (e: any) {
