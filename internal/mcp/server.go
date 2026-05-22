@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 
 	mcp "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -339,107 +338,71 @@ func NewDataInterfaceServer(client *SimulatorClient) *server.MCPServer {
 		return c.ListCSVFiles(getStringArg(args, "instance_id"))
 	}))
 
-	// upload_file — 上传 xlsx 点表文件
-	s.AddTool(mcp.NewTool("upload_file",
-		mcp.WithDescription("上传 .xlsx 点表文件到模拟器 config 目录。文件内容需 base64 编码。"),
-		mcp.WithString("filename", mcp.Description("文件名，如 \"固定验证-关口表.xlsx\"")),
-		mcp.WithString("content_base64", mcp.Description("文件内容的 base64 编码")),
-	), toolHandler(client, func(c *SimulatorClient, args map[string]any) (any, error) {
-		filename := getStringArg(args, "filename")
-		content := getStringArg(args, "content_base64")
-		if filename == "" || content == "" {
-			return nil, fmt.Errorf("filename and content_base64 are required")
-		}
-		return c.UploadFile(filename, content)
-	}))
-
-	// export_points_csv — 导出测点实时数据为 CSV
-	s.AddTool(mcp.NewTool("export_points_csv",
-		mcp.WithDescription("导出实例所有测点实时数据为 CSV 格式（信息体地址/名称/类型/值/时间）"),
-		mcp.WithString("instance_id", mcp.Description("实例ID")),
-	), toolHandler(client, func(c *SimulatorClient, args map[string]any) (any, error) {
-		return c.ExportPointsCSV(getStringArg(args, "instance_id"))
-	}))
-
-	// batch_config_auto_change
-	s.AddTool(mcp.NewTool("batch_config_auto_change",
-		mcp.WithDescription("批量配置多个测点的自动变化策略。一次调用为多个 IOA 应用同一策略配置。"),
-		mcp.WithString("instance_id", mcp.Description("实例ID")),
-		mcp.WithArray("ioas",
-			mcp.Description("要配置的 IOA 列表"),
-			mcp.WithNumberItems(),
+	// config_csv_replay
+	s.AddTool(mcp.NewTool("config_csv_replay",
+		mcp.WithDescription("【核心】配置 CSV 多测点同步回放。指定 CSV 文件、时间格式、列到测点的映射，一次调用自动为所有映射测点启用 CSV 回放策略。"),
+		mcp.WithString("instance_id", mcp.Description("实例ID"), mcp.Required()),
+		mcp.WithString("csv_file", mcp.Description("CSV 文件名（需提前上传）"), mcp.Required()),
+		mcp.WithString("time_format", mcp.Description("时间格式: relative(相对) / absolute(绝对)")),
+		mcp.WithString("time_unit", mcp.Description("时间单位: ms(毫秒) / s(秒)，仅 relative 模式有效")),
+		mcp.WithArray("mappings",
+			mcp.Description("列到测点的映射列表，每个元素包含 {column: 列序号, ioa: 测点IOA}"),
 			mcp.Required(),
+			mcp.Items(map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"column": map[string]any{"type": "number", "description": "CSV 列序号（从1开始）"},
+					"ioa":    map[string]any{"type": "number", "description": "测点 IOA"},
+				},
+				"required": []string{"column", "ioa"},
+			}),
 		),
-		mcp.WithString("strategy", mcp.Description("策略类型: increment/random/csv/max/min/soc/energy/aofollow/apiupdate/manual/custom"), mcp.Required()),
-		mcp.WithBoolean("enabled", mcp.Description("是否启用"), mcp.Required()),
-		mcp.WithString("params", mcp.Description("策略参数 JSON 字符串")),
 	), toolHandler(client, func(c *SimulatorClient, args map[string]any) (any, error) {
 		instID := getStringArg(args, "instance_id")
-		ioas := args["ioas"].([]any)
-		ioaNums := make([]uint32, 0, len(ioas))
-		for _, v := range ioas {
-			switch n := v.(type) {
-			case float64:
-				ioaNums = append(ioaNums, uint32(n))
-			case string:
-				if n2, err := strconv.ParseUint(n, 10, 32); err == nil {
-					ioaNums = append(ioaNums, uint32(n2))
-				}
-			}
+		csvFile := getStringArg(args, "csv_file")
+		timeFmt := getStringArg(args, "time_format")
+		if timeFmt == "" {
+			timeFmt = "relative"
 		}
-		if len(ioaNums) == 0 {
-			return nil, fmt.Errorf("ioas array is required and must not be empty")
+		timeUnit := getStringArg(args, "time_unit")
+		if timeUnit == "" {
+			timeUnit = "ms"
 		}
 
-		paramsStr := getStringArg(args, "params")
-		params := json.RawMessage("{}")
-		if paramsStr != "" {
-			params = json.RawMessage(paramsStr)
+		mappingsRaw, ok := args["mappings"].([]any)
+		if !ok || len(mappingsRaw) == 0 {
+			return nil, fmt.Errorf("mappings array is required and must not be empty")
+		}
+
+		type mapping struct {
+			Column int    `json:"column"`
+			IOA    uint32 `json:"ioa"`
+		}
+		mappings := make([]mapping, 0, len(mappingsRaw))
+		for _, m := range mappingsRaw {
+			mMap, ok := m.(map[string]any)
+			if !ok {
+				continue
+			}
+			mappings = append(mappings, mapping{
+				Column: int(getFloatArg(mMap, "column")),
+				IOA:    getUint32Arg(mMap, "ioa"),
+			})
+		}
+		if len(mappings) == 0 {
+			return nil, fmt.Errorf("no valid mappings provided")
 		}
 
 		body, err := json.Marshal(map[string]any{
-			"ioas":   ioaNums,
-			"config": map[string]any{
-				"strategy": getStringArg(args, "strategy"),
-				"enabled":  getBoolArg(args, "enabled"),
-				"params":   params,
-			},
+			"csv_file":    csvFile,
+			"time_format": timeFmt,
+			"time_unit":   timeUnit,
+			"mappings":    mappings,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("marshal config: %w", err)
+			return nil, fmt.Errorf("marshal body: %w", err)
 		}
-		return c.BatchConfigAutoChange(instID, body)
-	}))
-
-	// update_qds
-	s.AddTool(mcp.NewTool("update_qds",
-		mcp.WithDescription("更新测点的品质描述 QDS（invalid/not_topical/substituted/overflow/blocked）。传统模式 API。"),
-		mcp.WithNumber("ioa", mcp.Description("信息体地址")),
-		mcp.WithBoolean("invalid", mcp.Description("无效标志")),
-		mcp.WithBoolean("not_topical", mcp.Description("非当前标志")),
-		mcp.WithBoolean("substituted", mcp.Description("替代标志")),
-		mcp.WithBoolean("overflow", mcp.Description("溢出标志")),
-		mcp.WithBoolean("blocked", mcp.Description("闭锁标志")),
-	), toolHandler(client, func(c *SimulatorClient, args map[string]any) (any, error) {
-		ioa := getUint32Arg(args, "ioa")
-		body := map[string]any{}
-		if v, exists := args["invalid"]; exists {
-			body["invalid"] = v
-		}
-		if v, exists := args["not_topical"]; exists {
-			body["not_topical"] = v
-		}
-		if v, exists := args["substituted"]; exists {
-			body["substituted"] = v
-		}
-		if v, exists := args["overflow"]; exists {
-			body["overflow"] = v
-		}
-		if v, exists := args["blocked"]; exists {
-			body["blocked"] = v
-		}
-		raw, _ := json.Marshal(body)
-		return c.UpdateQDS(ioa, raw)
+		return c.ConfigCSVReplay(instID, body)
 	}))
 
 	return s

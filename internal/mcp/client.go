@@ -172,6 +172,10 @@ func (c *SimulatorClient) ListCSVFiles(instID string) (json.RawMessage, error) {
 	return c.get(fmt.Sprintf("/api/v1/instances/%s/csv-files", instID))
 }
 
+func (c *SimulatorClient) ConfigCSVReplay(instID string, body json.RawMessage) (json.RawMessage, error) {
+	return c.post(fmt.Sprintf("/api/v1/instances/%s/csv-replay", instID), body)
+}
+
 // ---- HTTP helpers ----
 
 func (c *SimulatorClient) get(path string) (json.RawMessage, error) {

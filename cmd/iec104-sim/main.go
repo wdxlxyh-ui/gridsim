@@ -297,6 +297,16 @@ func (ws *webServer) handleInstanceByID(w http.ResponseWriter, r *http.Request) 
 			dh := detail.NewDetailHandler(id, store, engine, ws.mgr.CfgDir())
 			dh.HandleReadCSVHeaders(w, r)
 			return
+		case "csv-replay":
+			store := ws.mgr.GetStore(id)
+			engine := ws.mgr.GetEngine(id)
+			if store == nil || engine == nil {
+				writeError(w, http.StatusNotFound, "instance not running")
+				return
+			}
+			dh := detail.NewDetailHandler(id, store, engine, ws.mgr.CfgDir())
+			dh.HandleConfigCSVReplay(w, r)
+			return
 		default:
 			writeError(w, http.StatusBadRequest, "unknown action: "+parts[1])
 			return

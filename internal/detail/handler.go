@@ -778,6 +778,99 @@ func (h *DetailHandler) handleListCSVFiles(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, map[string]interface{}{"files": files})
 }
 
+type csvReplayMapping struct {
+	Column int    `json:"column"`
+	IOA    uint32 `json:"ioa"`
+}
+
+type configCSVReplayReq struct {
+	CSVFile    string            `json:"csv_file"`
+	TimeFormat string            `json:"time_format"`
+	TimeUnit   string            `json:"time_unit"`
+	Mappings   []csvReplayMapping `json:"mappings"`
+}
+
+func (h *DetailHandler) handleConfigCSVReplay(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
+	}
+
+	var req configCSVReplayReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON: " + err.Error()})
+		return
+	}
+
+	if req.CSVFile == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "csv_file is required"})
+		return
+	}
+	if len(req.Mappings) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "mappings is required"})
+		return
+	}
+	if len(req.Mappings) > 10 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "max 10 mappings allowed"})
+		return
+	}
+
+	timeFmt := req.TimeFormat
+	if timeFmt == "" {
+		timeFmt = "relative"
+	}
+	timeUnit := req.TimeUnit
+	if timeUnit == "" {
+		timeUnit = "ms"
+	}
+
+	type result struct {
+		IOA     uint32 `json:"ioa"`
+		Success bool   `json:"success"`
+		Error   string `json:"error,omitempty"`
+	}
+	results := make([]result, 0, len(req.Mappings))
+	succeeded := 0
+
+	for _, m := range req.Mappings {
+		if _, ok := h.store.Get(m.IOA); !ok {
+			results = append(results, result{IOA: m.IOA, Success: false, Error: "point not found"})
+			continue
+		}
+
+		colMap := map[int]uint32{m.Column: m.IOA}
+		colMapJSON, _ := json.Marshal(colMap)
+
+		cfg := &model.AutoChangeConfig{
+			PointIOA: m.IOA,
+			Strategy: model.StrategyCSV,
+			Enabled:  true,
+			Params: model.StrategyParams{
+				CSVFileName:  req.CSVFile,
+				TimeFormat:   timeFmt,
+				TimeUnit:     timeUnit,
+				CSVColumnMap: string(colMapJSON),
+			},
+			UpdatedAt: time.Now(),
+		}
+
+		if err := h.engine.StartOrUpdate(cfg); err != nil {
+			results = append(results, result{IOA: m.IOA, Success: false, Error: err.Error()})
+			continue
+		}
+		succeeded++
+		results = append(results, result{IOA: m.IOA, Success: true})
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"success":   true,
+		"total":     len(req.Mappings),
+		"succeeded": succeeded,
+		"failed":    len(req.Mappings) - succeeded,
+		"results":   results,
+	})
+}
+
 func (h *DetailHandler) handleReadCSVHeaders(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
@@ -1055,6 +1148,11 @@ func (h *DetailHandler) HandleListCSVFiles(w http.ResponseWriter, r *http.Reques
 func (h *DetailHandler) HandleReadCSVHeaders(w http.ResponseWriter, r *http.Request) {
 	defer h.recoverPanic(w)
 	h.handleReadCSVHeaders(w, r)
+}
+
+func (h *DetailHandler) HandleConfigCSVReplay(w http.ResponseWriter, r *http.Request) {
+	defer h.recoverPanic(w)
+	h.handleConfigCSVReplay(w, r)
 }
 
 func (h *DetailHandler) recoverPanic(w http.ResponseWriter) {

@@ -270,3 +270,18 @@ export async function readCSVHeaders(instanceId: string, filename: string): Prom
   const res = await http.get(`/instances/${instanceId}/csv-content/${encodeURIComponent(filename)}`)
   return res.data.content
 }
+
+export interface CSVReplayMapping {
+  column: number
+  ioa: number
+}
+
+export async function configCSVReplay(instanceId: string, csvFile: string, mappings: CSVReplayMapping[], timeFormat?: string, timeUnit?: string): Promise<any> {
+  const res = await http.post(`/instances/${instanceId}/csv-replay`, {
+    csv_file: csvFile,
+    time_format: timeFormat || 'relative',
+    time_unit: timeUnit || 'ms',
+    mappings,
+  })
+  return res.data
+}
