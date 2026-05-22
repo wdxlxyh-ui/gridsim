@@ -42,3 +42,4 @@ web/node_modules/
 web/package-lock.json
 *.tar.gz
 config/csv/
+tools/
