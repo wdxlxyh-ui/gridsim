@@ -1004,6 +1004,11 @@ func (h *DetailHandler) HandleBatchSetValue(w http.ResponseWriter, r *http.Reque
 	h.batchSetValue(w, r)
 }
 
+func (h *DetailHandler) HandleListCSVFiles(w http.ResponseWriter, r *http.Request) {
+	defer h.recoverPanic(w)
+	h.handleListCSVFiles(w, r)
+}
+
 func (h *DetailHandler) recoverPanic(w http.ResponseWriter) {
 	if rec := recover(); rec != nil {
 		slog.Error("panic recovered in detail handler", "instance", h.instID, "recover", rec)

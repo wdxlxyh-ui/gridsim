@@ -277,6 +277,16 @@ func (ws *webServer) handleInstanceByID(w http.ResponseWriter, r *http.Request) 
 			dh := detail.NewDetailHandler(id, store, engine, ws.mgr.CfgDir())
 			dh.HandleUploadCSV(w, r)
 			return
+		case "csv-files":
+			store := ws.mgr.GetStore(id)
+			engine := ws.mgr.GetEngine(id)
+			if store == nil || engine == nil {
+				writeError(w, http.StatusNotFound, "instance not running")
+				return
+			}
+			dh := detail.NewDetailHandler(id, store, engine, ws.mgr.CfgDir())
+			dh.HandleListCSVFiles(w, r)
+			return
 		default:
 			writeError(w, http.StatusBadRequest, "unknown action: "+parts[1])
 			return
