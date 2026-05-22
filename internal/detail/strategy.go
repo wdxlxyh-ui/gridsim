@@ -172,6 +172,14 @@ func (sr *strategyRunner) doCSV(cfg *model.AutoChangeConfig, state *strategyStat
 		if isAbsolute {
 			return
 		}
+		// Check loop flag (default true = loop)
+		shouldLoop := true
+		if cfg.Params.CSVLoop != nil {
+			shouldLoop = *cfg.Params.CSVLoop
+		}
+		if !shouldLoop {
+			return
+		}
 		state.csvStartTime = time.Now()
 		state.csvIndex = 0
 	}

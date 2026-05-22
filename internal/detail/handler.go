@@ -784,9 +784,10 @@ type csvReplayMapping struct {
 }
 
 type configCSVReplayReq struct {
-	CSVFile    string            `json:"csv_file"`
-	TimeFormat string            `json:"time_format"`
-	TimeUnit   string            `json:"time_unit"`
+	CSVFile    string             `json:"csv_file"`
+	TimeFormat string             `json:"time_format"`
+	TimeUnit   string             `json:"time_unit"`
+	CSVLoop    *bool              `json:"csv_loop"`
 	Mappings   []csvReplayMapping `json:"mappings"`
 }
 
@@ -850,6 +851,7 @@ func (h *DetailHandler) handleConfigCSVReplay(w http.ResponseWriter, r *http.Req
 				TimeFormat:   timeFmt,
 				TimeUnit:     timeUnit,
 				CSVColumnMap: string(colMapJSON),
+				CSVLoop:      req.CSVLoop,
 			},
 			UpdatedAt: time.Now(),
 		}

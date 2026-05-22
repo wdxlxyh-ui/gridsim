@@ -153,6 +153,7 @@ export interface StrategyParams {
    time_format?: string
    time_unit?: string
    csv_column_map?: string
+   csv_loop?: boolean
    para_a?: string
    para_b?: string
    init_soc?: number

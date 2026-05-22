@@ -348,6 +348,7 @@ func NewDataInterfaceServer(client *SimulatorClient) *server.MCPServer {
 		mcp.WithString("csv_file", mcp.Description("CSV 文件名（需提前上传）"), mcp.Required()),
 		mcp.WithString("time_format", mcp.Description("时间格式: relative(相对) / absolute(绝对)")),
 		mcp.WithString("time_unit", mcp.Description("时间单位: ms(毫秒) / s(秒)，仅 relative 模式有效")),
+		mcp.WithBoolean("csv_loop", mcp.Description("是否循环播放: true(循环) / false(播一次保持末值)，默认 true")),
 		mcp.WithArray("mappings",
 			mcp.Description("列到测点的映射列表，每个元素包含 {column: 列序号, ioa: 测点IOA}"),
 			mcp.Required(),
@@ -396,10 +397,18 @@ func NewDataInterfaceServer(client *SimulatorClient) *server.MCPServer {
 			return nil, fmt.Errorf("no valid mappings provided")
 		}
 
+		csvLoop := true
+		if v, exists := args["csv_loop"]; exists {
+			if b, ok := v.(bool); ok {
+				csvLoop = b
+			}
+		}
+
 		body, err := json.Marshal(map[string]any{
 			"csv_file":    csvFile,
 			"time_format": timeFmt,
 			"time_unit":   timeUnit,
+			"csv_loop":    csvLoop,
 			"mappings":    mappings,
 		})
 		if err != nil {

@@ -44,6 +44,7 @@ type StrategyParams struct {
 	APIInitValue     float64 `json:"api_init_value,omitempty"`
 	CustomIOAs       string  `json:"custom_ioas,omitempty"`
 	CustomFormula    string  `json:"custom_formula,omitempty"`
+	CSVLoop          *bool   `json:"csv_loop,omitempty"`
 }
 
 type AutoChangeConfig struct {
