@@ -560,6 +560,30 @@ MCP 服务器使用 **stdio 协议**，通过标准输入/输出与 AI 客户端
 
 ---
 
+#### list_csv_files
+
+列出实例可用的 CSV 回放文件。文件存储在两个位置：
+- `config/csv/`（共享目录，所有实例可见）
+- `config/csv/{instanceID}/`（实例私有目录）
+
+**参数：**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| instance_id | string | 是 | 实例 ID |
+
+**返回示例：**
+```json
+{
+  "files": [
+    {"name": "replay_data.csv", "size": 1024, "modtime": "2026-05-21T10:00:00Z", "shared": true},
+    {"name": "custom.csv", "size": 512, "modtime": "2026-05-21T09:00:00Z", "shared": false}
+  ]
+}
+```
+
+---
+
 #### export_points_csv
 
 导出实例所有测点实时数据为 CSV 格式（信息体地址/名称/类型/值/时间）。
@@ -945,6 +969,7 @@ MCP 工具与底层 HTTP API 的对应关系：
 | export_auto_changes | GET /api/v1/instances/{id}/points/auto-change/export |
 | import_auto_changes | POST /api/v1/instances/{id}/points/auto-change/import |
 | upload_csv | POST /api/v1/instances/{id}/upload-csv |
+| list_csv_files | GET /api/v1/instances/{id}/csv-files |
 | upload_file | POST /api/v1/upload |
 | export_points_csv | GET /api/v1/instances/{id}/points/export |
 | batch_config_auto_change | PUT /api/v1/instances/{id}/points/auto-change/batch |

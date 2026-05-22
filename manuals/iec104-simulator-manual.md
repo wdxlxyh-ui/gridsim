@@ -450,6 +450,9 @@ curl -X POST http://localhost:8989/api/v1/upload \
 |------|------|------|
 | GET | `/api/v1/instances/{id}/points/export` | 导出测点 CSV |
 | POST | `/api/v1/instances/{id}/upload-csv` | 上传 CSV 回放文件 |
+| GET | `/api/v1/instances/{id}/csv-files` | 列出可用 CSV 回放文件 |
+
+> CSV 文件存储位置：`{configDir}/csv/{instanceID}/`（实例私有）和 `{configDir}/csv/`（共享）。引擎查找时实例目录优先，共享目录作为 fallback。
 
 ### 7.5 调用示例
 
@@ -549,6 +552,8 @@ curl -X PUT http://localhost:8989/api/v1/instances/{id}/points/auto-change/16385
 ### 8.4 CSV 回放策略
 
 按 CSV 文件定义的时间序列逐行播放。CSV 文件需先通过 API 或 Web UI 上传。
+
+**文件存储位置：** 上传的 CSV 存储在 `config/csv/{instanceID}/`（实例私有目录），也可手动放入 `config/csv/`（共享目录，所有实例可见）。引擎查找时实例目录优先。
 
 **单测点 CSV 格式（原始模式）：**
 ```csv

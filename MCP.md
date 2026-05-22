@@ -66,6 +66,7 @@ go build -o bin/mcp-server ./cmd/mcp-server/
 | `export_auto_changes` | 导出实例所有自动变化配置为 CSV |
 | `import_auto_changes` | 从 CSV 内容导入自动变化配置 |
 | `upload_csv` | 上传 CSV 时间序列文件（用于 CSV 回放） |
+| `list_csv_files` | 列出实例可用的 CSV 回放文件 |
 | `upload_file` | 上传 .xlsx 点表文件 |
 | `export_points_csv` | 导出实例所有测点实时数据为 CSV |
 | `update_qds` | 更新测点的品质描述 QDS |
