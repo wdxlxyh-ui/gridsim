@@ -15,7 +15,7 @@
 
 | 测试项 | 结果 | 说明 |
 |--------|------|------|
-| Go 编译 | ✅ PASS | `go build ./cmd/iec104-sim/` 编译成功 |
+| Go 编译 | ✅ PASS | `go build ./cmd/gridsim/` 编译成功 |
 | Go vet | ✅ PASS | `go vet ./...` 无警告 |
 | TypeScript 类型检查 | ✅ PASS | `vue-tsc --noEmit` 通过 |
 | Vite 生产构建 | ✅ PASS | `npm run build` 构建成功 (15s) |
@@ -88,7 +88,7 @@ web/src/views/DetailPage.vue       - 详情页前端组件
 ## 修改文件清单
 
 ```
-cmd/iec104-sim/main.go             - 注册 detail 路由、handleInstancePoints 实现
+cmd/gridsim/main.go             - 注册 detail 路由、handleInstancePoints 实现
 internal/manager/manager.go        - Instance 增加 AutoEngine、集成生命周期
 internal/model/instance.go         - (无变化, 仅增加 detail.go)
 web/src/api/index.ts               - 增加详情页 API 类型和函数

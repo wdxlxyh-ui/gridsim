@@ -1,7 +1,7 @@
 #!/bin/bash
 export PATH="$HOME/go-toolchain/go/bin:$PATH"
 
-cd /mnt/d/AI/Claw/iec104-sim
+cd /mnt/d/AI/Claw/gridsim
 
 echo "========================================"
 echo " Phase 1: go vet"
@@ -29,17 +29,17 @@ echo ""
 echo "========================================"
 echo " Phase 4: Build Check"
 echo "========================================"
-go build -ldflags="-s -w" -o /tmp/iec104-sim-test . 2>&1
+go build -ldflags="-s -w" -o /tmp/gridsim-test . 2>&1
 echo "Build Exit: $?"
-ls -la /tmp/iec104-sim-test
-file /tmp/iec104-sim-test
-rm /tmp/iec104-sim-test
+ls -la /tmp/gridsim-test
+file /tmp/gridsim-test
+rm /tmp/gridsim-test
 
 echo ""
 echo "========================================"
 echo " Phase 5: Integration Test (HTTP API)"
 echo "========================================"
-bash /mnt/d/AI/Claw/iec104-sim/integration_test.sh 2>&1
+bash /mnt/d/AI/Claw/gridsim/integration_test.sh 2>&1
 INT_EXIT=$?
 
 echo ""

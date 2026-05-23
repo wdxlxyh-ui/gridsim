@@ -3,8 +3,8 @@ package protocol
 import (
 	"fmt"
 
-	"iec104-sim/internal/model"
-	"iec104-sim/pkg/protocol/modbus"
+	"gridsim/internal/model"
+	"gridsim/pkg/protocol/modbus"
 )
 
 func New(cfg model.InstanceConfig) (Protocol, error) {

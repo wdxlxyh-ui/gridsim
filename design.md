@@ -71,7 +71,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        iec104-sim (main)                         │
+│                        gridsim (main)                         │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  ┌─────────────────┐    ┌─────────────────┐                     │
@@ -102,7 +102,7 @@
 │  │  GET  /api/status             — 模拟器运行状态          │     │
 │  └────────────────────────────────────────────────────────┘     │
 │                                                                  │
-│  CLI: iec104-sim -p 2404 -c point.xlsx -H :8080 -l info         │
+│  CLI: gridsim -p 2404 -c point.xlsx -H :8080 -l info         │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -386,16 +386,16 @@ Response 200:
 
 ```bash
 # 基础用法
-iec104-sim -p 2404 -c point.xlsx
+gridsim -p 2404 -c point.xlsx
 
 # 指定 HTTP 端口
-iec104-sim -p 2404 -c point.xlsx -H :9090
+gridsim -p 2404 -c point.xlsx -H :9090
 
 # 调试日志
-iec104-sim -p 2404 -c point.xlsx -l debug
+gridsim -p 2404 -c point.xlsx -l debug
 
 # 完整参数
-iec104-sim --port 2404 --config point.xlsx --http :8080 --log info
+gridsim --port 2404 --config point.xlsx --http :8080 --log info
 ```
 
 | 参数 | 短形式 | 默认值 | 说明 |
@@ -431,26 +431,26 @@ iec104-sim --port 2404 --config point.xlsx --http :8080 --log info
 
 # 本地开发编译
 build:
-    go build -o bin/iec104-sim.exe .
+    go build -o bin/gridsim.exe .
 
 # Linux amd64 (Debian/Ubuntu/银河麒麟共用)
 build-linux:
     GOOS=linux GOARCH=amd64 CGO_ENABLED=0 \
-    go build -ldflags="-s -w" -o bin/iec104-sim-linux-amd64 .
+    go build -ldflags="-s -w" -o bin/gridsim-linux-amd64 .
 
 # 所有平台
 build-all: build build-linux
 
 # UPX 压缩（缩减体积~60%）
 compress: build-linux
-    upx --best bin/iec104-sim-linux-amd64 -o bin/iec104-sim-linux-amd64-upx
+    upx --best bin/gridsim-linux-amd64 -o bin/gridsim-linux-amd64-upx
 
 # 运行冒烟测试
 smoke:
     GOOS=linux GOARCH=amd64 CGO_ENABLED=0 \
-    go build -ldflags="-s -w" -o bin/iec104-sim-linux-amd64 .
-    @echo "编译成功: bin/iec104-sim-linux-amd64"
-    file bin/iec104-sim-linux-amd64
+    go build -ldflags="-s -w" -o bin/gridsim-linux-amd64 .
+    @echo "编译成功: bin/gridsim-linux-amd64"
+    file bin/gridsim-linux-amd64
 
 clean:
     rm -rf bin/
@@ -460,29 +460,29 @@ clean:
 
 ```bash
 # 1. 本地开发
-go build -o bin/iec104-sim.exe .
+go build -o bin/gridsim.exe .
 
 # 2. Linux 部署二进制
 make build-linux
-# → bin/iec104-sim-linux-amd64  (~15MB, 静态编译无依赖)
+# → bin/gridsim-linux-amd64  (~15MB, 静态编译无依赖)
 
 # 3. 验证
-file bin/iec104-sim-linux-amd64
+file bin/gridsim-linux-amd64
 # → ELF 64-bit LSB executable, x86-64, statically linked
 
 # 4. 部署到目标系统
-scp bin/iec104-sim-linux-amd64 user@debian11:~/iec104-sim
-scp bin/iec104-sim-linux-amd64 user@kylin:~/iec104-sim
+scp bin/gridsim-linux-amd64 user@debian11:~/gridsim
+scp bin/gridsim-linux-amd64 user@kylin:~/gridsim
 
 # 5. 在目标系统运行
-chmod +x iec104-sim-linux-amd64
-./iec104-sim-linux-amd64 -p 2404 -c point.xlsx
+chmod +x gridsim-linux-amd64
+./gridsim-linux-amd64 -p 2404 -c point.xlsx
 ```
 
 ## 11. 项目目录结构
 
 ```
-D:\AI\Claw\iec104-sim\
+D:\AI\Claw\gridsim\
 ├── main.go                     # 入口：组装模块
 ├── go.mod
 ├── go.sum
@@ -529,7 +529,7 @@ D:\AI\Claw\iec104-sim\
 
 ```go
 // go.mod
-module iec104-sim
+module gridsim
 
 go 1.21
 
@@ -548,7 +548,7 @@ require (
 
 ```bash
 # 终端1：启动模拟器（变电站A，端口2404）
-./iec104-sim -p 2404 -c substation_a.xlsx -H :8080
+./gridsim -p 2404 -c substation_a.xlsx -H :8080
 
 # 终端2：接线员站连接（IEC104客户端工具）
 iec104-client -p 2404
@@ -571,10 +571,10 @@ curl -X PUT http://localhost:8080/api/points/1001 \
 
 ```bash
 # 进程1：220kV变电站
-./iec104-sim -p 2404 -c 220kv_station.xlsx -H :8080
+./gridsim -p 2404 -c 220kv_station.xlsx -H :8080
 
 # 进程2：110kV变电站
-./iec104-sim -p 2405 -c 110kv_station.xlsx -H :8081
+./gridsim -p 2405 -c 110kv_station.xlsx -H :8081
 ```
 
 ### 场景4：品质位模拟（测试异常场景）

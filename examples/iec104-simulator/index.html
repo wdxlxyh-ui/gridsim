@@ -24,7 +24,7 @@
       <span class="pill">MCP</span>
       <span class="pill">MIT</span>
     </div>
-    <div class="deck-footer"><span class="mono">IEC104 Simulator · 2026</span><span class="slide-number" data-current="1" data-total="12"></span></div>
+    <div class="deck-footer"><span class="mono">GridSim · 2026</span><span class="slide-number" data-current="1" data-total="12"></span></div>
     <div class="notes">各位好，今天给大家介绍的是 IEC 60870-5-104 模拟器项目。这是一个用于变电站自动化测试的从站模拟器，当前版本 v2.2.0。</div>
   </section>
 
@@ -45,8 +45,8 @@
       <div class="terminal">
         <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>quick-start.sh</span></div>
 <pre><span class="cmt"># 解压即用</span>
-tar xzf iec104-sim-v2.2.0.tar.gz
-cd iec104-sim-v2.2.0
+tar xzf gridsim-v2.2.0.tar.gz
+cd gridsim-v2.2.0
 ./start.sh
 <span class="cmt"># → http://localhost:8989</span></pre>
       </div>
@@ -79,7 +79,7 @@ cd iec104-sim-v2.2.0
         <p class="dim mt-s">单进程 = 单端口 + 单客户端</p>
         <div class="terminal mt-m">
           <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>legacy mode</span></div>
-<pre><span class="fn">./iec104-sim</span> <span class="str">-p 2404</span> \
+<pre><span class="fn">./gridsim</span> <span class="str">-p 2404</span> \
   <span class="str">-c samples/point.xlsx</span> \
   <span class="str">-H :8080 -l info</span></pre>
         </div>
@@ -94,7 +94,7 @@ cd iec104-sim-v2.2.0
         <p class="dim mt-s">多实例生命周期管理 + Web UI</p>
         <div class="terminal mt-m">
           <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>serve mode</span></div>
-<pre><span class="fn">./iec104-sim</span> <span class="str">serve</span> \
+<pre><span class="fn">./gridsim</span> <span class="str">serve</span> \
   <span class="str">--http :8989</span> \
   <span class="str">--config-dir ./config</span> \
   <span class="str">--log-dir ./logs</span></pre>
@@ -288,7 +288,7 @@ cd iec104-sim-v2.2.0
       <div class="pipe-step">
         <span class="step-num">01</span>
         <h4>下载解压</h4>
-        <p class="dim mono" style="font-size:12px">tar xzf iec104-sim-v2.2.0.tar.gz</p>
+        <p class="dim mono" style="font-size:12px">tar xzf gridsim-v2.2.0.tar.gz</p>
       </div>
       <div class="pipe-arrow">→</div>
       <div class="pipe-step">
@@ -313,7 +313,7 @@ cd iec104-sim-v2.2.0
       <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>build-from-source</span></div>
 <pre><span class="cmt"># 源码构建</span>
 <span class="kw">cd</span> web && <span class="fn">npm install</span> && <span class="fn">npm run build</span> && <span class="kw">cd</span> ..
-<span class="fn">go build</span> <span class="str">-o bin/iec104-sim ./cmd/iec104-sim/</span>
+<span class="fn">go build</span> <span class="str">-o bin/gridsim ./cmd/gridsim/</span>
 
 <span class="cmt"># 跨平台编译</span>
 <span class="fn">make build-all</span>        <span class="cmt"># Linux + Windows</span>
@@ -339,10 +339,10 @@ cd iec104-sim-v2.2.0
       </div>
       <div class="row mt-l" style="justify-content:center">
         <span class="tag">MIT License</span>
-        <span class="tag">github.com/IEC-SIM/iec104-sim-master</span>
+        <span class="tag">github.com/IEC-SIM/gridsim-master</span>
       </div>
     </div>
-    <div class="notes">这就是 IEC104 Simulator 项目的完整介绍。从 v1.0 单实例到 v2.2.0 的多实例 + MCP + 自定义公式，项目已经覆盖了变电站自动化测试的完整场景。MIT 协议开源，欢迎使用和贡献代码。</div>
+    <div class="notes">这就是 GridSim 项目的完整介绍。从 v1.0 单实例到 v2.2.0 的多实例 + MCP + 自定义公式，项目已经覆盖了变电站自动化测试的完整场景。MIT 协议开源，欢迎使用和贡献代码。</div>
   </section>
 
 </div>
@@ -410,7 +410,7 @@ cd iec104-sim-v2.2.0
       const blob = new Blob([html], { type: 'text/html' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = 'iec104-simulator-presentation.html';
+      a.download = 'gridsimulator-presentation.html';
       a.click();
       URL.revokeObjectURL(a.href);
     }

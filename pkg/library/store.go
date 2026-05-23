@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"iec104-sim/pkg/config"
+	"gridsim/pkg/config"
 )
 
 type Store struct {

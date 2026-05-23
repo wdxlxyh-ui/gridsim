@@ -1,4 +1,4 @@
-# IEC 60870-5-104 模拟器
+# GridSim — 多协议电网仿真平台
 
 [![Go Version](https://img.shields.io/badge/Go-1.21%2B-blue)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
@@ -119,7 +119,7 @@
 - **跨平台编译** — Linux amd64/arm64、Windows amd64、`.deb` 打包
 - **自动变更策略** — 11种内置策略，后台独立 goroutine 调度，实例启停自动管理
 - **多规约支持** — IEC 104 + Modbus TCP 并行运行
-- **MCP Server** — 提供 IEC104 Simulator MCP 工具，支持 AI 助手直接控制模拟器
+- **MCP Server** — 提供 GridSim MCP 工具，支持 AI 助手直接控制模拟器
 
 ---
 
@@ -141,8 +141,8 @@
 ### 方式一：下载压缩包（推荐）
 
 ```bash
-tar xzf iec104-sim-v2.5.1.tar.gz
-cd iec104-sim-v2.5.1
+tar xzf gridsim-v2.5.1.tar.gz
+cd gridsim-v2.5.1
 ./start.sh
 # 浏览器访问 http://localhost:8989
 ```
@@ -154,10 +154,10 @@ cd iec104-sim-v2.5.1
 cd web && npm install && npm run build && cd ..
 
 # 构建后端
-go build -o bin/iec104-sim ./cmd/iec104-sim/
+go build -o bin/gridsim ./cmd/gridsim/
 
 # 启动服务
-./bin/iec104-sim serve --http :8989 --config-dir ./config --log-dir ./logs
+./bin/gridsim serve --http :8989 --config-dir ./config --log-dir ./logs
 
 # 浏览器访问 http://localhost:8989
 ```
@@ -165,8 +165,8 @@ go build -o bin/iec104-sim ./cmd/iec104-sim/
 ### 传统模式（单实例）
 
 ```bash
-go build -o bin/iec104-sim ./cmd/iec104-sim/
-./bin/iec104-sim -p 2404 -c samples/point.xlsx -H :8080 -l info
+go build -o bin/gridsim ./cmd/gridsim/
+./bin/gridsim -p 2404 -c samples/point.xlsx -H :8080 -l info
 ```
 
 ### 命令行参数
@@ -295,7 +295,7 @@ curl -X PUT http://localhost:8989/api/v1/instances/{id}/points/auto-change/16385
 ## 项目结构
 
 ```
-├── cmd/iec104-sim/        入口（传统模式 + 服务模式）
+├── cmd/gridsim/        入口（传统模式 + 服务模式）
 ├── internal/
 │   ├── detail/            v2.1 详情页模块
 │   │   ├── engine.go      自动变化调度引擎
@@ -306,7 +306,7 @@ curl -X PUT http://localhost:8989/api/v1/instances/{id}/points/auto-change/16385
 │   ├── manager/           多实例生命周期管理（最多1000个）
 │   ├── model/             数据模型（实例配置/状态/详情）
 │   ├── storage/           JSON 配置持久化
-│   └── mcp/               MCP Server（IEC104 Simulator MCP）
+│   └── mcp/               MCP Server（GridSim MCP）
 ├── pkg/
 │   ├── api/               HTTP API 处理器
 │   ├── config/            Excel 加载器 + 测点数据模型
@@ -340,7 +340,7 @@ curl -X PUT http://localhost:8989/api/v1/instances/{id}/points/auto-change/16385
 
 ```bash
 # 本地开发
-go build -o bin/iec104-sim ./cmd/iec104-sim/
+go build -o bin/gridsim ./cmd/gridsim/
 
 # Linux amd64
 make build-linux-amd64
@@ -372,7 +372,7 @@ make compress
 
 ```bash
 # 启动模拟器（变电站 A，端口 2404）
-./iec104-sim -p 2404 -c samples/point.xlsx -H :8080
+./gridsim -p 2404 -c samples/point.xlsx -H :8080
 
 # 通过 HTTP API 模拟电压变化
 curl -X PUT http://localhost:8080/api/points/16385 \
@@ -385,10 +385,10 @@ curl -X PUT http://localhost:8080/api/points/16385 \
 
 ```bash
 # 进程 1：220kV 变电站
-./iec104-sim serve --http :8989 --config-dir ./config220
+./gridsim serve --http :8989 --config-dir ./config220
 
 # 进程 2：110kV 变电站
-./iec104-sim serve --http :8990 --config-dir ./config110
+./gridsim serve --http :8990 --config-dir ./config110
 ```
 
 ---

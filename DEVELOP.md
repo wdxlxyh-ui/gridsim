@@ -11,18 +11,18 @@
 | 规范 | 说明 | 反例 |
 |------|------|------|
 | `mkdir` 逐行创建目录 | `/bin/sh` 不支持 brace expansion `{a,b,c}` | `mkdir -p dir/{bin,config}` ❌ |
-| amd64 二进制无后缀 | `build-linux-amd64` 输出 `bin/iec104-sim` | `bin/iec104-sim-linux-amd64` ❌ |
-| arm64 二进制加 `-arm64` 后缀 | `build-linux-arm64` 输出 `bin/iec104-sim-arm64` | — |
-| Windows 输出 `.exe` | `build-windows` 输出 `bin/iec104-sim.exe` | — |
+| amd64 二进制无后缀 | `build-linux-amd64` 输出 `bin/gridsim` | `bin/gridsim-linux-amd64` ❌ |
+| arm64 二进制加 `-arm64` 后缀 | `build-linux-arm64` 输出 `bin/gridsim-arm64` | — |
+| Windows 输出 `.exe` | `build-windows` 输出 `bin/gridsim.exe` | — |
 | `dist` 依赖 `web-build build-all` | 确保前端先构建，再打包二进制 | — |
 | 发行包目录结构固定 | `{bin,config,logs,resources,web}/` | — |
 
 ### 1.2 发行包结构
 
 ```
-iec104-sim-v{version}-linux-amd64/
+gridsim-v{version}-linux-amd64/
 ├── bin/
-│   ├── iec104-sim            ← 二进制（amd64 无后缀）
+│   ├── gridsim            ← 二进制（amd64 无后缀）
 │   ├── iec104-mcp            ← MCP Server（stdio协议，供AI Agent调用）
 │   ├── start.sh
 │   ├── stop.sh
@@ -230,7 +230,7 @@ IEC104 C_SE_NC_1 (AO遥控) → iec104.Server.AO控制 → store.SetValue(AO)
 版本号在以下位置同步更新：
 1. `Makefile` → `VERSION := 2.2.0`
 2. `web/package.json` → `"version": "2.2.0"`
-3. `cmd/iec104-sim/main.go` → `-ldflags="-X main.version=2.2.0"`
+3. `cmd/gridsim/main.go` → `-ldflags="-X main.version=2.2.0"`
 4. Git Tag → `v2.2.0`
 
 ---

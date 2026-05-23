@@ -1,4 +1,4 @@
-# IEC104 Simulator API 文档
+# GridSim API 文档
 
 Base URL: `http://localhost:8989`
 
@@ -17,7 +17,7 @@ Base URL: `http://localhost:8989`
 
 > 需要以 `serve` 子命令启动：
 > ```bash
-> ./bin/iec104-sim serve --http :8080 --config-dir ./config --log-dir ./logs
+> ./bin/gridsim serve --http :8080 --config-dir ./config --log-dir ./logs
 > ```
 
 ### 1.1 获取全局状态
@@ -239,7 +239,7 @@ GET /api/v1/files
 
 > 需要以 legacy 模式启动：
 > ```bash
-> ./bin/iec104-sim -p 2404 -c samples/point.xlsx -H :8080
+> ./bin/gridsim -p 2404 -c samples/point.xlsx -H :8080
 > ```
 
 ### 2.1 获取所有点表

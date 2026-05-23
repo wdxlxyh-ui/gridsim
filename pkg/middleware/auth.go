@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"iec104-sim/internal/model"
+	"gridsim/internal/model"
 )
 
 type AuthConfig struct {

@@ -6,7 +6,7 @@ import (
 	"os"
 	"sync"
 
-	"iec104-sim/internal/model"
+	"gridsim/internal/model"
 )
 
 // ConfigStore persists instance configurations as a JSON file.

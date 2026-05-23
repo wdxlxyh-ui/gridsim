@@ -1,9 +1,9 @@
 #!/bin/bash
 export PATH="$HOME/go-toolchain/go/bin:$PATH"
-cd ~/iec104-sim
+cd ~/gridsim
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 echo "==================================="
-echo " IEC104 Simulator - Full Test Suite"
+echo " GridSim - Full Test Suite"
 echo " Timestamp: $TIMESTAMP"
 echo "==================================="
 
@@ -24,7 +24,7 @@ echo "Race Test Exit: $?"
 
 echo ""
 echo "--- Step 4: Build Check ---"
-go build -o /tmp/iec104-sim-test ./cmd/iec104-sim/ 2>&1
+go build -o /tmp/gridsim-test ./cmd/gridsim/ 2>&1
 echo "Build Exit: $?"
-file /tmp/iec104-sim-test
-rm /tmp/iec104-sim-test
+file /tmp/gridsim-test
+rm /tmp/gridsim-test

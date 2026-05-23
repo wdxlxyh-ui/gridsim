@@ -1,7 +1,7 @@
 #!/bin/bash
 export PATH="$HOME/go-toolchain/go/bin:$PATH"
-SIM_BIN=/tmp/iec104-sim-inttest
-PID_FILE=/tmp/iec104-sim.pid
+SIM_BIN=/tmp/gridsim-inttest
+PID_FILE=/tmp/gridsim.pid
 PASS=0
 FAIL=0
 
@@ -42,7 +42,7 @@ echo "Go: $(which go) $(go version 2>&1)"
 
 # Build
 echo "Building..."
-cd ~/iec104-sim
+cd ~/gridsim
 go build -o "$SIM_BIN" . 2>&1
 if [ ! -f "$SIM_BIN" ]; then
     echo "BUILD FAILED"
@@ -52,7 +52,7 @@ echo "Build OK: $(ls -la $SIM_BIN | awk '{print $5}') bytes"
 
 # Start simulator
 echo "Starting simulator..."
-$SIM_BIN -p 2404 -c /mnt/d/AI/Claw/iec104-sim/samples/point.xlsx -H :9090 -l error &
+$SIM_BIN -p 2404 -c /mnt/d/AI/Claw/gridsim/samples/point.xlsx -H :9090 -l error &
 SIM_PID=$!
 echo $SIM_PID > "$PID_FILE"
 sleep 2

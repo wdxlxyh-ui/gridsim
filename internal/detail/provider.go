@@ -1,6 +1,6 @@
 package detail
 
-import "iec104-sim/pkg/library"
+import "gridsim/pkg/library"
 
 // StoreProvider 提供跨实例的 Store 查询能力。
 // Manager 实现了此接口，注入到 Engine 后使其可查询其他运行中实例的测点值。

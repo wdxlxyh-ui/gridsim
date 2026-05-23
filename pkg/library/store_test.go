@@ -3,7 +3,7 @@ package library
 import (
 	"testing"
 
-	"iec104-sim/pkg/config"
+	"gridsim/pkg/config"
 )
 
 func makeTestPoints() []*config.Point {

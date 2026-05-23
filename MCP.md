@@ -173,7 +173,7 @@ ls -la
 ```
 
 包内包含：
-- `iec104-sim` - IEC104 模拟器主程序
+- `gridsim` - IEC104 模拟器主程序
 - `mcp-server` - MCP 服务器程序
 - `config/` - 配置目录
 - `samples/` - 示例点表
@@ -209,6 +209,6 @@ Error: dial tcp connection refused
 
 ## 版本信息
 
-- IEC104 Simulator: 2.5.2+
+- GridSim: 2.5.2+
 - MCP Server: 1.1.0
 - 工具总数: 28

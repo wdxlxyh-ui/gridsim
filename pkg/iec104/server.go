@@ -7,8 +7,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"iec104-sim/pkg/config"
-	"iec104-sim/pkg/library"
+	"gridsim/pkg/config"
+	"gridsim/pkg/library"
 
 	"github.com/wendy512/go-iecp5/asdu"
 	"github.com/wendy512/go-iecp5/cs104"

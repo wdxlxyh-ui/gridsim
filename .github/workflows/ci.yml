@@ -111,18 +111,18 @@ jobs:
 
       - name: Build Linux AMD64
         run: |
-          GOOS=linux GOARCH=amd64 go build -o bin/iec104-sim-linux-amd64 ./cmd/iec104-sim/
-          tar -czf dist/iec104-sim-${GITHUB_REF_NAME}-linux-amd64.tar.gz -C .. iec104-sim-master/bin/iec104-sim-linux-amd64
+          GOOS=linux GOARCH=amd64 go build -o bin/gridsim-linux-amd64 ./cmd/gridsim/
+          tar -czf dist/gridsim-${GITHUB_REF_NAME}-linux-amd64.tar.gz -C .. gridsim-master/bin/gridsim-linux-amd64
 
       - name: Build Linux ARM64
         run: |
-          GOOS=linux GOARCH=arm64 go build -o bin/iec104-sim-linux-arm64 ./cmd/iec104-sim/
-          tar -czf dist/iec104-sim-${GITHUB_REF_NAME}-linux-arm64.tar.gz -C .. iec104-sim-master/bin/iec104-sim-linux-arm64
+          GOOS=linux GOARCH=arm64 go build -o bin/gridsim-linux-arm64 ./cmd/gridsim/
+          tar -czf dist/gridsim-${GITHUB_REF_NAME}-linux-arm64.tar.gz -C .. gridsim-master/bin/gridsim-linux-arm64
 
       - name: Build Windows AMD64
         run: |
-          GOOS=windows GOARCH=amd64 go build -o bin/iec104-sim-windows-amd64.exe ./cmd/iec104-sim/
-          cd dist && powershell -Command "Compress-Archive -Path ../bin/iec104-sim-windows-amd64.exe -DestinationPath iec104-sim-${GITHUB_REF_NAME}-windows-amd64.zip"
+          GOOS=windows GOARCH=amd64 go build -o bin/gridsim-windows-amd64.exe ./cmd/gridsim/
+          cd dist && powershell -Command "Compress-Archive -Path ../bin/gridsim-windows-amd64.exe -DestinationPath gridsim-${GITHUB_REF_NAME}-windows-amd64.zip"
 
       - name: Create Release
         uses: softprops/action-gh-release@v1

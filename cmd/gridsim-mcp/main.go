@@ -8,7 +8,7 @@ import (
 
 	mcp_srv "github.com/mark3labs/mcp-go/server"
 
-	"iec104-sim/internal/mcp"
+	"gridsim/internal/mcp"
 )
 
 func main() {

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"iec104-sim/pkg/config"
-	"iec104-sim/pkg/library"
+	"gridsim/pkg/config"
+	"gridsim/pkg/library"
 )
 
 func setupTestServer(t *testing.T) (*Server, int) {

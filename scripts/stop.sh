@@ -1,5 +1,5 @@
 #!/bin/bash
-# IEC104 Simulator - 停止脚本
+# GridSim - 停止脚本
 set -e
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
