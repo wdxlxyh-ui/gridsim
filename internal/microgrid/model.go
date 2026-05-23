@@ -51,6 +51,13 @@ const (
 	ModeLocal  ControlMode = "local"  // 本地=策略驱动
 )
 
+// StrategyConfig 自动变化策略
+type StrategyConfig struct {
+	Type    string         `json:"type"`    // increment/random/csv/max/min/soc/energy/aofollow/manual
+	Enabled bool           `json:"enabled"`
+	Params  map[string]any `json:"params,omitempty"`
+}
+
 // CustomPoint 自定义测点
 type CustomPoint struct {
 	Name string `json:"name"`
@@ -59,13 +66,14 @@ type CustomPoint struct {
 
 // Device 微电网设备
 type Device struct {
-	ID           string         `json:"id"`
-	Type         ComponentType  `json:"type"`
-	Name         string         `json:"name"`
-	Switch       DeviceSwitch   `json:"switch"`
-	Params       DeviceParams   `json:"params"`
-	ControlMode  ControlMode    `json:"control_mode,omitempty"`  // remote | local，默认remote
-	CustomPoints []CustomPoint  `json:"custom_points,omitempty"`
+	ID           string          `json:"id"`
+	Type         ComponentType   `json:"type"`
+	Name         string          `json:"name"`
+	Switch       DeviceSwitch    `json:"switch"`
+	Params       DeviceParams    `json:"params"`
+	ControlMode  ControlMode     `json:"control_mode,omitempty"`
+	Strategy     *StrategyConfig `json:"strategy,omitempty"`
+	CustomPoints []CustomPoint   `json:"custom_points,omitempty"`
 }
 
 // FormulaRule 自定义公式变化规则

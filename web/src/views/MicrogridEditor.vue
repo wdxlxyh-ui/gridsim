@@ -96,6 +96,7 @@
                     @change="(val: boolean) => handleSwitchToggle(dev.id, val)"
                   />
                   <el-button text size="small" @click="editDevice(dev)">参数</el-button>
+                  <el-button text size="small" @click="openDeviceStrategy(dev)">策略</el-button>
                   <el-button text size="small" type="danger" :disabled="running" @click="handleDeleteDevice(dev.id)">删除</el-button>
                 </div>
               </div>
@@ -153,7 +154,7 @@
               </template>
               <div class="topology-wrap">
                 <div class="topology-xform" :style="{ transform: `scale(${svgScale})`, transformOrigin: '0 0' }">
-                  <svg v-html="svgTopology" class="topology-svg"></svg>
+                  <div v-html="svgTopology" :key="'svg-' + devices.length + '-' + running" class="topology-html"></div>
                 </div>
               </div>
             </el-card>
@@ -203,6 +204,12 @@
               <template #default="{ row }">{{ row.value ?? '-' }}</template>
             </el-table-column>
             <el-table-column prop="unit" label="单位" width="80" />
+            <el-table-column label="操作" width="120" fixed="right">
+              <template #default="{ row }">
+                <span v-if="row.managed" style="color:#c0c4cc;font-size:11px">引擎管理</span>
+                <el-button v-else size="small" text @click="configPointStrategy(row)">配置策略</el-button>
+              </template>
+            </el-table-column>
           </el-table>
         </el-card>
       </el-tab-pane>
@@ -279,6 +286,12 @@
         <el-form-item label="设备名称">
           <el-input v-model="editingDeviceName" />
         </el-form-item>
+        <el-form-item label="控制模式">
+          <el-radio-group v-model="editingControlMode">
+            <el-radio value="remote">远方(AO跟随)</el-radio>
+            <el-radio value="local">本地(策略)</el-radio>
+          </el-radio-group>
+        </el-form-item>
         <template v-if="editingDevice?.type === 'pv'">
           <el-form-item label="额定功率">
             <el-input-number v-model="editingDeviceParams.rated_power_kw" :min="0" :max="99999" style="width:100%" /> kW
@@ -323,6 +336,80 @@
       <template #footer>
         <el-button @click="showEditDevice = false">取消</el-button>
         <el-button type="primary" @click="handleUpdateDevice" :loading="updatingDevice">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- Strategy Config Dialog -->
+    <el-dialog v-model="showStrategyDialog" :title="'策略配置 — ' + strategyTargetName" width="700px" :close-on-click-modal="false">
+      <div style="margin-bottom:12px;font-size:12px;color:#909399">
+        当前模式: <el-tag size="small" :type="strategyDevice?.control_mode === 'remote' ? 'primary' : 'warning'">
+          {{ strategyDevice?.control_mode === 'remote' ? '远方(AO跟随)' : '本地(策略)' }}
+        </el-tag>
+        <span style="margin-left:12px">目标: {{ strategyTargetName }} ({{ strategyTargetPoint }})</span>
+      </div>
+      <el-tabs v-model="strategyTab" type="card">
+        <el-tab-pane label="递增" name="increment">
+          <el-form label-width="100px" size="small">
+            <el-form-item label="起始值"><el-input-number v-model="strategyForm.start_value" :min="0" :step="1" style="width:200px" /></el-form-item>
+            <el-form-item label="步长"><el-input-number v-model="strategyForm.step" :min="0.1" :step="0.1" style="width:200px" /></el-form-item>
+            <el-form-item label="周期(ms)"><el-input-number v-model="strategyForm.period_ms" :min="100" :step="100" style="width:200px" /></el-form-item>
+            <el-form-item label="最大值"><el-input-number v-model="strategyForm.max_value" :min="0" :step="1" style="width:200px" /></el-form-item>
+          </el-form>
+        </el-tab-pane>
+        <el-tab-pane label="随机" name="random">
+          <el-form label-width="100px" size="small">
+            <el-form-item label="周期(ms)"><el-input-number v-model="strategyForm.period_ms" :min="100" :step="100" style="width:200px" /></el-form-item>
+            <el-form-item label="最小值"><el-input-number v-model="strategyForm.min_value" :min="0" :step="1" style="width:200px" /></el-form-item>
+            <el-form-item label="最大值"><el-input-number v-model="strategyForm.max_value_r" :min="0" :step="1" style="width:200px" /></el-form-item>
+            <el-form-item label="小数位数">
+              <el-radio-group v-model="strategyForm.decimal_places">
+                <el-radio :value="0">整数</el-radio>
+                <el-radio :value="1">1位小数</el-radio>
+              </el-radio-group>
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+        <el-tab-pane label="CSV" name="csv">
+          <el-form label-width="100px" size="small">
+            <el-form-item label="CSV文件">
+              <el-select v-model="strategyForm.csv_file" placeholder="选择文件" filterable clearable style="width:200px">
+                <el-option v-for="f in csvFileList" :key="f.name" :label="f.name+(f.shared?' (共享)':'')" :value="f.name" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="时间格式">
+              <el-radio-group v-model="strategyForm.time_format"><el-radio value="relative">相对</el-radio><el-radio value="absolute">绝对</el-radio></el-radio-group>
+            </el-form-item>
+            <el-form-item label="循环"><el-switch v-model="strategyForm.csv_loop" /></el-form-item>
+          </el-form>
+        </el-tab-pane>
+        <el-tab-pane label="最大值(MAX)" name="max">
+          <el-form label-width="100px" size="small">
+            <el-form-item label="关联IOA"><el-input v-model="strategyForm.linked_ioas" placeholder="以逗号分隔" style="width:300px" /></el-form-item>
+          </el-form>
+        </el-tab-pane>
+        <el-tab-pane label="最小值(MIN)" name="min">
+          <el-form label-width="100px" size="small">
+            <el-form-item label="关联IOA"><el-input v-model="strategyForm.linked_ioas" placeholder="以逗号分隔" style="width:300px" /></el-form-item>
+          </el-form>
+        </el-tab-pane>
+        <el-tab-pane label="SOC" name="soc">
+          <el-form label-width="100px" size="small">
+            <el-form-item label="容量(kWh)"><el-input-number v-model="strategyForm.capacity" :min="0" style="width:200px" /></el-form-item>
+            <el-form-item label="初始SOC%"><el-input-number v-model="strategyForm.init_soc" :min="0" :max="100" style="width:200px" /></el-form-item>
+            <el-form-item label="SOC范围"><el-input-number v-model="strategyForm.soc_min" :min="0" :max="100" style="width:80px" />% ~ <el-input-number v-model="strategyForm.soc_max" :min="0" :max="100" style="width:80px" />%</el-form-item>
+          </el-form>
+        </el-tab-pane>
+        <el-tab-pane label="电量" name="energy">
+          <el-form label-width="100px" size="small"><el-form-item label="倍率"><el-input-number v-model="strategyForm.pulse_energy" :min="0" style="width:200px" /></el-form-item></el-form>
+        </el-tab-pane>
+        <el-tab-pane label="AO关联" name="aofollow">
+          <el-form label-width="100px" size="small"><el-form-item label="关联AO ID"><el-input v-model="strategyForm.linked_ioa" style="width:200px" /></el-form-item></el-form>
+        </el-tab-pane>
+        <el-tab-pane label="手动" name="manual"><div style="font-size:12px;color:#909399">手动模式：仅允许 API 写入，引擎不做计算</div></el-tab-pane>
+      </el-tabs>
+      <template #footer>
+        <el-button @click="showStrategyDialog = false">取消</el-button>
+        <el-button type="primary" @click="confirmStrategy" :loading="savingStrategy">确认策略</el-button>
       </template>
     </el-dialog>
   </div>
@@ -382,6 +469,23 @@ const updatingDevice = ref(false)
 const editingDevice = ref<MicrogridDevice | null>(null)
 const editingDeviceName = ref('')
 const editingDeviceParams = ref<MicrogridDeviceParams>({})
+const editingControlMode = ref<'remote' | 'local'>('remote')
+
+// Strategy dialog
+const showStrategyDialog = ref(false)
+const savingStrategy = ref(false)
+const strategyTab = ref('increment')
+const strategyDevice = ref<MicrogridDevice | null>(null)
+const strategyTargetName = ref('')
+const strategyTargetPoint = ref('')
+const csvFileList = ref<any[]>([])
+const strategyForm = ref<any>({
+  start_value: 0, step: 1, period_ms: 1000, max_value: 100,
+  min_value: 0, max_value_r: 100, decimal_places: 0,
+  csv_file: '', time_format: 'relative', time_unit: 'ms', csv_loop: true,
+  linked_ioas: '', linked_ioa: '', capacity: 0, init_soc: 50,
+  soc_min: 10, soc_max: 90, pulse_energy: 1,
+})
 
 // Zoom
 const svgScale = ref(1)
@@ -396,14 +500,16 @@ let pointsTimer: ReturnType<typeof setInterval> | null = null
 // ── Computed ──
 
 function deviceFlowClass(dev: any): string {
+  const p = dev.power ?? 0
   if (!dev.switch.closed) return 'fz'
-  if (dev.type === 'pv') return dev.power > 0.1 ? 'fl-up' : 'fz'
-  if (dev.type === 'battery') return dev.power > 0.1 ? 'fl-dn' : (dev.power < -0.1 ? 'fl-up' : 'fz')
-  return dev.power > 0.1 ? 'fl-dn' : 'fz'
+  if (dev.type === 'pv') return p > 0.1 ? 'fl-up' : 'fz'
+  if (dev.type === 'battery') return p > 0.1 ? 'fl-dn' : (p < -0.1 ? 'fl-up' : 'fz')
+  return p > 0.1 ? 'fl-dn' : 'fz'
 }
 
 const svgTopology = computed(() => {
   const N = devices.value.length
+  if (N === 0) return ''
   const BUS_Y = 260, MIN_GAP = 120, ROW_H = 126
   const W = Math.max(680, N * MIN_GAP + 80)
   const H = BUS_Y + N * ROW_H + 60
@@ -450,17 +556,19 @@ const svgTopology = computed(() => {
   const sxx = (W - sw2) / 2
 
   const act = (d: any) => d.switch.closed
-  const PV = devices.value.filter((d: any) => d.type === 'pv' && act(d)).reduce((s: number, d: any) => s + d.power, 0)
-  const LD = devices.value.filter((d: any) => d.type === 'load' && act(d)).reduce((s: number, d: any) => s + d.power, 0)
-  const CH = devices.value.filter((d: any) => d.type === 'charger' && act(d)).reduce((s: number, d: any) => s + d.power, 0)
-  const BAT = devices.value.filter((d: any) => d.type === 'battery' && act(d)).reduce((s: number, d: any) => s + d.power, 0)
+  const PV = devices.value.filter((d: any) => d.type === 'pv' && act(d)).reduce((s: number, d: any) => s + (d.power ?? 0), 0)
+  const LD = devices.value.filter((d: any) => d.type === 'load' && act(d)).reduce((s: number, d: any) => s + (d.power ?? 0), 0)
+  const CH = devices.value.filter((d: any) => d.type === 'charger' && act(d)).reduce((s: number, d: any) => s + (d.power ?? 0), 0)
+  const BAT = devices.value.filter((d: any) => d.type === 'battery' && act(d)).reduce((s: number, d: any) => s + (d.power ?? 0), 0)
   const GRID = LD + CH + BAT - PV
   const fr = 50 - GRID / (Math.max(PV + LD + CH, 1)) * 0.5
   const sgn = GRID >= 0 ? '+' : ''
   const gl = GRID >= 0 ? '从电网用电' : '向电网送电'
 
   const svgW = W.toString(), svgH = H.toString()
-  return `<defs><pattern id="g" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0L0 0 0 40" fill="none" stroke="#e8eaef" stroke-width="0.5"/></pattern></defs>
+  return `<svg viewBox="0 0 ${svgW} ${svgH}" width="${svgW}" height="${svgH}" xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="0" width="${svgW}" height="${svgH}" fill="#f5f7fa"/>
+<defs><pattern id="g" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0L0 0 0 40" fill="none" stroke="#e8eaef" stroke-width="0.5"/></pattern></defs>
 <rect x="0" y="0" width="${svgW}" height="${svgH}" fill="url(#g)" opacity="0.4"/>
 <rect x="${cx - 56}" y="12" width="112" height="38" rx="6" fill="#fef0f0" stroke="#f89898" stroke-width="1.5"/>
 <text x="${cx}" y="36" text-anchor="middle" font-size="14" font-weight="700" fill="#e63946">⚡ 电网</text>
@@ -474,7 +582,7 @@ const svgTopology = computed(() => {
 ${rows}
 <rect x="${sxx}" y="${sy}" width="${sw2}" height="36" rx="6" fill="#f0f4ff" stroke="#c6d6f0" stroke-width="1"/>
 <text x="${W / 2}" y="${sy + 12}" text-anchor="middle" font-size="12" font-weight="600" fill="#303133">GRID = (${LD.toFixed(1)}+${CH.toFixed(1)}<tspan fill="#e6a23c">${BAT >= 0 ? '+' : ''}${BAT.toFixed(1)}</tspan>) − ${PV.toFixed(1)} = <tspan fill="${GRID >= 0 ? '#e6a23c' : '#67c23a'}" font-weight="700">${sgn}${GRID.toFixed(1)} kW</tspan></text>
-<text x="${W / 2}" y="${sy + 28}" text-anchor="middle" font-size="11" fill="#909399">频率 ${fr.toFixed(2)} Hz  ·  ${gl}</text>`
+<text x="${W / 2}" y="${sy + 28}" text-anchor="middle" font-size="11" fill="#909399">频率 ${fr.toFixed(2)} Hz  ·  ${gl}</text></svg>`
 })
 
 const LB: Record<string, string> = { pv: '光伏', battery: '储能', load: '负荷', charger: '充电桩' }
@@ -684,6 +792,7 @@ function editDevice(dev: MicrogridDevice) {
   editingDevice.value = dev
   editingDeviceName.value = dev.name
   editingDeviceParams.value = { ...dev.params }
+  editingControlMode.value = dev.control_mode || 'remote'
   showEditDevice.value = true
 }
 
@@ -695,6 +804,7 @@ async function handleUpdateDevice() {
       ...editingDevice.value,
       name: editingDeviceName.value,
       params: { ...editingDeviceParams.value },
+      control_mode: editingControlMode.value,
     })
     ElMessage.success('参数已更新')
     showEditDevice.value = false
@@ -727,6 +837,46 @@ async function handleSwitchToggle(devId: string, closed: boolean) {
   } catch (e: any) {
     ElMessage.error('开关操作失败: ' + (e?.response?.data?.error || e.message))
   }
+}
+
+// ── Strategy handlers ──
+function openDeviceStrategy(dev: MicrogridDevice) {
+  strategyDevice.value = dev
+  strategyTargetName.value = dev.name
+  strategyTargetPoint.value = dev.id + '_Power'
+  // Reset form from existing strategy or defaults
+  if (dev.control_mode === 'remote') {
+    strategyTab.value = 'increment'
+  }
+  showStrategyDialog.value = true
+}
+
+async function confirmStrategy() {
+  if (!strategyDevice.value) return
+  savingStrategy.value = true
+  try {
+    const updated: any = {
+      ...strategyDevice.value,
+      control_mode: 'local',
+      strategy: { type: strategyTab.value, enabled: true, params: { ...strategyForm.value } }
+    }
+    await updateMicrogridDevice(instanceId, updated)
+    ElMessage.success('策略已保存')
+    showStrategyDialog.value = false
+    await fetchTopology()
+  } catch (e: any) {
+    ElMessage.error('策略保存失败: ' + (e?.response?.data?.error || e.message))
+  } finally {
+    savingStrategy.value = false
+  }
+}
+
+function configPointStrategy(row: any) {
+  strategyDevice.value = null
+  strategyTargetName.value = row.name
+  strategyTargetPoint.value = row.name
+  strategyTab.value = 'increment'
+  showStrategyDialog.value = true
 }
 
 function resetNewDevice() {
@@ -900,33 +1050,37 @@ onUnmounted(() => {
 .topology-wrap {
   overflow: auto;
   max-height: 560px;
-  background: linear-gradient(180deg, #fafbfc, #f0f2f5);
+  background: var(--el-bg-color-page);
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 6px;
 }
 .topology-xform {
   transform-origin: 0 0;
   transition: transform .15s ease;
+  min-width: 680px;
 }
-.topology-svg {
+.topology-html {
   display: block;
+  font-family: system-ui, -apple-system, sans-serif;
 }
-.topology-svg :deep(text) {
+.topology-html :deep(text) {
   font-family: system-ui, -apple-system, sans-serif;
 }
 
 /* Flow animation: energy beam (style #3) */
 @keyframes flow-up { to { stroke-dashoffset: 32; } }
 @keyframes flow-dn { to { stroke-dashoffset: -32; } }
-.topology-svg :deep(.fl-up) {
+.topology-html :deep(.fl-up) {
   stroke-dasharray: 12 4;
   animation: flow-up .6s linear infinite;
   stroke-width: 3.5;
 }
-.topology-svg :deep(.fl-dn) {
+.topology-html :deep(.fl-dn) {
   stroke-dasharray: 12 4;
   animation: flow-dn .6s linear infinite;
   stroke-width: 3.5;
 }
-.topology-svg :deep(.fz) {
+.topology-html :deep(.fz) {
   stroke-dasharray: 4 8;
   stroke: #c0c4cc !important;
   stroke-width: 2;

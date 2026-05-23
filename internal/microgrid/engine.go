@@ -256,7 +256,7 @@ func (e *Engine) tick() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	// 1. Calculate PV power: AO setpoint > irradiance fallback
+	// 1. Calculate PV power: AO setpoint (remote) > irradiance fallback (local/default)
 	for _, dev := range e.topology.Devices {
 		if dev.Type != CompPV {
 			continue
@@ -269,21 +269,20 @@ func (e *Engine) tick() {
 		if ratedP <= 0 {
 			ratedP = 100
 		}
-		// Try AO setpoint first
-		setpoint := e.readStoreValue(dev.ID + "_Setpoint")
-		if setpoint > 0 {
-			if setpoint > ratedP {
-				setpoint = ratedP
+		// Remote mode: follow AO setpoint
+		if dev.ControlMode != ModeLocal {
+			setpoint := e.readStoreValue(dev.ID + "_Setpoint")
+			if setpoint > 0 {
+				if setpoint > ratedP { setpoint = ratedP }
+				e.pvPower[dev.ID] = setpoint
+				continue
 			}
-			e.pvPower[dev.ID] = setpoint
-		} else {
-			irradiance := 300.0 + rand.Float64()*600.0
-			p := irradiance / 1000.0 * dev.Params.RatedPowerKW * dev.Params.Efficiency
-			if p < 0 {
-				p = 0
-			}
-			e.pvPower[dev.ID] = p
 		}
+		// Local mode or no setpoint: use irradiance
+		irradiance := 300.0 + rand.Float64()*600.0
+		p := irradiance / 1000.0 * dev.Params.RatedPowerKW * dev.Params.Efficiency
+		if p < 0 { p = 0 }
+		e.pvPower[dev.ID] = p
 	}
 
 	// 2. Calculate load/charger power
@@ -304,14 +303,24 @@ func (e *Engine) tick() {
 		}
 	}
 
-	// 3. Calculate battery power from AO setpoint or dispatch
+	// 3. Calculate battery power (remote: AO setpoint, local: time-based dispatch)
 	for _, dev := range e.topology.Devices {
 		if dev.Type == CompBattery {
-			if dev.Switch.Closed {
-				e.batPower[dev.ID] = e.calcBatteryPowerLocked(dev)
-			} else {
+			if !dev.Switch.Closed {
 				e.batPower[dev.ID] = 0
+				continue
 			}
+			if dev.ControlMode != ModeLocal {
+				setpoint := e.readStoreValue(dev.ID + "_Setpoint")
+				if setpoint != 0 {
+					ratedP := dev.Params.RatedPowerKW_B
+					if ratedP <= 0 { ratedP = 50 }
+					if setpoint > ratedP { setpoint = ratedP } else if setpoint < -ratedP { setpoint = -ratedP }
+					e.batPower[dev.ID] = setpoint
+					continue
+				}
+			}
+			e.batPower[dev.ID] = e.calcBatteryPowerLocked(dev)
 		}
 	}
 

@@ -323,6 +323,12 @@ export interface MicrogridCustomPoint {
   type: 'AI' | 'DI' | 'DO' | 'AO'
 }
 
+export interface MicrogridStrategyConfig {
+  type: string
+  enabled: boolean
+  params?: Record<string, any>
+}
+
 export interface MicrogridDevice {
   id: string
   type: 'pv' | 'battery' | 'load' | 'charger'
@@ -332,6 +338,7 @@ export interface MicrogridDevice {
   power?: number
   soc?: number
   control_mode?: 'remote' | 'local'
+  strategy?: MicrogridStrategyConfig
   custom_points?: MicrogridCustomPoint[]
 }
 
