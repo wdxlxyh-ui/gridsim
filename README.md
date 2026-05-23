@@ -11,6 +11,7 @@
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v2.5.3** | 2026-05-22 | **ECharts 实时趋势重构 + 批量读取 API** — TrendPage 全面改用 ECharts（时间轴基于真实时间戳、缩放拖拽、十字准线 tooltip）；新增 `GET /points/batch` 批量读取接口（N 次请求→1 次）；修复 goroutine nil pointer 崩溃；发行包预置 users.json + VERSION 文件 |
 | **v2.5.2** | 2026-05-21 | **CSV 文件下拉选择+自动映射+MCP登录修复** — CSV 回放支持从已有文件下拉选择（共享目录+实例私有）；多列 CSV 自动按列名匹配测点 IOA（回退按序号分配）；新增 `GET /csv-files` API 和 `list_csv_files` MCP 工具；修复前端登录路径不匹配；修复 MCP write_points schema |
 | **v2.5.1** | 2026-05-20 | 前端实例容量显示 — ConfigPage 顶部显示已配置/1000、运行中、已停止计数 |
 | **v2.5.0** | 2026-05-20 | **CSV 多测点同步回放** — 独立卡片UI、多列CSV映射、相对/绝对时间支持、状态持久化 |
@@ -23,6 +24,19 @@
 | v2.0.1 | 2026-05 | HTTP 开关控制、API 文档、iptables 防火墙自动管理 |
 | v2.0 | 2026-05 | 多实例管理模式（serve 子命令）、Vue 3 Web 管理界面 |
 | v1.0 | - | 传统单实例模式 |
+
+### v2.5.3 新特性
+
+- **ECharts 实时趋势重构** — TrendPage 全面改用 ECharts 图表库
+  - 时间轴基于测点真实 `updated_at` 时间戳，不再用数组下标推算
+  - 支持缩放拖拽（鼠标滚轮 + 底部 slider），十字准线 tooltip 同时显示所有系列值
+  - 图例点击显隐，8 色主题配色
+  - 时间范围：5m / 15m / 30m / 1h / 2h，轮询：200ms ~ 5s
+- **批量读取 API** — 新增 `GET /api/v1/instances/{id}/points/batch?ioas=X,Y,Z`
+  - N 个测点从 N 次 HTTP 请求合并为 1 次，大幅降低趋势页网络开销
+  - 响应含 `updated_at` 字段，与 `readPoint` 格式一致
+- **崩溃修复** — `engine.go` goroutine 在 `stopTaskLocked` 删除 state 后 ticker 读到 nil 导致 panic，已加固
+- **构建改进** — 发行包 `bin/VERSION` 版本号文件、`config/users.json` 预置默认用户
 
 ### v2.5.1 新特性
 
@@ -107,7 +121,7 @@
 | 语言 | Go 1.21+ |
 | IEC 104 库 | [go-iecp5](https://github.com/wendy512/go-iecp5) |
 | Excel 解析 | [excelize](https://github.com/xuri/excelize/v2) v2 |
-| 前端 | Vue 3 + TypeScript + Element Plus |
+| 前端 | Vue 3 + TypeScript + Element Plus + ECharts |
 | 构建工具 | Vite |
 | 命令行 | [pflag](https://github.com/spf13/pflag) |
 
@@ -225,6 +239,7 @@ go build -o bin/iec104-sim ./cmd/iec104-sim/
 | 方法 | 端点 | 说明 |
 |--------|----------|-------------|
 | `GET` | `/api/v1/instances/{id}/points` | 获取所有测点实时快照 |
+| `GET` | `/api/v1/instances/{id}/points/batch?ioas=X,Y,Z` | 批量读取指定 IOA 快照（v2.5.3） |
 | `GET` | `/api/v1/instances/{id}/points/{ioa}` | 获取单个测点快照 |
 | `PUT` | `/api/v1/instances/{id}/points/{ioa}` | 置数（写入点值） |
 | `GET` | `/api/v1/instances/{id}/points/auto-change/{ioa}` | 获取自动变化配置 |
