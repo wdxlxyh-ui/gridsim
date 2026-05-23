@@ -1,6 +1,7 @@
 package microgrid
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"math"
@@ -42,18 +43,39 @@ type Engine struct {
 
 // buildPointIndex 扫描 store 所有点，建立 name→IOA 索引
 func (e *Engine) buildPointIndex() {
-	if e.store == nil { return }
 	e.pointIOA = make(map[string]uint32)
+	if e.store == nil { return }
+
+	// Try loading from persisted point table first
+	if e.cfg.PointsJSON != "" {
+		var entries []struct {
+			IOA  uint32 `json:"ioa"`
+			Name string `json:"name"`
+		}
+		if json.Unmarshal([]byte(e.cfg.PointsJSON), &entries) == nil {
+			for _, ent := range entries {
+				e.pointIOA[ent.Name] = ent.IOA
+			}
+			// Add dev.ID aliases for engine internal use
+			for _, dev := range e.topology.Devices {
+				for _, s := range []string{"_Power", "_SOC", "_Setpoint", "_SwStatus", "_SwCtrl", "_Status"} {
+					if ioa, ok := e.pointIOA[dev.Name+s]; ok {
+						e.pointIOA[dev.ID+s] = ioa
+					}
+				}
+			}
+			return
+		}
+	}
+
+	// Fallback: scan store
 	for _, p := range e.store.GetAll() {
 		e.pointIOA[p.Name] = p.IOA
 	}
-	// Also index by dev.ID suffixes for engine internal use
 	for _, dev := range e.topology.Devices {
-		for _, suffix := range []string{"_Power", "_SOC", "_Setpoint", "_SwStatus", "_SwCtrl", "_Status"} {
-			nameKey := dev.Name + suffix
-			idKey := dev.ID + suffix
-			if ioa, ok := e.pointIOA[nameKey]; ok {
-				e.pointIOA[idKey] = ioa
+		for _, s := range []string{"_Power", "_SOC", "_Setpoint", "_SwStatus", "_SwCtrl", "_Status"} {
+			if ioa, ok := e.pointIOA[dev.Name+s]; ok {
+				e.pointIOA[dev.ID+s] = ioa
 			}
 		}
 	}
@@ -214,7 +236,19 @@ func (e *Engine) SetSwitch(devID string, closed bool) error {
 	for i := range e.topology.Devices {
 		if e.topology.Devices[i].ID == devID {
 			e.topology.Devices[i].Switch.Closed = closed
-			e.updateSwitchPoints(devID, closed)
+			swVal := 0.0
+			if closed { swVal = 1.0 }
+			// Write DI/DO points by iterating store (fallback if IOA index missing)
+			for _, p := range e.store.GetAll() {
+				if p.Name == e.topology.Devices[i].Name+"_SwStatus" ||
+					p.Name == e.topology.Devices[i].Name+"_SwCtrl" ||
+					p.Name == e.topology.Devices[i].Name+"_Status" {
+					e.store.SetValue(p.IOA, swVal)
+				}
+				if p.Name == e.topology.Devices[i].Name+"_Power" && !closed {
+					e.store.SetValue(p.IOA, 0)
+				}
+			}
 			return nil
 		}
 	}

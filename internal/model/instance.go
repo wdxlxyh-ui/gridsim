@@ -18,6 +18,7 @@ type InstanceConfig struct {
 // MicrogridInstanceConfig 微电网实例配置
 type MicrogridInstanceConfig struct {
 	TopologyJSON string  `json:"topology_json,omitempty"`
+	PointsJSON   string  `json:"points_json,omitempty"`
 	TickMs       int     `json:"tick_ms,omitempty"`
 	SpeedFactor  float64 `json:"speed_factor,omitempty"`
 }

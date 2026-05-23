@@ -86,6 +86,7 @@ func (s *Store) SetValue(ioa uint32, value float64) (*config.Point, error) {
 		p.Value = value
 	case config.TypeDI, config.TypeDO:
 		p.BoolValue = int64(value) != 0
+		p.Value = value // Also set float64 for consistent API read
 	case config.TypePI:
 		p.IntValue = int32(value)
 	}

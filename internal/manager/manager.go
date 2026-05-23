@@ -494,6 +494,7 @@ func (m *Manager) startMicrogrid(id string) error {
 		TickMs:      tickMs,
 		SpeedFactor: speed,
 		ConfigDir:   m.cfgDir,
+		PointsJSON:  cfg.MicrogridConfig.PointsJSON,
 	})
 	if err := eng.Start(); err != nil {
 		proto.Stop()

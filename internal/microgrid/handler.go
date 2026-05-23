@@ -241,11 +241,9 @@ func HandleMicrogridPoints(mgr ManagerBridge) http.HandlerFunc {
 				var topo Topology
 				json.Unmarshal([]byte(cfg.MicrogridConfig.TopologyJSON), &topo)
 				for _, dev := range topo.Devices {
-					managed[dev.ID+"_Power"] = true
-					managed[dev.ID+"_SOC"] = true
-					managed[dev.ID+"_SwStatus"] = true
-					managed[dev.ID+"_SwCtrl"] = true
-					managed[dev.ID+"_Setpoint"] = true
+					for _, s := range []string{"_Power", "_SOC", "_SwStatus", "_SwCtrl", "_Setpoint", "_Status"} {
+						managed[dev.Name+s] = true
+					}
 				}
 				managed["GRID_P"] = true
 				managed["GRID_Q"] = true
@@ -445,9 +443,23 @@ func saveTopology(mgr ManagerBridge, id string, cfg model.InstanceConfig, topo *
 		cfg.MicrogridConfig = &model.MicrogridInstanceConfig{}
 	}
 	cfg.MicrogridConfig.TopologyJSON = string(b)
+
+	// Persist point table (name/IOA/type mapping)
+	pts := topo.ExpandPoints()
+	type ptEntry struct {
+		IOA  uint32 `json:"ioa"`
+		Name string `json:"name"`
+		Type string `json:"type"`
+	}
+	var entries []ptEntry
+	for _, p := range pts {
+		entries = append(entries, ptEntry{IOA: p.IOA, Name: p.Name, Type: string(p.PointType)})
+	}
+	ptJSON, _ := json.Marshal(entries)
+	cfg.MicrogridConfig.PointsJSON = string(ptJSON)
+
 	mgr.UpdateConfig(cfg)
 
-	// Push topology changes to running engine
 	if eng := mgr.GetMicrogridEngine(id); eng != nil {
 		eng.ReloadTopology(topo)
 	}

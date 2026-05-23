@@ -103,6 +103,7 @@ type GridMeterConfig struct {
 // InstanceConfig 微电网实例附加配置
 type InstanceConfig struct {
 	TopologyJSON string  `json:"topology_json,omitempty"`
+	PointsJSON   string  `json:"points_json,omitempty"`
 	TickMs       int     `json:"tick_ms,omitempty"`
 	SpeedFactor  float64 `json:"speed_factor,omitempty"`
 	ConfigDir    string  `json:"-"`

@@ -169,3 +169,110 @@ func TestReq_ControlMode(t *testing.T) {
 	eng2.tick()
 	if eng2.pvPower["pv2"] == 75 { t.Errorf("local PV should NOT follow AO=75, got %f", eng2.pvPower["pv2"]) }
 }
+
+func TestSwitchDI(t *testing.T) {
+	devs := []Device{
+		{ID: "pv1", Type: CompPV, Name: "PV-1", Switch: DeviceSwitch{ID: "s1", Name: "QF1", Closed: true, Controllable: true}},
+	}
+	topo := &Topology{BusName: "10kV", BusVoltageKV: 10, Devices: devs, GridMeter: GridMeterConfig{RatedCapacityKW: 500}}
+	pts := topo.ExpandPoints()
+	store := library.NewStore(pts)
+	eng := &Engine{topology: topo, store: store, history: NewHistoryBuffer(3600), 
+		pvPower: make(map[string]float64), loadPower: make(map[string]float64), batPower: make(map[string]float64)}
+	eng.buildPointIndex()
+
+	// Check initial
+	v := eng.readPt("PV-1_SwStatus")
+	t.Logf("Initial PV-1_SwStatus via readPt: %f", v)
+
+	// Toggle OFF
+	eng.SetSwitch("pv1", false)
+	v2 := eng.readPt("PV-1_SwStatus")
+	t.Logf("After OFF PV-1_SwStatus: %f", v2)
+	if v2 != 0 { t.Errorf("expected 0, got %f", v2) }
+
+	// Toggle ON
+	eng.SetSwitch("pv1", true)
+	v3 := eng.readPt("PV-1_SwStatus")
+	t.Logf("After ON PV-1_SwStatus: %f", v3)
+	if v3 != 1 { t.Errorf("expected 1, got %f", v3) }
+}
+
+func TestSwitchDI_debug(t *testing.T) {
+	devs := []Device{
+		{ID: "pv1", Type: CompPV, Name: "PV-1", Switch: DeviceSwitch{ID: "s1", Name: "QF1", Closed: true, Controllable: true}},
+	}
+	topo := &Topology{BusName: "10kV", BusVoltageKV: 10, Devices: devs, GridMeter: GridMeterConfig{RatedCapacityKW: 500}}
+	pts := topo.ExpandPoints()
+	store := library.NewStore(pts)
+
+	// Print all store point names
+	for _, p := range store.GetAll() {
+		if strings.Contains(p.Name, "Status") || strings.Contains(p.Name, "SwCtrl") || strings.Contains(p.Name, "SwStatus") {
+			t.Logf("Store: name=%s ioa=%d type=%s value=%f", p.Name, p.IOA, p.PointType, p.Value)
+		}
+	}
+
+	eng := &Engine{topology: topo, store: store, history: NewHistoryBuffer(3600)}
+	eng.buildPointIndex()
+	eng.pvPower = make(map[string]float64)
+	eng.loadPower = make(map[string]float64)
+	eng.batPower = make(map[string]float64)
+
+	// Call SetSwitch
+	t.Logf("=== Calling SetSwitch(pv1, true) ===")
+	t.Logf("dev.Name=%s dev.ID=%s", eng.topology.Devices[0].Name, eng.topology.Devices[0].ID)
+	err := eng.SetSwitch("pv1", true)
+	t.Logf("SetSwitch returned: %v", err)
+
+	// Check store again
+	for _, p := range store.GetAll() {
+		if strings.Contains(p.Name, "Status") || strings.Contains(p.Name, "SwCtrl") || strings.Contains(p.Name, "SwStatus") {
+			t.Logf("After: name=%s value=%f", p.Name, p.Value)
+		}
+	}
+}
+
+func TestSwitchDI_direct(t *testing.T) {
+	devs := []Device{
+		{ID: "pv1", Type: CompPV, Name: "PV-1", Switch: DeviceSwitch{ID: "s1", Name: "QF1", Closed: true}},
+	}
+	topo := &Topology{BusName: "10kV", BusVoltageKV: 10, Devices: devs, GridMeter: GridMeterConfig{RatedCapacityKW: 500}}
+	pts := topo.ExpandPoints()
+	store := library.NewStore(pts)
+
+	// Direct SetValue test
+	for _, p := range store.GetAll() {
+		if p.Name == "PV-1_SwStatus" {
+			t.Logf("Direct SetValue on IOA %d", p.IOA)
+			ret, err := store.SetValue(p.IOA, 1.0)
+			t.Logf("SetValue returned: %v, err=%v", ret, err)
+		}
+	}
+	// Re-read
+	for _, p := range store.GetAll() {
+		if p.Name == "PV-1_SwStatus" {
+			t.Logf("After direct: value=%f", p.Value)
+			if p.Value != 1.0 {
+				t.Errorf("DIRECT SetValue failed: got %f, want 1.0", p.Value)
+			}
+		}
+	}
+}
+
+func TestSwitchDI_minimal(t *testing.T) {
+	store := library.NewStore([]*config.Point{
+		{IOA: 1102, Name: "PV-1_SwStatus", ValueType: config.VTBit, PointType: config.TypeDI, Value: 0},
+	})
+	pts := store.GetAll()
+	t.Logf("Before: Value=%f len=%d", pts[0].Value, len(pts))
+
+	store.SetValue(1102, 1.0)
+
+	pts2 := store.GetAll()
+	t.Logf("After: Value=%f", pts2[0].Value)
+
+	if pts2[0].Value != 1.0 {
+		t.Errorf("SetValue didn't work: got %f", pts2[0].Value)
+	}
+}
