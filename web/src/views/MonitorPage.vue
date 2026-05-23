@@ -56,9 +56,9 @@
               v-if="inst.status === 'running'"
               type="primary"
               size="small"
-              @click="$router.push('/detail/' + inst.id)"
+              @click="openInstance(inst)"
             >
-              详情
+              {{ inst.protocol === 'microgrid' ? '微电网' : '详情' }}
             </el-button>
             <el-button
               v-if="inst.status === 'running'"
@@ -97,6 +97,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -111,7 +112,16 @@ const loading = ref(false)
 const instances = ref<InstanceState[]>([])
 const lastRefresh = ref('')
 const actionLoading = ref('')
+const router = useRouter()
 let timer: ReturnType<typeof setInterval> | null = null
+
+function openInstance(inst: InstanceState) {
+  if (inst.protocol === 'microgrid') {
+    router.push('/microgrid/' + inst.id)
+  } else {
+    router.push('/detail/' + inst.id)
+  }
+}
 
 async function fetchData() {
   loading.value = true

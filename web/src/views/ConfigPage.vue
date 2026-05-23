@@ -60,6 +60,8 @@
                 :loading="actionLoading === row.id" @click="handleStop(row.id)">停止</el-button>
               <el-button v-else type="success" size="small"
                 :loading="actionLoading === row.id" @click="handleStart(row.id)">启动</el-button>
+              <el-button v-if="row.protocol === 'microgrid'" size="small" type="primary"
+                @click="openMicrogrid(row.id)">微电网</el-button>
               <el-button size="small" :disabled="row.status === 'running' || actionLoading === row.id" @click="handleEdit(row)">编辑</el-button>
               <el-button type="danger" size="small" :disabled="row.status === 'running' || actionLoading === row.id" @click="handleDelete(row.id)">删除</el-button>
             </el-button-group>
@@ -75,6 +77,7 @@
           <el-radio-group v-model="form.protocol">
             <el-radio-button value="iec104">IEC104</el-radio-button>
             <el-radio-button value="modbus_tcp">Modbus TCP</el-radio-button>
+            <el-radio-button value="microgrid">微电网</el-radio-button>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="实例名称" prop="name">
@@ -83,11 +86,16 @@
         <el-form-item :label="form.protocol === 'modbus_tcp' ? 'Modbus端口' : 'IEC104端口'" prop="iec104_port">
           <el-input-number v-model="form.iec104_port" :min="1" :max="65535" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="点表文件" prop="xlsx_file">
+        <el-form-item label="点表文件" prop="xlsx_file" v-if="form.protocol !== 'microgrid'">
           <el-select v-model="form.xlsx_file" placeholder="选择或上传文件" style="width: 100%" allow-create filterable>
             <el-option v-for="f in availableFiles" :key="f.name" :label="f.name" :value="f.name" />
           </el-select>
           <div class="form-hint" style="font-size:12px;color:#999;margin-top:4px">{{ xlsxHint }}</div>
+        </el-form-item>
+        <el-form-item v-if="form.protocol === 'microgrid'" label="微电网拓扑">
+          <div style="color: var(--el-text-color-secondary); font-size: 13px;">
+            微电网实例在创建后，需要进入微电网编辑器配置拓扑结构和设备参数。
+          </div>
         </el-form-item>
         <el-form-item v-if="form.protocol === 'modbus_tcp'" label="从站地址">
           <el-input-number v-model="modbusSlaveId" :min="1" :max="247" style="width: 100%" />
@@ -106,7 +114,7 @@
         <el-form-item label="HTTP端口" v-if="form.http_enabled" prop="http_port">
           <el-input-number v-model="form.http_port" :min="1024" :max="65535" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="上传新文件">
+        <el-form-item label="上传新文件" v-if="form.protocol !== 'microgrid'">
           <el-upload :auto-upload="false" :show-file-list="false" accept=".xlsx" :on-change="handleFileChange">
             <el-button type="primary">选择 Excel 文件</el-button>
             <span v-if="selectedFile" style="margin-left: 10px; color: #67c23a">{{ selectedFile.name }}</span>
@@ -124,6 +132,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { Refresh, SuccessFilled, CircleCloseFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance } from 'element-plus'
@@ -142,6 +151,7 @@ import {
   type GlobalStatus,
 } from '../api'
 
+const router = useRouter()
 const loading = ref(false)
 const instances = ref<InstanceState[]>([])
 const globalStatus = ref<GlobalStatus | null>(null)
@@ -168,10 +178,26 @@ const modbusByteOrder = ref('ABCD')
 const rules = {
   name: [{ required: true, message: '请输入实例名称', trigger: 'blur' }],
   iec104_port: [{ required: true, message: '请填写端口号', trigger: 'blur' }],
-  xlsx_file: [{ required: true, message: '请选择点表文件', trigger: 'change' }],
+  xlsx_file: [
+    {
+      required: true,
+      message: '请选择点表文件',
+      trigger: 'change',
+      validator: (_rule: any, value: string, callback: any) => {
+        if (form.value.protocol === 'microgrid') {
+          callback()
+        } else if (!value) {
+          callback(new Error('请选择点表文件'))
+        } else {
+          callback()
+        }
+      },
+    },
+  ],
 }
 
 const xlsxHint = computed(() => {
+  if (form.value.protocol === 'microgrid') return ''
   if (form.value.protocol === 'modbus_tcp') {
     return 'Modbus 格式: 名称 | IOA | 类型 | 类型 | 系数 | 基值 | 别名 | 寄存器地址 | 功能码 | 数据类型 | (额外列自动忽略)'
   }
@@ -304,6 +330,10 @@ async function handleUploadFirst() {
   }
 }
 
+function openMicrogrid(id: string) {
+  router.push(`/microgrid/${id}`)
+}
+
 function resetForm() {
   editing.value = false
   form.value = { name: '', iec104_port: 2404, xlsx_file: '', http_enabled: false, http_port: 8081, protocol: 'iec104' }
@@ -314,15 +344,18 @@ function resetForm() {
 
 function protoLabel(proto?: string): string {
   if (proto === 'modbus_tcp') return 'Modbus TCP'
+  if (proto === 'microgrid') return '微电网'
   return 'IEC104'
 }
 
-function protoTagType(proto?: string): 'success' | 'primary' | 'info' {
+function protoTagType(proto?: string): 'success' | 'primary' | 'info' | 'warning' {
   if (proto === 'modbus_tcp') return 'success'
+  if (proto === 'microgrid') return 'warning'
   return 'primary'
 }
 
 function displayPort(row: InstanceState): string {
+  if (row.protocol === 'microgrid') return String(row.iec104_port)
   if (row.protocol === 'modbus_tcp' && row.iec104_port) return String(row.iec104_port)
   return String(row.iec104_port)
 }

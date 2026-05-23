@@ -18,6 +18,7 @@ import (
 
 	"gridsim/internal/detail"
 	"gridsim/internal/manager"
+	"gridsim/internal/microgrid"
 	"gridsim/internal/model"
 	"gridsim/internal/storage"
 	"gridsim/pkg/api"
@@ -197,12 +198,38 @@ func (ws *webServer) registerRoutes(mux *http.ServeMux, configDir string) {
 	mux.HandleFunc("/api/v1/files", ws.handleFiles)
 	mux.HandleFunc("/api/v1/protocols", ws.handleProtocols)
 
+	// Microgrid management routes
+	ws.registerMicrogridRoutes(mux)
+
 	// Serve static frontend if built
 	if _, err := os.Stat(webDir); err == nil {
 		mux.Handle("/", http.FileServer(http.Dir(webDir)))
 	} else {
 		slog.Warn("前端构建目录不存在，Web UI 不可用", "path", webDir)
 	}
+}
+
+func (ws *webServer) registerMicrogridRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("/api/v1/microgrid/", func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		switch {
+		case strings.Contains(path, "/topology"):
+			microgrid.HandleMicrogridTopology(ws.mgr)(w, r)
+		case strings.Contains(path, "/control"):
+			microgrid.HandleMicrogridControl(ws.mgr)(w, r)
+		case strings.Contains(path, "/device"):
+			microgrid.HandleMicrogridDevice(ws.mgr)(w, r)
+			microgrid.HandleMicrogridControl(ws.mgr)(w, r)
+		case strings.Contains(path, "/dashboard"):
+			microgrid.HandleMicrogridDashboard(ws.mgr)(w, r)
+		case strings.Contains(path, "/formulas"):
+			microgrid.HandleMicrogridFormulas(ws.mgr)(w, r)
+		case strings.Contains(path, "/points"):
+			microgrid.HandleMicrogridPoints(ws.mgr)(w, r)
+		default:
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "unknown microgrid endpoint"})
+		}
+	})
 }
 
 // ─── Management API Handlers ───────────────────────────────────────────────
@@ -306,9 +333,12 @@ func (ws *webServer) handleInstanceByID(w http.ResponseWriter, r *http.Request) 
 			if req.Protocol == "" {
 				req.Protocol = existing.Protocol
 			}
-			if !req.HttpEnabled && req.HttpPort == 0 {
-				req.HttpPort = existing.HttpPort
-			}
+		if !req.HttpEnabled && req.HttpPort == 0 {
+			req.HttpPort = existing.HttpPort
+		}
+		if req.Protocol == "microgrid" && req.MicrogridConfig == nil {
+			req.MicrogridConfig = existing.MicrogridConfig
+		}
 		}
 		if err := ws.mgr.UpdateConfig(req); err != nil {
 			writeError(w, http.StatusNotFound, err.Error())
@@ -568,8 +598,11 @@ func instanceStateToMap(s *model.InstanceState) map[string]interface{} {
 		"enabled":      s.Config.Enabled,
 		"http_enabled": s.Config.HttpEnabled,
 		"http_port":    s.Config.HttpPort,
-		"protocol":     proto,
-		"status":       string(s.Status),
+		"protocol":        proto,
+		"status":          string(s.Status),
+	}
+	if s.Config.MicrogridConfig != nil {
+		m["microgrid_config"] = s.Config.MicrogridConfig
 	}
 	if s.Status == model.StatusRunning {
 		m["stats"] = map[string]interface{}{
@@ -602,7 +635,7 @@ func validateConfig(cfg model.InstanceConfig) error {
 	if port < 1 || port > 65535 {
 		return fmt.Errorf("port must be 1-65535")
 	}
-	if cfg.XLSXFile == "" {
+	if cfg.Protocol != "microgrid" && cfg.XLSXFile == "" {
 		return fmt.Errorf("xlsx_file is required")
 	}
 	if cfg.HttpEnabled && (cfg.HttpPort < 1 || cfg.HttpPort > 65535) {

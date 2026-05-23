@@ -11,6 +11,7 @@ const routes = [
   { path: '/monitor', name: 'monitor', component: MonitorPage, meta: { title: '运行监控' } },
   { path: '/trend', name: 'trend', component: () => import('@/views/TrendPage.vue'), meta: { title: '实时趋势' } },
   { path: '/detail/:id', name: 'detail', component: () => import('@/views/DetailPage.vue'), meta: { title: '实例详情' } },
+  { path: '/microgrid/:id', name: 'microgrid', component: () => import('@/views/MicrogridEditor.vue'), meta: { title: '微电网编辑' } },
 ]
 
 const router = createRouter({

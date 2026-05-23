@@ -85,7 +85,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { listInstances, getPoints, type PointSnapshot } from '../api'
+import { listInstances, getPoints, getMicrogridPoints, type PointSnapshot } from '../api'
 import TrendPanel from './TrendPanel.vue'
 
 const COLORS = ['#14b8a6', '#f59e0b', '#3b82f6', '#a855f7', '#ec4899', '#22d3ee', '#f97316', '#8b5cf6']
@@ -121,7 +121,7 @@ const selectedTemplateForPanel = ref('')
 // Add trace dialog state
 const showAddTrace = ref(false)
 const addTracePanelId = ref('')
-const allInstances = ref<{ id: string; name: string }[]>([])
+const allInstances = ref<{ id: string; name: string; protocol?: string }[]>([])
 const addTraceInst = ref('')
 const addTraceIoas = ref<number[]>([])
 const addTraceAlias = ref('')
@@ -232,7 +232,7 @@ function onAddTrace(panelId: string) {
 async function initAddTraceDialog() {
   try {
     const list = await listInstances()
-    allInstances.value = list.map(s => ({ id: s.id, name: s.name }))
+    allInstances.value = list.map(s => ({ id: s.id, name: s.name, protocol: s.protocol }))
   } catch { ElMessage.error('加载实例列表失败') }
 }
 
@@ -241,8 +241,11 @@ async function onAddTraceInstChange() {
   addTracePoints.value = []
   if (!addTraceInst.value) return
   try {
-    const res = await getPoints(addTraceInst.value)
-    addTracePoints.value = res.points.sort((a, b) => a.ioa - b.ioa)
+    const inst = allInstances.value.find(i => i.id === addTraceInst.value)
+    const res = inst?.protocol === 'microgrid'
+      ? await getMicrogridPoints(addTraceInst.value)
+      : await getPoints(addTraceInst.value)
+    addTracePoints.value = (res.points || []).sort((a: any, b: any) => a.ioa - b.ioa)
   } catch { ElMessage.warning('加载测点失败') }
 }
 
