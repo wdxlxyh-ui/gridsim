@@ -95,6 +95,7 @@ func TestReq4_BatterySign(t *testing.T) {
 	}}
 	store := newStore(makeTestPoint(1, "bat1_Setpoint", 50))
 	eng := &Engine{topology: topo, store: store, cfg: InstanceConfig{TickMs: 1000}, history: NewHistoryBuffer(3600)}
+	eng.buildPointIndex()
 	if p := eng.calcBatteryPowerLocked(topo.Devices[0]); p != 50 {
 		t.Errorf("setpoint=+50 → battery=%f (want +50=charging)", p)
 	}
@@ -137,6 +138,7 @@ func TestReq_DashboardFormat(t *testing.T) {
 	eng := &Engine{topology: &Topology{Devices: devs, GridMeter: GridMeterConfig{RatedCapacityKW: 1000}},
 		store: store, cfg: InstanceConfig{}, soc: map[string]float64{"bat1": 68},
 		history: NewHistoryBuffer(3600)}
+	eng.buildPointIndex()
 	dash := eng.Dashboard()
 	if _, ok := dash["frequency_hz"]; ok { t.Error("dashboard should NOT have frequency_hz") }
 	if _, ok := dash["grid_power_kw"]; !ok { t.Error("dashboard missing grid_power_kw") }
@@ -153,6 +155,7 @@ func TestReq_ControlMode(t *testing.T) {
 	store := newStore(makeTestPoint(1, "pv1_Setpoint", 75))
 	eng := &Engine{topology: &Topology{Devices: []Device{remotePV}}, store: store,
 		history: NewHistoryBuffer(3600), pvPower: make(map[string]float64)}
+	eng.buildPointIndex()
 	eng.tick()
 	if eng.pvPower["pv1"] != 75 { t.Errorf("remote PV should follow AO=75, got %f", eng.pvPower["pv1"]) }
 
@@ -162,6 +165,7 @@ func TestReq_ControlMode(t *testing.T) {
 	store2 := newStore(makeTestPoint(1, "pv2_Setpoint", 75))
 	eng2 := &Engine{topology: &Topology{Devices: []Device{localPV}}, store: store2,
 		history: NewHistoryBuffer(3600), pvPower: make(map[string]float64)}
+	eng2.buildPointIndex()
 	eng2.tick()
 	if eng2.pvPower["pv2"] == 75 { t.Errorf("local PV should NOT follow AO=75, got %f", eng2.pvPower["pv2"]) }
 }

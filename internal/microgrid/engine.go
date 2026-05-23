@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
-	"math/rand"
 	"regexp"
 	"strconv"
 	"strings"
@@ -31,11 +30,46 @@ type Engine struct {
 	soc       map[string]float64 // device_id → current SOC
 	pvPower   map[string]float64 // device_id → generated PV power
 	loadPower map[string]float64 // device_id → load/charger power
-	batPower  map[string]float64 // device_id → battery power (+discharge, -charge)
+	batPower  map[string]float64 // device_id → battery power
 	gridPower float64
+
+	// IOA 索引: name → IOA (由 buildPointIndex 构建)
+	pointIOA map[string]uint32
 
 	// 历史
 	history *HistoryBuffer
+}
+
+// buildPointIndex 扫描 store 所有点，建立 name→IOA 索引
+func (e *Engine) buildPointIndex() {
+	if e.store == nil {
+		return
+	}
+	e.pointIOA = make(map[string]uint32)
+	for _, p := range e.store.GetAll() {
+		e.pointIOA[p.Name] = p.IOA
+	}
+}
+
+// readPt 通过 IOA 精确读取测点值（O(1)）
+func (e *Engine) readPt(name string) float64 {
+	ioa, ok := e.pointIOA[name]
+	if !ok || e.store == nil {
+		return 0
+	}
+	if p, found := e.store.Get(ioa); found {
+		return p.Value
+	}
+	return 0
+}
+
+// writePt 通过 IOA 精确写入测点值（O(1)）
+func (e *Engine) writePt(name string, value float64) {
+	ioa, ok := e.pointIOA[name]
+	if !ok || e.store == nil {
+		return
+	}
+	e.store.SetValue(ioa, value)
 }
 
 // NewEngine 创建微电网仿真引擎
@@ -46,7 +80,7 @@ func NewEngine(topology *Topology, store *library.Store, cfg InstanceConfig) *En
 			soc[dev.ID] = dev.Params.InitSOC
 		}
 	}
-	return &Engine{
+	eng := &Engine{
 		topology:  topology,
 		store:     store,
 		cfg:       cfg,
@@ -56,6 +90,8 @@ func NewEngine(topology *Topology, store *library.Store, cfg InstanceConfig) *En
 		batPower:  make(map[string]float64),
 		history:   NewHistoryBuffer(3600),
 	}
+	eng.buildPointIndex()
+	return eng
 }
 
 // Start 启动仿真引擎
@@ -68,6 +104,10 @@ func (e *Engine) Start() error {
 	e.running = true
 	e.stopCh = make(chan struct{})
 	e.tickDone = make(chan struct{})
+
+	// Rebuild point IOA index and auto-create GRID formula
+	e.buildPointIndex()
+	e.ensureGridFormula()
 
 	tickMs := e.cfg.TickMs
 	if tickMs <= 0 {
@@ -85,6 +125,38 @@ func (e *Engine) Start() error {
 	go e.runLoop(interval)
 	slog.Info("微电网仿真引擎已启动", "tickMs", tickMs, "speed", speed, "interval", interval)
 	return nil
+}
+
+// ensureGridFormula 自动创建关口功率公式并添加到拓扑
+func (e *Engine) ensureGridFormula() {
+	if e.store == nil { return }
+	// Build formula: GRID_P = (load + charger + battery(charge)) - (pv + battery(discharge))
+	var loadTerms, genTerms []string
+	for _, dev := range e.topology.Devices {
+		switch dev.Type {
+		case CompPV:
+			genTerms = append(genTerms, "{"+dev.ID+"_Power}")
+		case CompLoad, CompCharger:
+			loadTerms = append(loadTerms, "{"+dev.ID+"_Power}")
+		case CompBattery:
+			loadTerms = append(loadTerms, "{"+dev.ID+"_Power}") // Battery included in load (charge=+, discharge=-)
+		}
+	}
+	if len(loadTerms) == 0 && len(genTerms) == 0 { return }
+
+	expr := strings.Join(loadTerms, "+")
+	if expr == "" { expr = "0" }
+	genPart := strings.Join(genTerms, "+")
+	if genPart == "" { genPart = "0" }
+	expr = "(" + expr + ") - (" + genPart + ")"
+
+	// Check if formula already exists
+	for _, f := range e.topology.Formulas {
+		if f.Target == "GRID_P" { return }
+	}
+	e.topology.Formulas = append(e.topology.Formulas, FormulaRule{
+		ID: "auto-grid", Name: "关口功率", Target: "GRID_P", Expression: expr, Enabled: true,
+	})
 }
 
 // Stop 停止仿真引擎
@@ -168,7 +240,7 @@ func (e *Engine) Dashboard() map[string]interface{} {
 	batCnt := 0
 
 	for _, dev := range e.topology.Devices {
-		power := e.readStoreValue(dev.ID + "_Power")
+		power := e.readPt(dev.ID + "_Power")
 		switch dev.Type {
 		case CompPV:
 			pvPowers = append(pvPowers, map[string]interface{}{
@@ -261,7 +333,7 @@ func (e *Engine) tick() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	// 1. Calculate PV power: AO setpoint (remote) > irradiance fallback (local/default)
+	// 1. Calculate PV power: AO setpoint only (no irradiance)
 	for _, dev := range e.topology.Devices {
 		if dev.Type != CompPV {
 			continue
@@ -271,44 +343,39 @@ func (e *Engine) tick() {
 			continue
 		}
 		ratedP := dev.Params.RatedPowerKW
-		if ratedP <= 0 {
-			ratedP = 100
-		}
-		// Remote mode: follow AO setpoint
+		if ratedP <= 0 { ratedP = 100 }
+		// Remote: follow AO setpoint; Local: keep current value
 		if dev.ControlMode != ModeLocal {
-			setpoint := e.readStoreValue(dev.ID + "_Setpoint")
+			setpoint := e.readPt(dev.ID + "_Setpoint")
 			if setpoint > 0 {
 				if setpoint > ratedP { setpoint = ratedP }
 				e.pvPower[dev.ID] = setpoint
 				continue
 			}
 		}
-		// Local mode or no setpoint: use irradiance
-		irradiance := 300.0 + rand.Float64()*600.0
-		p := irradiance / 1000.0 * dev.Params.RatedPowerKW * dev.Params.Efficiency
-		if p < 0 { p = 0 }
-		e.pvPower[dev.ID] = p
+		// Keep current value (no random irradiance)
+		e.pvPower[dev.ID] = e.readPt(dev.ID + "_Power")
 	}
 
-	// 2. Calculate load/charger power
+	// 2. Calculate load/charger power: keep current value from store
 	for _, dev := range e.topology.Devices {
 		switch dev.Type {
 		case CompLoad:
 			if dev.Switch.Closed {
-				e.loadPower[dev.ID] = dev.Params.LoadRatedKW * (0.5 + rand.Float64()*0.5)
+				e.loadPower[dev.ID] = e.readPt(dev.ID + "_Power")
 			} else {
 				e.loadPower[dev.ID] = 0
 			}
 		case CompCharger:
 			if dev.Switch.Closed {
-				e.loadPower[dev.ID] = dev.Params.ChargerRatedKW * 0.3 * (0.5 + rand.Float64()*0.5)
+				e.loadPower[dev.ID] = e.readPt(dev.ID + "_Power")
 			} else {
 				e.loadPower[dev.ID] = 0
 			}
 		}
 	}
 
-	// 3. Calculate battery power (remote: AO setpoint, local: time-based dispatch)
+	// 3. Calculate battery power: AO setpoint only (no time dispatch)
 	for _, dev := range e.topology.Devices {
 		if dev.Type == CompBattery {
 			if !dev.Switch.Closed {
@@ -316,7 +383,7 @@ func (e *Engine) tick() {
 				continue
 			}
 			if dev.ControlMode != ModeLocal {
-				setpoint := e.readStoreValue(dev.ID + "_Setpoint")
+				setpoint := e.readPt(dev.ID + "_Setpoint")
 				if setpoint != 0 {
 					ratedP := dev.Params.RatedPowerKW_B
 					if ratedP <= 0 { ratedP = 50 }
@@ -325,7 +392,7 @@ func (e *Engine) tick() {
 					continue
 				}
 			}
-			e.batPower[dev.ID] = e.calcBatteryPowerLocked(dev)
+			e.batPower[dev.ID] = e.readPt(dev.ID + "_Power")
 		}
 	}
 
@@ -377,7 +444,7 @@ func (e *Engine) calcBatteryPowerLocked(dev Device) float64 {
 	}
 
 	// 1. Try AO setpoint from store (遥控/遥调设定值)
-	setpoint := e.readStoreValue(dev.ID + "_Setpoint")
+	setpoint := e.readPt(dev.ID + "_Setpoint")
 	if setpoint != 0 {
 		if setpoint > ratedP {
 			setpoint = ratedP
@@ -429,19 +496,6 @@ func (e *Engine) updateSOC(dev Device, power float64) {
 	e.soc[dev.ID] = newSOC
 }
 
-// readStoreValue 从 store 读取点名对应的值
-func (e *Engine) readStoreValue(name string) float64 {
-	if e.store == nil {
-		return 0
-	}
-	for _, p := range e.store.GetAll() {
-		if p.Name == name {
-			return p.Value
-		}
-	}
-	return 0
-}
-
 // syncStoreLocked 将所有计算值同步到 store
 func (e *Engine) syncStoreLocked() {
 	if e.store == nil {
@@ -450,24 +504,24 @@ func (e *Engine) syncStoreLocked() {
 	for _, dev := range e.topology.Devices {
 		switch dev.Type {
 		case CompPV:
-			e.updateStoreValue(dev.ID+"_Power", e.pvPower[dev.ID])
+			e.writePt(dev.ID+"_Power", e.pvPower[dev.ID])
 		case CompBattery:
-			e.updateStoreValue(dev.ID+"_Power", e.batPower[dev.ID])
+			e.writePt(dev.ID+"_Power", e.batPower[dev.ID])
 		case CompLoad:
-			e.updateStoreValue(dev.ID+"_Power", e.loadPower[dev.ID])
+			e.writePt(dev.ID+"_Power", e.loadPower[dev.ID])
 		case CompCharger:
-			e.updateStoreValue(dev.ID+"_Power", e.loadPower[dev.ID])
+			e.writePt(dev.ID+"_Power", e.loadPower[dev.ID])
 		}
 		if s, ok := e.soc[dev.ID]; ok {
-			e.updateStoreValue(dev.ID+"_SOC", s)
+			e.writePt(dev.ID+"_SOC", s)
 		}
 	}
 	// Grid values from latest power balance
-	e.updateStoreValue("GRID_P", e.gridPower)
-	e.updateStoreValue("GRID_Q", e.gridPower*0.15)
-	e.updateStoreValue("GRID_Connected", 1)
+	e.writePt("GRID_P", e.gridPower)
+	e.writePt("GRID_Q", e.gridPower*0.15)
+	e.writePt("GRID_Connected", 1)
 	if e.topology.GridMeter.IslandMode {
-		e.updateStoreValue("GRID_Connected", 0)
+		e.writePt("GRID_Connected", 0)
 	}
 }
 
@@ -483,14 +537,14 @@ func (e *Engine) evaluateFormulasLocked() {
 		}
 		expr := formulaRefRE.ReplaceAllStringFunc(f.Expression, func(match string) string {
 			name := match[1 : len(match)-1]
-			return fmt.Sprintf("%f", e.readStoreValue(name))
+			return fmt.Sprintf("%f", e.readPt(name))
 		})
 		result, err := evaluateExpr(expr)
 		if err != nil {
 			slog.Warn("公式计算失败", "formula", f.Name, "expr", expr, "error", err)
 			continue
 		}
-		e.updateStoreValue(f.Target, result)
+		e.writePt(f.Target, result)
 	}
 }
 
