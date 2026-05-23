@@ -140,22 +140,9 @@
 
             <!-- Vertical Topology SVG -->
             <el-card shadow="never" class="section-card">
-              <template #header>
-                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
-                  <span style="font-weight:600">拓扑图</span>
-                  <div style="display:flex;align-items:center;gap:8px">
-                    <el-button-group size="small">
-                      <el-button @click="zoomIn">+</el-button>
-                      <el-button @click="zoomReset">1:1</el-button>
-                      <el-button @click="zoomOut">−</el-button>
-                    </el-button-group>
-                  </div>
-                </div>
-              </template>
+              <template #header><span style="font-weight:600">拓扑图</span></template>
               <div class="topology-wrap">
-                <div class="topology-xform" :style="{ transform: `scale(${svgScale})`, transformOrigin: '0 0' }">
-                  <div v-html="svgTopology" :key="'svg-' + devices.length + '-' + running" class="topology-html"></div>
-                </div>
+                <div v-html="svgTopology" :key="'svg-' + devices.length + '-' + running" class="topology-html"></div>
               </div>
             </el-card>
 
@@ -487,19 +474,12 @@ const strategyForm = ref<any>({
   soc_min: 10, soc_max: 90, pulse_energy: 1,
 })
 
-// Zoom
-const svgScale = ref(1)
-function zoomIn()  { svgScale.value = Math.min(3, +(svgScale.value + 0.25).toFixed(2)) }
-function zoomOut() { svgScale.value = Math.max(0.3, +(svgScale.value - 0.25).toFixed(2)) }
-function zoomReset(){ svgScale.value = 1 }
-
 // Polling
 let pollTimer: ReturnType<typeof setInterval> | null = null
 let pointsTimer: ReturnType<typeof setInterval> | null = null
 
 // ── Computed ──
 
-// Lookup runtime power from dashboard data
 function devPower(id: string): number {
   for (const arr of [dash.value.pv, dash.value.battery, dash.value.load, dash.value.charger]) {
     if (!arr) continue
@@ -574,18 +554,9 @@ const svgTopology = computed(() => {
   const BAT = (dash.value.battery || []).filter((d: any) => d.closed).reduce((s: number, d: any) => s + (d.power_kw ?? 0), 0)
   const GRID = LD + CH + BAT - PV
   const tFlow = GRID > 0.1 ? 'fl-dn' : (GRID < -0.1 ? 'fl-up' : 'fz')
-  const sy = H - 50
-  const sw2 = Math.min(W - 40, 840)
-  const sxx = (W - sw2) / 2
-  const fr = 50 - GRID / (Math.max(PV + LD + CH, 1)) * 0.5
-  const sgn = GRID >= 0 ? '+' : ''
-  const gl = GRID >= 0 ? '从电网用电' : '向电网送电'
-
   const svgW = W.toString(), svgH = H.toString()
-  return `<svg viewBox="0 0 ${svgW} ${svgH}" width="${svgW}" height="${svgH}" xmlns="http://www.w3.org/2000/svg">
+  return `<svg viewBox="0 0 ${svgW} ${svgH}" width="100%" xmlns="http://www.w3.org/2000/svg">
 <rect x="0" y="0" width="${svgW}" height="${svgH}" fill="#f5f7fa"/>
-<defs><pattern id="g" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0L0 0 0 40" fill="none" stroke="#e8eaef" stroke-width="0.5"/></pattern></defs>
-<rect x="0" y="0" width="${svgW}" height="${svgH}" fill="url(#g)" opacity="0.4"/>
 <rect x="${cx - 56}" y="12" width="112" height="38" rx="6" fill="#fef0f0" stroke="#f89898" stroke-width="1.5"/>
 <text x="${cx}" y="36" text-anchor="middle" font-size="14" font-weight="700" fill="#e63946">⚡ 电网</text>
 <line x1="${cx}" y1="50" x2="${cx}" y2="78" stroke="#bbb" stroke-width="3.5" stroke-linecap="round" class="${tFlow}"/>
@@ -596,9 +567,7 @@ const svgTopology = computed(() => {
 <text x="${cx + 20}" y="${BUS_Y - 30}" font-size="11" fill="#909399">0.4 ~ 220 kV</text>
 <line x1="${minX}" y1="${BUS_Y}" x2="${maxX}" y2="${BUS_Y}" stroke="#555" stroke-width="3" stroke-linecap="round"/>
 ${rows}
-<rect x="${sxx}" y="${sy}" width="${sw2}" height="36" rx="6" fill="#f0f4ff" stroke="#c6d6f0" stroke-width="1"/>
-<text x="${W / 2}" y="${sy + 12}" text-anchor="middle" font-size="12" font-weight="600" fill="#303133">GRID = (${LD.toFixed(1)}+${CH.toFixed(1)}<tspan fill="#e6a23c">${BAT >= 0 ? '+' : ''}${BAT.toFixed(1)}</tspan>) − ${PV.toFixed(1)} = <tspan fill="${GRID >= 0 ? '#e6a23c' : '#67c23a'}" font-weight="700">${sgn}${GRID.toFixed(1)} kW</tspan></text>
-<text x="${W / 2}" y="${sy + 28}" text-anchor="middle" font-size="11" fill="#909399">频率 ${fr.toFixed(2)} Hz  ·  ${gl}</text></svg>`
+</svg>`
 })
 
 const LB: Record<string, string> = { pv: '光伏', battery: '储能', load: '负荷', charger: '充电桩' }
@@ -1061,14 +1030,14 @@ onUnmounted(() => {
   border: 1px solid var(--el-border-color-light);
   border-radius: 6px;
 }
-.topology-xform {
-  transform-origin: 0 0;
-  transition: transform .15s ease;
-  min-width: 680px;
-}
 .topology-html {
   display: block;
   font-family: system-ui, -apple-system, sans-serif;
+}
+.topology-html :deep(svg) {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 .topology-html :deep(text) {
   font-family: system-ui, -apple-system, sans-serif;
