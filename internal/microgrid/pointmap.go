@@ -60,37 +60,37 @@ func (t *Topology) ExpandPoints() []*config.Point {
 		switch dev.Type {
 		case CompPV:
 			points = append(points,
-				&config.Point{IOA: uint32(baseAI), Name: dev.Name + "_Power", ValueType: config.VTFloat, PointType: config.TypeAI, Efficient: 1.0, BaseValue: 0, Alias: "发电功率|kW"},
-				&config.Point{IOA: uint32(baseAI + 1), Name: dev.Name + "_DailyEnergy", ValueType: config.VTFloat, PointType: config.TypeAI, Efficient: 1.0, BaseValue: 0, Alias: "日发电量|kWh"},
-				&config.Point{IOA: uint32(baseDI), Name: dev.Name + "_Status", ValueType: config.VTBit, PointType: config.TypeDI, Efficient: 1.0, BaseValue: swVal, Alias: "运行状态"},
-				&config.Point{IOA: uint32(baseDI + 1), Name: dev.Name + "_SwStatus", ValueType: config.VTBit, PointType: config.TypeDI, Efficient: 1.0, BaseValue: swVal, Alias: "开关状态"},
-				&config.Point{IOA: uint32(baseDO), Name: dev.Name + "_SwCtrl", ValueType: config.VTBit, PointType: config.TypeDO, Efficient: 1.0, BaseValue: swVal, Alias: "遥控分合"},
+				&config.Point{IOA: uint32(baseAI), Name: dev.ID + "_Power", ValueType: config.VTFloat, PointType: config.TypeAI, Efficient: 1.0, BaseValue: 0, Alias: "发电功率|kW"},
+				&config.Point{IOA: uint32(baseAI + 1), Name: dev.ID + "_DailyEnergy", ValueType: config.VTFloat, PointType: config.TypeAI, Efficient: 1.0, BaseValue: 0, Alias: "日发电量|kWh"},
+				&config.Point{IOA: uint32(baseDI), Name: dev.ID + "_Status", ValueType: config.VTBit, PointType: config.TypeDI, Efficient: 1.0, BaseValue: swVal, Alias: "运行状态"},
+				&config.Point{IOA: uint32(baseDI + 1), Name: dev.ID + "_SwStatus", ValueType: config.VTBit, PointType: config.TypeDI, Efficient: 1.0, BaseValue: swVal, Alias: "开关状态"},
+				&config.Point{IOA: uint32(baseDO), Name: dev.ID + "_SwCtrl", ValueType: config.VTBit, PointType: config.TypeDO, Efficient: 1.0, BaseValue: swVal, Alias: "遥控分合"},
 			)
 
 		case CompBattery:
 			points = append(points,
-				&config.Point{IOA: uint32(baseAI), Name: dev.Name + "_SOC", ValueType: config.VTFloat, PointType: config.TypeAI, Efficient: 1.0, BaseValue: dev.Params.InitSOC, Alias: "荷电状态|%"},
-				&config.Point{IOA: uint32(baseAI + 1), Name: dev.Name + "_Power", ValueType: config.VTFloat, PointType: config.TypeAI, Efficient: 1.0, BaseValue: 0, Alias: "充放电功率|kW"},
-				&config.Point{IOA: uint32(baseDI), Name: dev.Name + "_Status", ValueType: config.VTBit, PointType: config.TypeDI, Efficient: 1.0, BaseValue: 1, Alias: "运行状态"},
-				&config.Point{IOA: uint32(baseDI + 1), Name: dev.Name + "_SwStatus", ValueType: config.VTBit, PointType: config.TypeDI, Efficient: 1.0, BaseValue: swVal, Alias: "开关状态"},
-				&config.Point{IOA: uint32(baseAO), Name: dev.Name + "_Setpoint", ValueType: config.VTFloat, PointType: config.TypeAO, Efficient: 1.0, BaseValue: 0, Alias: "功率设定值|kW"},
-				&config.Point{IOA: uint32(baseDO), Name: dev.Name + "_SwCtrl", ValueType: config.VTBit, PointType: config.TypeDO, Efficient: 1.0, BaseValue: swVal, Alias: "遥控分合"},
+				&config.Point{IOA: uint32(baseAI), Name: dev.ID + "_SOC", ValueType: config.VTFloat, PointType: config.TypeAI, Efficient: 1.0, BaseValue: dev.Params.InitSOC, Alias: "荷电状态|%"},
+				&config.Point{IOA: uint32(baseAI + 1), Name: dev.ID + "_Power", ValueType: config.VTFloat, PointType: config.TypeAI, Efficient: 1.0, BaseValue: 0, Alias: "充放电功率|kW"},
+				&config.Point{IOA: uint32(baseDI), Name: dev.ID + "_Status", ValueType: config.VTBit, PointType: config.TypeDI, Efficient: 1.0, BaseValue: 1, Alias: "运行状态"},
+				&config.Point{IOA: uint32(baseDI + 1), Name: dev.ID + "_SwStatus", ValueType: config.VTBit, PointType: config.TypeDI, Efficient: 1.0, BaseValue: swVal, Alias: "开关状态"},
+				&config.Point{IOA: uint32(baseAO), Name: dev.ID + "_Setpoint", ValueType: config.VTFloat, PointType: config.TypeAO, Efficient: 1.0, BaseValue: 0, Alias: "功率设定值|kW"},
+				&config.Point{IOA: uint32(baseDO), Name: dev.ID + "_SwCtrl", ValueType: config.VTBit, PointType: config.TypeDO, Efficient: 1.0, BaseValue: swVal, Alias: "遥控分合"},
 			)
 
 		case CompLoad:
 			points = append(points,
-				&config.Point{IOA: uint32(baseAI), Name: dev.Name + "_Power", ValueType: config.VTFloat, PointType: config.TypeAI, Efficient: 1.0, BaseValue: 0, Alias: "有功功率|kW"},
-				&config.Point{IOA: uint32(baseDI), Name: dev.Name + "_Status", ValueType: config.VTBit, PointType: config.TypeDI, Efficient: 1.0, BaseValue: 1, Alias: "运行状态"},
-				&config.Point{IOA: uint32(baseDI + 1), Name: dev.Name + "_SwStatus", ValueType: config.VTBit, PointType: config.TypeDI, Efficient: 1.0, BaseValue: swVal, Alias: "开关状态"},
-				&config.Point{IOA: uint32(baseDO), Name: dev.Name + "_SwCtrl", ValueType: config.VTBit, PointType: config.TypeDO, Efficient: 1.0, BaseValue: swVal, Alias: "遥控分合"},
+				&config.Point{IOA: uint32(baseAI), Name: dev.ID + "_Power", ValueType: config.VTFloat, PointType: config.TypeAI, Efficient: 1.0, BaseValue: 0, Alias: "有功功率|kW"},
+				&config.Point{IOA: uint32(baseDI), Name: dev.ID + "_Status", ValueType: config.VTBit, PointType: config.TypeDI, Efficient: 1.0, BaseValue: 1, Alias: "运行状态"},
+				&config.Point{IOA: uint32(baseDI + 1), Name: dev.ID + "_SwStatus", ValueType: config.VTBit, PointType: config.TypeDI, Efficient: 1.0, BaseValue: swVal, Alias: "开关状态"},
+				&config.Point{IOA: uint32(baseDO), Name: dev.ID + "_SwCtrl", ValueType: config.VTBit, PointType: config.TypeDO, Efficient: 1.0, BaseValue: swVal, Alias: "遥控分合"},
 			)
 
 		case CompCharger:
 			points = append(points,
-				&config.Point{IOA: uint32(baseAI), Name: dev.Name + "_Power", ValueType: config.VTFloat, PointType: config.TypeAI, Efficient: 1.0, BaseValue: 0, Alias: "充电功率|kW"},
-				&config.Point{IOA: uint32(baseDI), Name: dev.Name + "_Status", ValueType: config.VTBit, PointType: config.TypeDI, Efficient: 1.0, BaseValue: 1, Alias: "运行状态"},
-				&config.Point{IOA: uint32(baseDI + 1), Name: dev.Name + "_SwStatus", ValueType: config.VTBit, PointType: config.TypeDI, Efficient: 1.0, BaseValue: swVal, Alias: "开关状态"},
-				&config.Point{IOA: uint32(baseDO), Name: dev.Name + "_SwCtrl", ValueType: config.VTBit, PointType: config.TypeDO, Efficient: 1.0, BaseValue: swVal, Alias: "遥控分合"},
+				&config.Point{IOA: uint32(baseAI), Name: dev.ID + "_Power", ValueType: config.VTFloat, PointType: config.TypeAI, Efficient: 1.0, BaseValue: 0, Alias: "充电功率|kW"},
+				&config.Point{IOA: uint32(baseDI), Name: dev.ID + "_Status", ValueType: config.VTBit, PointType: config.TypeDI, Efficient: 1.0, BaseValue: 1, Alias: "运行状态"},
+				&config.Point{IOA: uint32(baseDI + 1), Name: dev.ID + "_SwStatus", ValueType: config.VTBit, PointType: config.TypeDI, Efficient: 1.0, BaseValue: swVal, Alias: "开关状态"},
+				&config.Point{IOA: uint32(baseDO), Name: dev.ID + "_SwCtrl", ValueType: config.VTBit, PointType: config.TypeDO, Efficient: 1.0, BaseValue: swVal, Alias: "遥控分合"},
 			)
 		}
 
@@ -126,7 +126,7 @@ func (t *Topology) ExpandPoints() []*config.Point {
 			}
 			points = append(points, &config.Point{
 				IOA:       uint32(ioa),
-				Name:      dev.Name + "_" + cp.Name,
+				Name:      dev.ID + "_" + cp.Name,
 				ValueType: vt,
 				PointType: ptype,
 				Efficient: 1.0,
