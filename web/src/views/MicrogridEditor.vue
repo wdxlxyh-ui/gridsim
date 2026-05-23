@@ -610,10 +610,9 @@ const autoFormulas = computed(() => {
     for (const d of chargers) { if (!active(d)) result.push({ label: `  ${activeName(d)}`, expr: '0 (断路)' }) }
   }
 
-  const genExpr = [...pvs.filter(active), ...bats.filter(d => d.switch.closed && (d.power ?? 0) < 0)].map(mkRef).join(' + ') || '0'
-  const loadExpr = [...loads.filter(active), ...chargers.filter(active), ...bats.filter(d => d.switch.closed && (d.power ?? 0) > 0)].map(mkRef).join(' + ') || '0'
-  result.push({ label: '关口表功率 (GRID_P)', expr: `(${loadExpr}) − (${genExpr}) = 用电 − 发电` })
-  result.push({ label: '  └ 符号', expr: '储能>0=充电(用电), <0=放电(发电) | 关口>0=从电网用电, <0=送电' })
+  const genExpr = [...pvs.filter(active)].map(mkRef).join(' + ') || '0'
+  const loadExpr = [...loads.filter(active), ...chargers.filter(active), ...bats.filter(active)].map(mkRef).join(' + ') || '0'
+  result.push({ label: '关口表功率 (GRID_P)', expr: `(${loadExpr}) − (${genExpr})` })
 
   return result
 })

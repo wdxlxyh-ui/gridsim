@@ -150,11 +150,13 @@ func (e *Engine) ensureGridFormula() {
 	if genPart == "" { genPart = "0" }
 	expr = "(" + expr + ") - (" + genPart + ")"
 
-	// Check if formula already exists
+	// Remove any old auto-generated GRID formula then create new one
+	filtered := make([]FormulaRule, 0, len(e.topology.Formulas))
 	for _, f := range e.topology.Formulas {
-		if f.Target == "GRID_P" { return }
+		if f.ID == "auto-grid" { continue }
+		filtered = append(filtered, f)
 	}
-	e.topology.Formulas = append(e.topology.Formulas, FormulaRule{
+	e.topology.Formulas = append(filtered, FormulaRule{
 		ID: "auto-grid", Name: "关口功率", Target: "GRID_P", Expression: expr, Enabled: true,
 	})
 }
@@ -195,6 +197,8 @@ func (e *Engine) ReloadTopology(topo *Topology) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.topology = topo
+	e.buildPointIndex()
+	e.ensureGridFormula()
 }
 func (e *Engine) SetSwitch(devID string, closed bool) error {
 	e.mu.Lock()
