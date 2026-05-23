@@ -248,6 +248,7 @@ function addTraces() {
   }
   const inst = allInstances.value.find(i => i.id === formInst.value)
   if (!inst) return
+  const wasEmpty = traces.value.length === 0
   for (const ioa of formIoas.value) {
     if (traces.value.some(t => t.instId === formInst.value && t.ioa === ioa)) continue
     const pt = formPoints.value.find(p => p.ioa === ioa)
@@ -266,12 +267,20 @@ function addTraces() {
   formAlias.value = ''
   dialogVisible.value = false
   fetchAllPoints()
-  nextTick(updateChart)
+  if (wasEmpty) {
+    nextTick(initChart)
+  } else {
+    nextTick(updateChart)
+  }
 }
 
 function removeTrace(i: number) {
   traces.value.splice(i, 1)
-  updateChart()
+  if (traces.value.length === 0) {
+    if (chartInstance) { chartInstance.dispose(); chartInstance = null }
+  } else {
+    updateChart()
+  }
 }
 
 async function openDialog() {
