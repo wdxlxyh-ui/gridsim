@@ -499,12 +499,14 @@ let pointsTimer: ReturnType<typeof setInterval> | null = null
 
 // ── Computed ──
 
-function deviceFlowClass(dev: any): string {
-  const p = dev.power ?? 0
-  if (!dev.switch.closed) return 'fz'
-  if (dev.type === 'pv') return p > 0.1 ? 'fl-up' : 'fz'
-  if (dev.type === 'battery') return p > 0.1 ? 'fl-dn' : (p < -0.1 ? 'fl-up' : 'fz')
-  return p > 0.1 ? 'fl-dn' : 'fz'
+// Lookup runtime power from dashboard data
+function devPower(id: string): number {
+  for (const arr of [dash.value.pv, dash.value.battery, dash.value.load, dash.value.charger]) {
+    if (!arr) continue
+    const found = arr.find((d: any) => d.id === id)
+    if (found) return found.power_kw ?? 0
+  }
+  return 0
 }
 
 const svgTopology = computed(() => {
@@ -520,15 +522,31 @@ const svgTopology = computed(() => {
   const maxX = sx + (N - 1) * sp + 20
   const swY = BUS_Y + 50, swR = 12, boxT = BUS_Y + 90
 
-  const gridPowerVal = _gridPower() // cached for trunk flow
+  // Compute per-device power from dashboard
+  const powerMap = new Map<string, number>()
+  for (const arr of [dash.value.pv, dash.value.battery, dash.value.load, dash.value.charger]) {
+    if (!arr) continue
+    for (const d of arr) powerMap.set(d.id, d.power_kw ?? 0)
+  }
+
+  function flowClass(dev: any): string {
+    if (!dev.switch.closed) return 'fz'
+    const p = powerMap.get(dev.id) ?? 0
+    if (dev.type === 'pv') return p > 0.1 ? 'fl-up' : 'fz'
+    if (dev.type === 'battery') return p > 0.1 ? 'fl-dn' : (p < -0.1 ? 'fl-up' : 'fz')
+    return p > 0.1 ? 'fl-dn' : 'fz'
+  }
+
+  function makeFlow(d: any) { return flowClass(d) }
 
   let rows = ''
   devices.value.forEach((dev: any, idx: number) => {
     const dx = sx + idx * sp
     const cl = dev.switch.closed
     const t = dev.type
-    const fc = deviceFlowClass(dev)
+    const fc = makeFlow(dev)
     const lc = cl ? (FC as any)[t] : '#c0c4cc'
+    const pval = (powerMap.get(dev.id) ?? 0).toFixed(1)
 
     rows += `<line x1="${dx}" y1="${BUS_Y}" x2="${dx}" y2="${swY - swR}" stroke="${cl ? lc : '#c0c4cc'}" stroke-width="3.5" stroke-linecap="round" class="${fc}"/>`
     const sf = cl ? (t === 'pv' ? '#e8f5e9' : t === 'battery' ? '#e3f2fd' : '#fff3e0') : '#fef0f0'
@@ -542,7 +560,6 @@ const svgTopology = computed(() => {
     rows += `<text x="${dx}" y="${boxT + 12}" text-anchor="middle" font-size="12" font-weight="700" fill="${cl ? '#fff' : '#999'}">${(LB as any)[t]}</text>`
     rows += `<text x="${dx}" y="${boxT + 26}" text-anchor="middle" font-size="10" fill="${cl ? 'rgba(255,255,255,0.9)' : '#999'}">${dev.name}</text>`
     if (cl) {
-      const pval = (dev.power ?? 0).toFixed(1)
       rows += `<rect x="${dx - 40}" y="${boxT + 38}" width="80" height="18" rx="4" fill="${lc}" opacity="0.1"/>`
       rows += `<text x="${dx}" y="${boxT + 50}" text-anchor="middle" font-size="11" font-weight="700" style="font-family:monospace" fill="${lc}">${pval} kW</text>`
     } else {
@@ -550,17 +567,16 @@ const svgTopology = computed(() => {
     }
   })
 
-  const tFlow = gridPowerVal > 0.1 ? 'fl-dn' : (gridPowerVal < -0.1 ? 'fl-up' : 'fz')
+  // Summary from dash
+  const PV = (dash.value.pv || []).filter((d: any) => d.closed).reduce((s: number, d: any) => s + (d.power_kw ?? 0), 0)
+  const LD = (dash.value.load || []).filter((d: any) => d.closed).reduce((s: number, d: any) => s + (d.power_kw ?? 0), 0)
+  const CH = (dash.value.charger || []).filter((d: any) => d.closed).reduce((s: number, d: any) => s + (d.power_kw ?? 0), 0)
+  const BAT = (dash.value.battery || []).filter((d: any) => d.closed).reduce((s: number, d: any) => s + (d.power_kw ?? 0), 0)
+  const GRID = LD + CH + BAT - PV
+  const tFlow = GRID > 0.1 ? 'fl-dn' : (GRID < -0.1 ? 'fl-up' : 'fz')
   const sy = H - 50
   const sw2 = Math.min(W - 40, 840)
   const sxx = (W - sw2) / 2
-
-  const act = (d: any) => d.switch.closed
-  const PV = devices.value.filter((d: any) => d.type === 'pv' && act(d)).reduce((s: number, d: any) => s + (d.power ?? 0), 0)
-  const LD = devices.value.filter((d: any) => d.type === 'load' && act(d)).reduce((s: number, d: any) => s + (d.power ?? 0), 0)
-  const CH = devices.value.filter((d: any) => d.type === 'charger' && act(d)).reduce((s: number, d: any) => s + (d.power ?? 0), 0)
-  const BAT = devices.value.filter((d: any) => d.type === 'battery' && act(d)).reduce((s: number, d: any) => s + (d.power ?? 0), 0)
-  const GRID = LD + CH + BAT - PV
   const fr = 50 - GRID / (Math.max(PV + LD + CH, 1)) * 0.5
   const sgn = GRID >= 0 ? '+' : ''
   const gl = GRID >= 0 ? '从电网用电' : '向电网送电'
@@ -587,15 +603,6 @@ ${rows}
 
 const LB: Record<string, string> = { pv: '光伏', battery: '储能', load: '负荷', charger: '充电桩' }
 const FC: Record<string, string> = { pv: '#67c23a', battery: '#409eff', load: '#e6a23c', charger: '#909399' }
-
-function _gridPower(): number {
-  const act = (d: any) => d.switch.closed
-  const PV = devices.value.filter((d: any) => d.type === 'pv' && act(d)).reduce((s: number, d: any) => s + (d.power ?? 0), 0)
-  const LD = devices.value.filter((d: any) => d.type === 'load' && act(d)).reduce((s: number, d: any) => s + (d.power ?? 0), 0)
-  const CH = devices.value.filter((d: any) => d.type === 'charger' && act(d)).reduce((s: number, d: any) => s + (d.power ?? 0), 0)
-  const BAT = devices.value.filter((d: any) => d.type === 'battery' && act(d)).reduce((s: number, d: any) => s + (d.power ?? 0), 0)
-  return LD + CH + BAT - PV
-}
 
 const autoFormulas = computed(() => {
   const result: { label: string; expr: string }[] = []
