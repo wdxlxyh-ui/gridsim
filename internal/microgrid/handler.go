@@ -232,18 +232,39 @@ func HandleMicrogridPoints(mgr ManagerBridge) http.HandlerFunc {
 			pts := store.GetAll()
 			sort.Slice(pts, func(i, j int) bool { return pts[i].IOA < pts[j].IOA })
 			result := make([]map[string]interface{}, len(pts))
+
+			// Build set of engine-managed point names
+			managed := make(map[string]bool)
+			if cfg, ok := mgr.GetConfig(id); ok && cfg.MicrogridConfig != nil && cfg.MicrogridConfig.TopologyJSON != "" {
+				var topo Topology
+				json.Unmarshal([]byte(cfg.MicrogridConfig.TopologyJSON), &topo)
+				for _, dev := range topo.Devices {
+					managed[dev.ID+"_Power"] = true
+					managed[dev.ID+"_SOC"] = true
+					managed[dev.ID+"_SwStatus"] = true
+					managed[dev.ID+"_SwCtrl"] = true
+					managed[dev.ID+"_Setpoint"] = true
+				}
+				managed["GRID_P"] = true
+				managed["GRID_Q"] = true
+				managed["GRID_V"] = true
+				managed["GRID_F"] = true
+				managed["GRID_Connected"] = true
+			}
+
 			for i, p := range pts {
 				unit := ""
-			if idx := strings.Index(p.Alias, "|"); idx >= 0 {
-				unit = p.Alias[idx+1:]
-			}
-			result[i] = map[string]interface{}{
-				"ioa":        p.IOA,
-				"name":       p.Name,
-				"point_type": string(p.PointType),
-				"value":      p.Value,
-				"unit":       unit,
-			}
+				if idx := strings.Index(p.Alias, "|"); idx >= 0 {
+					unit = p.Alias[idx+1:]
+				}
+				result[i] = map[string]interface{}{
+					"ioa":        p.IOA,
+					"name":       p.Name,
+					"point_type": string(p.PointType),
+					"value":      p.Value,
+					"unit":       unit,
+					"managed":    managed[p.Name],
+				}
 			}
 			writeJSON(w, http.StatusOK, map[string]interface{}{"points": result})
 			return

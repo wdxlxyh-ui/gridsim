@@ -109,29 +109,31 @@
               <template #header><span style="font-weight:600">实时运行数据</span></template>
               <div class="dashboard-grid">
                 <div class="dash-item">
-                  <div class="dash-label">发电功率</div>
-                  <div class="dash-value" style="color:#67c23a">{{ dash.total_generation_kw }} kW</div>
+                  <div class="dash-label">并网点功率</div>
+                  <div class="dash-value" :style="{ color: (dash.grid_power_kw ?? 0) >= 0 ? '#e6a23c' : '#67c23a' }">{{ dash.grid_power_kw ?? '-' }} kW</div>
                 </div>
                 <div class="dash-item">
-                  <div class="dash-label">负荷功率</div>
-                  <div class="dash-value" style="color:#e6a23c">{{ dash.total_load_kw }} kW</div>
+                  <div class="dash-label">光伏总功率</div>
+                  <div class="dash-value" style="color:#67c23a">{{ dash.total_pv_kw ?? '-' }} kW</div>
                 </div>
                 <div class="dash-item">
-                  <div class="dash-label">并网功率</div>
-                  <div class="dash-value" style="color:#409eff">{{ dash.grid_power_kw }} kW</div>
+                  <div class="dash-label">负荷总功率</div>
+                  <div class="dash-value" style="color:#e6a23c">{{ (dash.total_load_kw ?? 0) + (dash.total_charger_kw ?? 0) }} kW</div>
                 </div>
-                <div class="dash-item">
-                  <div class="dash-label">电池功率</div>
-                  <div class="dash-value" style="color:#909399">{{ dash.battery_power_kw ?? '-' }} kW</div>
-                </div>
-                <div class="dash-item">
-                  <div class="dash-label">电池 SOC</div>
-                  <div class="dash-value" style="color:#409eff">{{ dash.battery_soc ?? '-' }} %</div>
-                </div>
-                <div class="dash-item">
-                  <div class="dash-label">频率</div>
-                  <div class="dash-value">{{ dash.frequency_hz ?? '-' }} Hz</div>
-                </div>
+              </div>
+              <div style="font-size:11px;margin-top:6px;color:#909399;line-height:1.7;display:flex;flex-wrap:wrap;gap:4px 16px">
+                <template v-for="p in (dash.pv || [])" :key="p.id">
+                  <span>☀️ {{ p.name }}: <strong :style="{color: p.closed ? '#67c23a' : '#c0c4cc'}">{{ p.closed ? p.power_kw+' kW' : '已断开' }}</strong></span>
+                </template>
+                <template v-for="b in (dash.battery || [])" :key="b.id">
+                  <span>🔋 {{ b.name }}: <strong :style="{color:'#409eff'}">{{ b.power_kw }} kW</strong> (SOC {{ b.soc }}%)</span>
+                </template>
+                <template v-for="l in (dash.load || [])" :key="l.id">
+                  <span>💡 {{ l.name }}: <strong :style="{color: l.closed ? '#e6a23c' : '#c0c4cc'}">{{ l.closed ? l.power_kw+' kW' : '已断开' }}</strong></span>
+                </template>
+                <template v-for="c in (dash.charger || [])" :key="c.id">
+                  <span>🔌 {{ c.name }}: <strong :style="{color: c.closed ? '#909399' : '#c0c4cc'}">{{ c.closed ? c.power_kw+' kW' : '已断开' }}</strong></span>
+                </template>
               </div>
             </el-card>
 
@@ -181,16 +183,22 @@
               </el-button>
             </div>
           </template>
-          <el-table :data="points" stripe size="small" max-height="520" v-loading="loadingPoints" empty-text="暂无测点数据">
+          <el-table :data="points" stripe size="small" max-height="520" v-loading="loadingPoints" empty-text="暂无测点数据"
+            :row-class-name="rowClass">
             <el-table-column prop="ioa" label="IOA" width="90" />
             <el-table-column label="类型" width="90">
               <template #default="{ row }">
-                <el-tag size="small" :type="row.point_type === 'AI' ? 'primary' : row.point_type === 'DI' ? 'warning' : 'info'">
+                <el-tag size="small" :type="row.point_type === 'AI' ? 'primary' : row.point_type === 'DI' ? 'warning' : 'info'" effect="plain">
                   {{ row.point_type || row.type }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="name" label="名称" min-width="180" />
+            <el-table-column label="名称" min-width="200">
+              <template #default="{ row }">
+                <span :class="row.managed ? 'managed-text' : ''">{{ row.name }}</span>
+                <el-tag v-if="row.managed" size="small" type="info" effect="plain" style="margin-left:4px;font-size:10px;height:20px">⚡引擎</el-tag>
+              </template>
+            </el-table-column>
             <el-table-column label="当前值" width="120">
               <template #default="{ row }">{{ row.value ?? '-' }}</template>
             </el-table-column>
@@ -357,7 +365,7 @@ const busName = ref('10kV 母线')
 const busVoltage = ref(10)
 const gridMeter = ref({ rated_capacity_kw: 500, island_mode: false })
 const devices = ref<MicrogridDevice[]>([])
-const dash = ref<MicrogridDashboard>({ total_generation_kw: 0, total_load_kw: 0, grid_power_kw: 0 })
+const dash = ref<MicrogridDashboard>({ grid_power_kw: 0, total_pv_kw: 0, total_bat_kw: 0, total_load_kw: 0, total_charger_kw: 0 })
 const points = ref<any[]>([])
 const loadingPoints = ref(false)
 
@@ -540,6 +548,10 @@ function devTypeColor(type: string): string {
     charger: '#909399',
   }
   return map[type] || '#909399'
+}
+
+function rowClass({ row }: { row: any }): string {
+  return row.managed ? 'managed-row' : ''
 }
 
 function devTypeTag(type: string): 'success' | 'primary' | 'warning' | 'info' {
@@ -919,4 +931,9 @@ onUnmounted(() => {
   stroke: #c0c4cc !important;
   stroke-width: 2;
 }
+
+/* Managed row in points table */
+:deep(.managed-row) { color: #c0c4cc; }
+:deep(.managed-row .el-tag) { opacity: 0.6; }
+.managed-text { color: #606266; }
 </style>

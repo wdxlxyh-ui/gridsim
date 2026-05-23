@@ -142,52 +142,97 @@ func (e *Engine) GetDevices() []Device {
 }
 
 // Dashboard 返回仪表盘数据 (read-only, no side effects)
+// 所有功率值从 store 读取，保证与 IEC104 送值一致。
 func (e *Engine) Dashboard() map[string]interface{} {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+
+	// 从 store 读取各设备功率
+	pvPowers := make([]map[string]interface{}, 0)
+	batPowers := make([]map[string]interface{}, 0)
+	loadPowers := make([]map[string]interface{}, 0)
+	chargerPowers := make([]map[string]interface{}, 0)
+
 	totalGen := 0.0
 	totalLoad := 0.0
-	batPower := 0.0
-	batSOC := 0.0
+	totalPV := 0.0
+	totalBat := 0.0
+	totalLoadKW := 0.0
+	totalCharger := 0.0
+	batSOCSum := 0.0
 	batCnt := 0
 
 	for _, dev := range e.topology.Devices {
-		if !dev.Switch.Closed {
-			continue
-		}
+		power := e.readStoreValue(dev.ID + "_Power")
 		switch dev.Type {
 		case CompPV:
-			totalGen += e.pvPower[dev.ID]
-		case CompBattery:
-			p := e.batPower[dev.ID]
-			if p < 0 {
-				totalGen += -p
-			} else {
-				totalLoad += p
+			pvPowers = append(pvPowers, map[string]interface{}{
+				"id": dev.ID, "name": dev.Name, "power_kw": math.Round(power*10)/10,
+				"closed": dev.Switch.Closed, "mode": dev.ControlMode,
+			})
+			if dev.Switch.Closed {
+				totalPV += power
+				totalGen += power
 			}
-			batPower += p
+		case CompBattery:
+			entry := map[string]interface{}{
+				"id": dev.ID, "name": dev.Name, "power_kw": math.Round(power*10)/10,
+				"closed": dev.Switch.Closed, "mode": dev.ControlMode,
+			}
 			if s, ok := e.soc[dev.ID]; ok {
-				batSOC += s
-				batCnt++
+				entry["soc"] = math.Round(s*10) / 10
+			}
+			batPowers = append(batPowers, entry)
+			if dev.Switch.Closed {
+				if power > 0 {
+					totalLoad += power
+				} else {
+					totalGen += -power
+				}
+				totalBat += power
+				if s, ok := e.soc[dev.ID]; ok {
+					batSOCSum += s
+					batCnt++
+				}
 			}
 		case CompLoad:
-			totalLoad += e.loadPower[dev.ID]
+			loadPowers = append(loadPowers, map[string]interface{}{
+				"id": dev.ID, "name": dev.Name, "power_kw": math.Round(power*10)/10,
+				"closed": dev.Switch.Closed, "mode": dev.ControlMode,
+			})
+			if dev.Switch.Closed && power > 0 {
+				totalLoad += power
+				totalLoadKW += power
+			}
 		case CompCharger:
-			totalLoad += e.loadPower[dev.ID]
+			chargerPowers = append(chargerPowers, map[string]interface{}{
+				"id": dev.ID, "name": dev.Name, "power_kw": math.Round(power*10)/10,
+				"closed": dev.Switch.Closed, "mode": dev.ControlMode,
+			})
+			if dev.Switch.Closed && power > 0 {
+				totalLoad += power
+				totalCharger += power
+			}
 		}
 	}
+
+	gridPower := e.readStoreValue("GRID_P")
 	avgSOC := 0.0
 	if batCnt > 0 {
-		avgSOC = batSOC / float64(batCnt)
+		avgSOC = batSOCSum / float64(batCnt)
 	}
-	grid := totalLoad - totalGen
+
 	return map[string]interface{}{
-		"total_generation_kw": math.Round(totalGen*10) / 10,
-		"total_load_kw":       math.Round(totalLoad*10) / 10,
-		"grid_power_kw":       math.Round(grid*10) / 10,
-		"battery_power_kw":    math.Round(batPower*10) / 10,
-		"battery_soc":         math.Round(avgSOC*10) / 10,
-		"frequency_hz":        50.0 + grid*0.001,
+		"grid_power_kw":    math.Round(gridPower*10) / 10,
+		"pv":               pvPowers,
+		"battery":          batPowers,
+		"load":             loadPowers,
+		"charger":          chargerPowers,
+		"total_pv_kw":      math.Round(totalPV*10) / 10,
+		"total_bat_kw":     math.Round(totalBat*10) / 10,
+		"total_load_kw":    math.Round(totalLoadKW*10) / 10,
+		"total_charger_kw": math.Round(totalCharger*10) / 10,
+		"battery_soc":      math.Round(avgSOC*10) / 10,
 	}
 }
 

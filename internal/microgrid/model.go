@@ -43,6 +43,14 @@ type DeviceParams struct {
 	ChargerEff     float64 `json:"charger_eff,omitempty"`
 }
 
+// ControlMode 控制模式
+type ControlMode string
+
+const (
+	ModeRemote ControlMode = "remote" // 远方=跟随AO
+	ModeLocal  ControlMode = "local"  // 本地=策略驱动
+)
+
 // CustomPoint 自定义测点
 type CustomPoint struct {
 	Name string `json:"name"`
@@ -56,6 +64,7 @@ type Device struct {
 	Name         string         `json:"name"`
 	Switch       DeviceSwitch   `json:"switch"`
 	Params       DeviceParams   `json:"params"`
+	ControlMode  ControlMode    `json:"control_mode,omitempty"`  // remote | local，默认remote
 	CustomPoints []CustomPoint  `json:"custom_points,omitempty"`
 }
 

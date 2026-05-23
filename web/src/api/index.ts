@@ -331,6 +331,7 @@ export interface MicrogridDevice {
   params: MicrogridDeviceParams
   power?: number
   soc?: number
+  control_mode?: 'remote' | 'local'
   custom_points?: MicrogridCustomPoint[]
 }
 
@@ -348,12 +349,16 @@ export interface MicrogridTopology {
 
 export interface MicrogridDashboard {
   status?: string
-  total_generation_kw: number
-  total_load_kw: number
   grid_power_kw: number
-  battery_power_kw?: number
+  total_pv_kw: number
+  total_bat_kw: number
+  total_load_kw: number
+  total_charger_kw: number
   battery_soc?: number
-  frequency_hz?: number
+  pv?: { id: string; name: string; power_kw: number; closed: boolean; mode?: string }[]
+  battery?: { id: string; name: string; power_kw: number; closed: boolean; soc?: number; mode?: string }[]
+  load?: { id: string; name: string; power_kw: number; closed: boolean; mode?: string }[]
+  charger?: { id: string; name: string; power_kw: number; closed: boolean; mode?: string }[]
   device_count?: number
 }
 
