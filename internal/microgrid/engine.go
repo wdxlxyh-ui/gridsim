@@ -527,6 +527,12 @@ func (e *Engine) syncStoreLocked() {
 		if s, ok := e.soc[dev.ID]; ok {
 			e.writePt(dev.ID+"_SOC", s)
 		}
+		// Switch status: 1=closed, 0=open
+		swVal := 0.0
+		if dev.Switch.Closed { swVal = 1.0 }
+		e.writePt(dev.ID+"_SwStatus", swVal)
+		e.writePt(dev.ID+"_SwCtrl", swVal)
+		e.writePt(dev.ID+"_Status", swVal)
 	}
 	// Grid values from latest power balance
 	e.writePt("GRID_P", e.gridPower)
@@ -750,29 +756,13 @@ func (e *Engine) calcPowerBalanceLocked() *PowerBalanceResult {
 
 // ─── Store helpers ───
 
-func (e *Engine) updateStoreValue(name string, value float64) {
-	if e.store == nil {
-		return
-	}
-	for _, p := range e.store.GetAll() {
-		if p.Name == name {
-			e.store.SetValue(p.IOA, value)
-			return
-		}
-	}
-}
-
 func (e *Engine) updateSwitchPoints(devID string, closed bool) {
-	v := 0.0
-	if closed {
-		v = 1.0
-	}
-	for _, p := range e.store.GetAll() {
-		if p.Name == devID+"_SwStatus" || p.Name == devID+"_SwCtrl" {
-			e.store.SetValue(p.IOA, v)
-		}
-		if p.Name == devID+"_Power" && !closed {
-			e.store.SetValue(p.IOA, 0)
-		}
+	swVal := 0.0
+	if closed { swVal = 1.0 }
+	e.writePt(devID+"_SwStatus", swVal)
+	e.writePt(devID+"_SwCtrl", swVal)
+	e.writePt(devID+"_Status", swVal)
+	if !closed {
+		e.writePt(devID+"_Power", 0)
 	}
 }
