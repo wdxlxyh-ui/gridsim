@@ -30,6 +30,7 @@ created: 2026-05-23
 | MonitorPage | `/monitor` | 运行监控（自动刷新） |
 | DetailPage | `/instance/:id` | 实例详情（测点/置数/策略/CSV 回放） |
 | TrendPage | `/trend/:id` | ECharts 趋势对比 |
+| MicrogridEditor | `/microgrid/:id` | 微电网设备管理 + SVG 拓扑图 |
 
 ## 状态管理模式
 

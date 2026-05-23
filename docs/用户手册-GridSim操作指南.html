@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GridSim 用户操作手册 — IEC104 模拟器 v2.5.3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f8fafc;
+    --bg-card: #ffffff;
+    --bg-sidebar: #ffffff;
+    --border: #e2e8f0;
+    --border-light: #f1f5f9;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+    --accent: #2563eb;
+    --accent-light: #eff6ff;
+    --accent-dark: #1d4ed8;
+    --green: #16a34a;
+    --green-light: #f0fdf4;
+    --amber: #d97706;
+    --amber-light: #fffbeb;
+    --red: #dc2626;
+    --red-light: #fef2f2;
+    --purple: #7c3aed;
+    --purple-light: #f5f3ff;
+    --cyan: #0891b2;
+    --cyan-light: #ecfeff;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -2px rgba(0,0,0,0.05);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+
+  body {
+    font-family: 'Inter', 'Noto Sans SC', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    line-height: 1.7;
+  }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    position: fixed; top: 0; left: 0; bottom: 0;
+    width: 280px;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    z-index: 100;
+    padding: 24px 0;
+  }
+
+  .sidebar-brand {
+    padding: 0 24px 20px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+
+  .sidebar-brand .title {
+    font-size: 18px; font-weight: 800;
+    color: var(--text-primary);
+  }
+
+  .sidebar-brand .sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .sidebar-brand .version {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--accent-light);
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .sidebar nav a {
+    display: flex;
+    align-items: center;
+    padding: 8px 24px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.15s;
+    border-left: 3px solid transparent;
+  }
+
+  .sidebar nav a:hover {
+    color: var(--text-primary);
+    background: var(--accent-light);
+  }
+
+  .sidebar nav a.active {
+    color: var(--accent);
+    border-left-color: var(--accent);
+    background: var(--accent-light);
+  }
+
+  .sidebar nav .nav-section {
+    padding: 12px 24px 4px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+
+  .sidebar nav a .icon {
+    margin-right: 10px;
+    font-size: 16px;
+    width: 20px;
+    text-align: center;
+  }
+
+  /* ── Main Content ── */
+  .main {
+    margin-left: 280px;
+    max-width: 860px;
+    padding: 48px 56px 100px;
+  }
+
+  /* ── Typography ── */
+  .main h1 {
+    font-size: 36px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 2px solid var(--border);
+  }
+
+  .main h2 {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 48px 0 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-light);
+  }
+
+  .main h2 .anchor {
+    color: var(--accent);
+    opacity: 0;
+    text-decoration: none;
+    font-size: 20px;
+    margin-left: 6px;
+  }
+
+  .main h2:hover .anchor { opacity: 1; }
+
+  .main h3 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 28px 0 12px;
+    color: var(--text-primary);
+  }
+
+  .main h4 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 20px 0 8px;
+    color: var(--text-secondary);
+  }
+
+  .main p {
+    font-size: 15px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+  }
+
+  .main ul, .main ol {
+    margin: 8px 0 16px 20px;
+    font-size: 15px;
+    color: var(--text-secondary);
+  }
+
+  .main li { margin-bottom: 6px; }
+
+  .main strong { color: var(--text-primary); font-weight: 600; }
+
+  .main a { color: var(--accent); text-decoration: none; }
+  .main a:hover { text-decoration: underline; }
+
+  /* ── Code Blocks ── */
+  .main code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    background: #f1f5f9;
+    padding: 2px 7px;
+    border-radius: 4px;
+    color: var(--accent-dark);
+  }
+
+  .main pre {
+    background: #0f172a;
+    color: #e2e8f0;
+    border-radius: var(--radius-sm);
+    padding: 20px 24px;
+    overflow-x: auto;
+    margin: 16px 0 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+  }
+
+  .main pre .comment { color: #64748b; }
+  .main pre .keyword { color: #38bdf8; }
+  .main pre .string { color: #4ade80; }
+  .main pre .number { color: #fbbf24; }
+
+  /* ── Info Boxes ── */
+  .info-box {
+    border-radius: var(--radius-sm);
+    padding: 16px 20px;
+    margin: 16px 0 24px;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .info-box.info {
+    background: var(--accent-light);
+    border-left: 4px solid var(--accent);
+    color: #1e40af;
+  }
+
+  .info-box.warning {
+    background: var(--amber-light);
+    border-left: 4px solid var(--amber);
+    color: #92400e;
+  }
+
+  .info-box.danger {
+    background: var(--red-light);
+    border-left: 4px solid var(--red);
+    color: #991b1b;
+  }
+
+  .info-box.success {
+    background: var(--green-light);
+    border-left: 4px solid var(--green);
+    color: #166534;
+  }
+
+  .info-box .label {
+    font-weight: 700;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-bottom: 4px;
+  }
+
+  /* ── Tables ── */
+  .main table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0 24px;
+    font-size: 14px;
+  }
+
+  .main table th {
+    text-align: left;
+    padding: 10px 14px;
+    background: #f8fafc;
+    border-bottom: 2px solid var(--border);
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  .main table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-light);
+  }
+
+  .main table tr:hover td {
+    background: #f8fafc;
+  }
+
+  /* ── Steps ── */
+  .step-list {
+    counter-reset: step;
+    list-style: none;
+    margin: 16px 0 24px;
+    padding: 0;
+  }
+
+  .step-list li {
+    counter-increment: step;
+    padding: 12px 0 12px 40px;
+    position: relative;
+    font-size: 15px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-light);
+  }
+
+  .step-list li::before {
+    content: counter(step);
+    position: absolute; left: 0; top: 12px;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex; align-items: center;
+    justify-content: center;
+  }
+
+  .step-list li strong { display: block; color: var(--text-primary); }
+
+  /* ── Parameter Table ── */
+  .param-table td:first-child {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .param-table .req { color: var(--red); font-weight: 600; }
+  .param-table .opt { color: var(--text-muted); }
+
+  /* ── Responsive ── */
+  @media (max-width: 1024px) {
+    .sidebar { display: none; }
+    .main { margin-left: 0; padding: 32px 24px 80px; }
+    .main h1 { font-size: 28px; }
+  }
+
+  @media (max-width: 640px) {
+    .main { padding: 24px 16px 60px; }
+    .main h1 { font-size: 24px; }
+    .main h2 { font-size: 20px; }
+    .main pre { padding: 14px 16px; font-size: 12px; }
+    table { font-size: 13px; }
+    table th, table td { padding: 8px 10px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ SIDEBAR ═══ -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="title">GridSim</div>
+    <div class="sub">用户操作手册</div>
+    <span class="version">v2.5.3</span>
+  </div>
+  <nav>
+    <a href="#overview" class="active"><span class="icon">📋</span> 概述</a>
+
+    <div class="nav-section">⚡ 快速开始</div>
+    <a href="#quickstart"><span class="icon">🚀</span> 启动模拟器</a>
+    <a href="#webui"><span class="icon">🖥️</span> Web 管理界面</a>
+
+    <div class="nav-section">📡 协议操作</div>
+    <a href="#iec104"><span class="icon">🔌</span> IEC104 协议</a>
+    <a href="#modbus"><span class="icon">🔗</span> Modbus TCP</a>
+
+    <div class="nav-section">⚙️ 核心功能</div>
+    <a href="#points"><span class="icon">📊</span> 测点操作</a>
+    <a href="#strategies"><span class="icon">🔄</span> 自动变化策略</a>
+    <a href="#csv"><span class="icon">📁</span> CSV 回放</a>
+    <a href="#mcp"><span class="icon">🤖</span> MCP 工具</a>
+    <a href="#microgrid"><span class="icon">⚡</span> 微电网仿真</a>
+
+    <div class="nav-section">📦 部署</div>
+    <a href="#deploy"><span class="icon">📦</span> 安装部署</a>
+    <a href="#config"><span class="icon">📐</span> 点表配置</a>
+    <a href="#troubleshoot"><span class="icon">🔧</span> 常见问题</a>
+  </nav>
+</aside>
+
+<!-- ═══ MAIN ═══ -->
+<div class="main">
+
+  <!-- ══ 概述 ══ -->
+  <h1 id="overview">GridSim 用户操作手册</h1>
+  <p><strong>GridSim</strong> 是一个生产级 IEC104 从站模拟器，支持 Modbus TCP 协议和微电网仿真。本文档帮助用户快速上手并掌握全部功能。</p>
+
+  <div class="info-box info">
+    <div class="label">💡 文档适用版本</div>
+    本文档面向 GridSim v2.5.3。如使用旧版本，部分功能可能不可用。
+  </div>
+
+  <h3>运行模式</h3>
+  <table>
+    <thead><tr><th>模式</th><th>命令</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><strong>传统模式</strong></td><td><code>gridsim -p 2404 -c point.xlsx</code></td><td>单进程 = 单端口 + 单客户端，纯 CLI</td></tr>
+      <tr><td><strong>服务模式</strong></td><td><code>gridsim serve --http :8989</code></td><td>多实例生命周期管理 + Vue 3 Web 界面（推荐）</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ══ 快速开始 ══ -->
+  <h2 id="quickstart">启动模拟器</h2>
+
+  <h3>方式一：下载压缩包（推荐）</h3>
+  <ol class="step-list">
+    <li><strong>解压</strong><code>tar xzf gridsim-v2.5.3.tar.gz &amp;&amp; cd gridsim-v2.5.3</code></li>
+    <li><strong>启动</strong><code>./start.sh</code></li>
+    <li><strong>访问</strong><a href="http://localhost:8989" target="_blank">http://localhost:8989</a></li>
+  </ol>
+
+  <h3>方式二：源码构建</h3>
+  <pre><span class="comment"># 1. 构建前端</span>
+cd web && npm install && npm run build && cd ..
+
+<span class="comment"># 2. 构建后端</span>
+go build -o bin/gridsim ./cmd/gridsim/
+
+<span class="comment"># 3. 启动服务</span>
+./bin/gridsim serve --http :8989 --config-dir ./config --log-dir ./logs
+
+<span class="comment"># 4. 浏览器访问</span>
+open http://localhost:8989</pre>
+
+  <h3>传统模式（单实例）</h3>
+  <pre>go build -o bin/gridsim ./cmd/gridsim/
+./bin/gridsim -p 2404 -c samples/point.xlsx -H :8080 -l info</pre>
+
+  <h4>命令行参数</h4>
+  <table class="param-table">
+    <thead><tr><th>参数</th><th>缩写</th><th>默认值</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>--port</td><td>-p</td><td>2404</td><td>IEC104 服务端 TCP 端口（传统模式）</td></tr>
+      <tr><td>--config</td><td>-c</td><td>必填</td><td>.xlsx 配置文件路径（传统模式）</td></tr>
+      <tr><td>--http</td><td>-H</td><td>:8989</td><td>HTTP API 监听地址</td></tr>
+      <tr><td>--log</td><td>-l</td><td>info</td><td>日志级别：debug/info/warn/error</td></tr>
+      <tr><td>--config-dir</td><td>—</td><td>./config</td><td>配置文件目录（服务模式）</td></tr>
+      <tr><td>--log-dir</td><td>-L</td><td>./logs</td><td>日志文件目录（服务模式）</td></tr>
+    </tbody>
+  </table>
+
+
+  <!-- ══ Web 界面 ══ -->
+  <h2 id="webui">Web 管理界面</h2>
+
+  <p>GridSim 提供基于 Vue 3 的 Web 管理界面，包含以下页面：</p>
+
+  <table>
+    <thead><tr><th>页面</th><th>路由</th><th>功能</th></tr></thead>
+    <tbody>
+      <tr><td><strong>ConfigPage</strong></td><td><code>/config</code></td><td>实例配置管理。创建/编辑/删除实例，查看容量（已配置/1000、运行中、已停止）</td></tr>
+      <tr><td><strong>MonitorPage</strong></td><td><code>/monitor</code></td><td>运行监控。自动刷新显示所有实例运行状态</td></tr>
+      <tr><td><strong>DetailPage</strong></td><td><code>/instance/:id</code></td><td>实例详情。测点实时值、置数、自动变化策略配置、CSV 多测点回放</td></tr>
+      <tr><td><strong>TrendPage</strong></td><td><code>/trend/:id</code></td><td>趋势对比。ECharts 多线趋势，缩放拖拽，十字准线</td></tr>
+      <tr><td><strong>MicrogridEditor</strong></td><td><code>/microgrid/:id</code></td><td>微电网设备管理。表单配置 PV/储能/负荷/充电桩，SVG 拓扑图</td></tr>
+    </tbody>
+  </table>
+
+  <div class="info-box info">
+    <div class="label">💡 登录</div>
+    首次启动，使用预设账号 <code>admin</code> / <code>admin</code> 登录。
+  </div>
+
+  <h3>ConfigPage — 实例管理</h3>
+  <p>
+    在 ConfigPage 中可以创建新的模拟器实例，每个实例对应一个独立的协议端口。
+    创建时需要指定实例名称、协议类型（IEC104 / Modbus TCP）、端口号和点表文件。
+    实例上限为 <strong>1000</strong>。页面顶部显示全局状态统计。
+  </p>
+
+  <h3>DetailPage — 实例详情</h3>
+  <p>
+    实例详情页是日常操作的核心页面。进入后可以看到该实例所有测点的实时值列表。
+    支持以下操作：
+  </p>
+  <ul>
+    <li><strong>测点轮询</strong>：100ms~1000ms 可调高频刷新</li>
+    <li><strong>置数操作</strong>：AI 输入数值、DI 开关（ON/OFF）、PI 输入整数</li>
+    <li><strong>自动变化配置</strong>：为每个测点配置 11 种策略之一</li>
+    <li><strong>批量配置</strong>：勾选多个测点，一次性应用相同策略</li>
+    <li><strong>CSV 多测点回放</strong>：独立卡片，上传 CSV 文件映射多列到不同测点</li>
+    <li><strong>导出/导入</strong>：测点 CSV 导出、自动变化配置 JSON 导出/导入</li>
+  </ul>
+
+  <h3>TrendPage — 趋势对比</h3>
+  <p>
+    选择多个测点，实时绘制趋势曲线。基于测点真实时间戳渲染。
+    支持缩放拖拽、十字准线 tooltip、图例显隐。时间范围 5m/15m/30m/1h/2h。
+  </p>
+
+  <!-- ══ IEC104 ══ -->
+  <h2 id="iec104">IEC104 协议操作</h2>
+
+  <h3>测点类型映射</h3>
+  <table>
+    <thead><tr><th>PointType</th><th>中文</th><th>功能</th><th>ASDU TypeID</th><th>数据</th></tr></thead>
+    <tbody>
+      <tr><td>AI</td><td>遥测 YC</td><td>模拟量监视</td><td>M_ME_NC_1 (13)</td><td>float32，值 = base × efficient</td></tr>
+      <tr><td>DI</td><td>遥信 YX</td><td>数字量监视</td><td>M_SP_NA_1 (1)</td><td>bool 0/1</td></tr>
+      <tr><td>PI</td><td>遥脉 YM</td><td>脉冲计数</td><td>M_IT_NA_1 (15)</td><td>int32</td></tr>
+      <tr><td>DO</td><td>遥控</td><td>远程控制</td><td>C_SC_NA_1 (45)</td><td>接收控制，更新 DI 点</td></tr>
+      <tr><td>AO</td><td>遥调</td><td>远程调节</td><td>C_SE_NC_1 (48)</td><td>接收控制，更新 AI 点</td></tr>
+    </tbody>
+  </table>
+
+  <h3>协议行为说明</h3>
+  <ul>
+    <li><strong>总召唤</strong>：客户端发送 C_IC_NA_1 (COT=6)，模拟器按 AI/DI/PI 分组返回所有测点值，最后发送 ACT_TERM (COT=10)</li>
+    <li><strong>变化上送</strong>：任何值变更（HTTP API 置数、自动变化引擎计算、AO/DO 控制）自动触发 COT=3 变化上送</li>
+    <li><strong>单客户端</strong>：每个实例同一时刻只接受一个 IEC104 客户端连接</li>
+    <li><strong>品质描述 QDS</strong>：支持 invalid / not_topical / substituted / overflow / blocked 五个品质位</li>
+  </ul>
+
+  <div class="info-box warning">
+    <div class="label">⚠️ 注意事项</div>
+    <ul style="margin:4px 0 0 16px;">
+      <li>变化周期最小值 100ms</li>
+      <li>AO/DO 不支持置数和自动变化</li>
+      <li>DI 置数只能设为 0 或 1，界面以 ON/OFF 开关展示</li>
+    </ul>
+  </div>
+
+
+  <!-- ══ Modbus ══ -->
+  <h2 id="modbus">Modbus TCP 操作</h2>
+
+  <table>
+    <thead><tr><th>测点类型</th><th>读功能码</th><th>写功能码</th><th>Modbus 区域</th></tr></thead>
+    <tbody>
+      <tr><td>AI</td><td>04 Read Input Registers</td><td>—</td><td>3x Input Registers</td></tr>
+      <tr><td>DI</td><td>02 Read Discrete Inputs</td><td>—</td><td>1x Discrete Inputs</td></tr>
+      <tr><td>PI</td><td>04 Read Input Registers</td><td>—</td><td>3x (32bit)</td></tr>
+      <tr><td>DO</td><td>01 Read Coils</td><td>05/15</td><td>0x Coils</td></tr>
+      <tr><td>AO</td><td>03 Read Holding Registers</td><td>06/16</td><td>4x Holding Registers</td></tr>
+    </tbody>
+  </table>
+
+  <h4>字节序配置</h4>
+  <table>
+    <thead><tr><th>模式</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>ABCD</td><td>大端序（默认）</td></tr>
+      <tr><td>CDAB</td><td>字交换</td></tr>
+      <tr><td>BADC</td><td>字节交换</td></tr>
+      <tr><td>DCBA</td><td>小端序</td></tr>
+    </tbody>
+  </table>
+
+  <div class="info-box info">
+    <div class="label">💡 向后兼容</div>
+    已有 IEC104 实例的 JSON 配置无需修改（protocol 为空 → 默认 iec104）。
+    旧版 Excel 点表无 Modbus 扩展列 → 零值回退。
+  </div>
+
+
+  <!-- ══ 测点操作 ══ -->
+  <h2 id="points">测点操作</h2>
+
+  <h3>HTTP API 置数</h3>
+  <pre><span class="comment"># 遥测值（AI）</span>
+curl -X PUT http://localhost:8989/api/v1/instances/{id}/points/16385 \
+  -H 'Content-Type: application/json' \
+  -d '{"value": 235.5}'
+
+<span class="comment"># 遥信值（DI）</span>
+curl -X PUT http://localhost:8989/api/v1/instances/{id}/points/5 \
+  -H 'Content-Type: application/json' \
+  -d '{"bool_value": true}'
+
+<span class="comment"># 批量读取</span>
+curl http://localhost:8989/api/v1/instances/{id}/points/batch?ioas=16385,16386,16387</pre>
+
+  <h3>QDS 品质描述更新</h3>
+  <pre>curl -X PUT http://localhost:8989/api/points/16385/qds \
+  -H 'Content-Type: application/json' \
+  -d '{"invalid": true, "blocked": true}'</pre>
+
+  <div class="info-box warning">
+    <div class="label">⚠️ 重要说明</div>
+    <ul style="margin:4px 0 0 16px;">
+      <li>置数值与实时数据<strong>隔离存储</strong>，不随轮询刷新覆盖</li>
+      <li>置数成功后以绿色 toast 提示，无需二次确认</li>
+      <li>配置了"接口更新"或"手动"策略的点，引擎不自动计算</li>
+      <li>品质位变化不会触发变化上送，但会在下次总召时携带</li>
+    </ul>
+  </div>
+
+
+  <!-- ══ 自动变化策略 ══ -->
+  <h2 id="strategies">自动变化策略</h2>
+
+  <p>GridSim 提供 11 种自动变化策略，每个实例的每个测点可以独立配置。后台独立 goroutine 调度，实例启停自动管理。</p>
+
+  <table>
+    <thead><tr><th>#</th><th>策略</th><th>策略代号</th><th>适用场景</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>递增</td><td><code>increment</code></td><td>模拟缓慢上升的遥测量</td></tr>
+      <tr><td>2</td><td>随机</td><td><code>random</code></td><td>模拟噪声或波动信号</td></tr>
+      <tr><td>3</td><td>CSV 回放</td><td><code>csv</code></td><td>回放真实录波数据</td></tr>
+      <tr><td>4</td><td>MAX</td><td><code>max</code></td><td>联锁逻辑，多 IOA 取最大</td></tr>
+      <tr><td>5</td><td>MIN</td><td><code>min</code></td><td>联锁逻辑，多 IOA 取最小</td></tr>
+      <tr><td>6</td><td>SOC 计算</td><td><code>soc</code></td><td>基于功率积分计算荷电状态</td></tr>
+      <tr><td>7</td><td>电量统计</td><td><code>energy</code></td><td>功率积分累计电量</td></tr>
+      <tr><td>8</td><td>AO 关联</td><td><code>aofollow</code></td><td>跟随 AO 遥控值变化（事件驱动）</td></tr>
+      <tr><td>9</td><td>接口更新</td><td><code>apiupdate</code></td><td>仅允许 HTTP API 写入</td></tr>
+      <tr><td>10</td><td>手动</td><td><code>manual</code></td><td>不自动计算，需 API 置数</td></tr>
+      <tr><td>11</td><td>自定义公式</td><td><code>custom</code></td><td>四则运算公式，2~50 关联测点</td></tr>
+    </tbody>
+  </table>
+
+  <h3>配置示例（递增策略）</h3>
+  <pre>curl -X PUT http://localhost:8989/api/v1/instances/{id}/points/auto-change/16385 \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "strategy": "increment",
+    "enabled": true,
+    "params": {
+      "start_value": 0,
+      "step": 1,
+      "period_ms": 1000,
+      "max_value": 100
+    }
+  }'</pre>
+
+  <h3>批量配置</h3>
+  <pre>curl -X PUT http://localhost:8989/api/v1/instances/{id}/points/auto-change/batch \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "ioas": [16385, 16386, 16387],
+    "config": {
+      "strategy": "increment",
+      "enabled": true,
+      "params": {"start_value": 0, "step": 1, "period_ms": 1000, "max_value": 100}
+    }
+  }'</pre>
+
+  <h3>导出/导入</h3>
+  <pre><span class="comment"># 导出自动变化配置</span>
+curl -H 'Accept: application/json' \
+  http://localhost:8989/api/v1/instances/{id}/points/auto-change/export
+
+<span class="comment"># 导入自动变化配置</span>
+curl -X POST http://localhost:8989/api/v1/instances/{id}/points/auto-change/import \
+  -H 'Content-Type: application/json' \
+  -d '{"autoChanges": {"16385": {"strategy": "increment", ...}}}'</pre>
+
+
+  <!-- ══ CSV 回放 ══ -->
+  <h2 id="csv">CSV 多测点同步回放</h2>
+
+  <p>自 v2.5.0 起支持，在实例详情页有独立"CSV 多测点回放"卡片。</p>
+
+  <h3>CSV 文件格式</h3>
+  <pre>time,母线电压,线路电流,有功功率
+0,220.0,5.2,1144.0
+1000,221.5,5.3,1173.9
+2000,219.8,5.1,1120.9</pre>
+
+  <h3>操作流程</h3>
+  <ol class="step-list">
+    <li><strong>进入实例详情页</strong>，找到 CSV 回放卡片</li>
+    <li><strong>上传 CSV 文件</strong>，或从已有文件下拉选择（共享目录 + 实例私有目录）</li>
+    <li><strong>列映射</strong>：自动按列名匹配测点 IOA，回退按序号分配</li>
+    <li><strong>选择时间模式</strong>：相对时间（ms/s）或绝对时间（hh:mm:ss）</li>
+    <li><strong>启动回放</strong>：多个测点共享同一时间基准，严格同步</li>
+  </ol>
+
+  <h3>时间模式说明</h3>
+  <table>
+    <thead><tr><th>模式</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><strong>相对时间</strong></td><td>第 1 列为相对时间（ms 或 s），基于 elapsed time 控制播放节奏</td></tr>
+      <tr><td><strong>绝对时间</strong></td><td>时间格式 hh:mm:ss，按系统时钟定位当前行</td></tr>
+    </tbody>
+  </table>
+
+  <div class="info-box success">
+    <div class="label">✅ 向后兼容</div>
+    单测点 CSV 模式完全不变，多测点回放为新增独立功能。
+  </div>
+
+
+  <!-- ══ MCP ══ -->
+  <h2 id="mcp">MCP 工具</h2>
+
+  <p>Model Context Protocol 服务器，提供 28 个工具供 AI 助手直接控制模拟器。</p>
+
+  <h3>启动 MCP 服务器</h3>
+  <pre>go build -o bin/mcp-server ./cmd/mcp-server/
+./bin/mcp-server -simulator http://localhost:8989 -mode both</pre>
+
+  <table>
+    <thead><tr><th>参数</th><th>默认值</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>-simulator</td><td>http://localhost:8989</td><td>模拟器 HTTP 地址</td></tr>
+      <tr><td>-mode</td><td>both</td><td>instance / data / both</td></tr>
+    </tbody>
+  </table>
+
+  <h3>工具分类</h3>
+
+  <h4>实例管理（9 工具）</h4>
+  <p><code>list_instances</code> <code>get_instance</code> <code>create_instance</code> <code>update_instance</code> <code>delete_instance</code> <code>start_instance</code> <code>stop_instance</code> <code>restart_instance</code> <code>get_server_status</code></p>
+
+  <h4>数据接口（17 工具）</h4>
+  <p><code>list_points</code> <code>read_point</code> <code>read_points</code> <code>write_point</code> <code>write_points</code> <code>config_auto_change</code> <code>batch_config_auto_change</code> <code>get_auto_change</code> <code>delete_auto_change</code> <code>export_auto_changes</code> <code>import_auto_changes</code> <code>upload_csv</code> <code>list_csv_files</code> <code>config_csv_replay</code> <code>upload_file</code> <code>export_points_csv</code> <code>update_qds</code></p>
+
+  <h4>全局工具（2 工具）</h4>
+  <p><code>list_files</code> <code>get_protocols</code></p>
+
+  <h3>使用示例</h3>
+  <pre><span class="comment"># 批量写入测点</span>
+write_points(
+    instance_id="inst-001",
+    points=[
+        {"ioa": 16385, "value": 235.5},
+        {"ioa": 16386, "bool_value": True}
+    ]
+)
+
+<span class="comment"># 配置 CSV 多测点回放</span>
+config_csv_replay(
+    instance_id="a1b2c3d4e5f6",
+    csv_file="replay_data.csv",
+    time_format="relative",
+    time_unit="ms",
+    mappings=[
+        {"column": 1, "ioa": 16385},
+        {"column": 2, "ioa": 16386},
+    ]
+)</pre>
+
+  <div class="info-box warning">
+    <div class="label">⚠️ MCP 故障排查</div>
+    <ul style="margin:4px 0 0 16px;">
+      <li>连接失败：确认模拟器已启动，-simulator 地址正确</li>
+      <li>测点写入失败：确认 IOA 存在于点表中，实例已启动</li>
+      <li>MCP 无响应：检查模拟器日志，确认点表已加载</li>
+    </ul>
+  </div>
+
+
+  <!-- ══ 微电网 ══ -->
+  <h2 id="microgrid">微电网仿真</h2>
+
+  <p>自 v2.5 起支持，提供设备管理和实时仿真能力。</p>
+
+  <h3>支持的设备类型</h3>
+  <table>
+    <thead><tr><th>类型</th><th>标识</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>光伏</td><td><code>pv</code></td><td>发电设备，额定功率 + 效率</td></tr>
+      <tr><td>储能</td><td><code>battery</code></td><td>电池设备，容量 / SOC / 功率</td></tr>
+      <tr><td>负荷</td><td><code>load</code></td><td>用电设备，额定功率 + 功率因数</td></tr>
+      <tr><td>充电桩</td><td><code>charger</code></td><td>充电设备，额定功率 + 效率</td></tr>
+    </tbody>
+  </table>
+
+  <h3>引擎执行顺序（tick 循环）</h3>
+  <ol class="step-list">
+    <li><strong>PV 功率计算</strong>（AO setpoint / 保持当前值）</li>
+    <li><strong>负荷/充电桩功率</strong>（保持 store 值）</li>
+    <li><strong>储能功率</strong>（AO setpoint / 保持）+ <strong>SOC 更新</strong></li>
+    <li><strong>功率平衡</strong> GRID = Load + Charger + Battery − PV</li>
+    <li><strong>同步 store</strong> + <strong>公式求值</strong></li>
+    <li><strong>快照记录</strong></li>
+  </ol>
+
+  <h3>控制模式</h3>
+  <table>
+    <thead><tr><th>模式</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><strong>远方 (remote)</strong></td><td>跟随 AO 遥控值</td></tr>
+      <tr><td><strong>本地 (local)</strong></td><td>由策略驱动（自定义公式等）</td></tr>
+    </tbody>
+  </table>
+
+  <div class="info-box info">
+    <div class="label">💡 功率约定</div>
+    PV 始终 ≥0（发电）。Battery：+ 充电，− 放电。GRID_P：+ 从电网用电，− 向电网送电。
+  </div>
+
+
+  <!-- ══ 安装部署 ══ -->
+  <h2 id="deploy">安装部署</h2>
+
+  <h3>编译目标</h3>
+  <table>
+    <thead><tr><th>目标</th><th>命令</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>本地开发</td><td><code>go build -o bin/gridsim ./cmd/gridsim/</code></td><td>快速编译</td></tr>
+      <tr><td>Linux amd64</td><td><code>make build-linux-amd64</code></td><td>通用 Linux 部署</td></tr>
+      <tr><td>Linux arm64</td><td><code>make build-linux-arm64</code></td><td>ARM 服务器</td></tr>
+      <tr><td>Windows</td><td><code>make build-windows</code></td><td>Windows 部署</td></tr>
+      <tr><td>全平台</td><td><code>make build-all</code></td><td>一次性编译全部</td></tr>
+      <tr><td>完整构建</td><td><code>make build-full</code></td><td>含 Web UI</td></tr>
+      <tr><td>Debian 打包</td><td><code>make deb-amd64</code></td><td>.deb 安装包</td></tr>
+      <tr><td>UPX 压缩</td><td><code>make compress</code></td><td>减少约 60% 体积</td></tr>
+    </tbody>
+  </table>
+
+  <h3>发行包目录结构</h3>
+  <pre>gridsim-v{version}-linux-amd64/
+├── bin/
+│   ├── gridsim
+│   ├── iec104-mcp
+│   ├── start.sh / stop.sh / restart.sh
+│   └── VERSION
+├── config/
+│   ├── instances.json
+│   └── users.json
+├── logs/
+├── resources/
+└── web/dist/
+    ├── index.html
+    └── assets/</pre>
+
+
+  <!-- ══ 点表配置 ══ -->
+  <h2 id="config">点表配置（Excel）</h2>
+
+  <p>文件格式：<code>.xlsx</code>，工作表名称 <code>point</code>。</p>
+
+  <h3>标准格式（IEC104）</h3>
+  <table class="param-table">
+    <thead><tr><th>列</th><th>表头</th><th>类型</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>A</td><td>point-name</td><td><span class="req">string</span></td><td>测点名称，如"母线电压"</td></tr>
+      <tr><td>B</td><td>point-number</td><td><span class="req">uint32</span></td><td>IOA，同类型测点唯一</td></tr>
+      <tr><td>C</td><td>value-type</td><td><span class="req">string</span></td><td>FLOAT / DOUBLE / INT / BIT</td></tr>
+      <tr><td>D</td><td>point-type</td><td><span class="req">string</span></td><td>AI / DI / PI / DO / AO</td></tr>
+      <tr><td>E</td><td>efficient</td><td><span class="req">float64</span></td><td>系数</td></tr>
+      <tr><td>F</td><td>base-value</td><td><span class="req">float64</span></td><td>初始值</td></tr>
+      <tr><td>G</td><td>alias</td><td><span class="opt">string</span></td><td>别名或描述</td></tr>
+    </tbody>
+  </table>
+
+  <h3>扩展格式（Modbus TCP）</h3>
+  <table class="param-table">
+    <thead><tr><th>列</th><th>表头</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>H</td><td>function-code</td><td>Modbus 功能码（01~06,15,16）</td></tr>
+      <tr><td>I</td><td>register-address</td><td>Modbus 寄存器地址（0~65535）</td></tr>
+      <tr><td>J</td><td>byte-order</td><td>字节序（默认 ABCD）</td></tr>
+    </tbody>
+  </table>
+
+  <div class="info-box info">
+    <div class="label">💡 说明</div>
+    Modbus 客户端导出的点表可直接使用，模拟器自动忽略多余列（K/M 列等）。
+    旧版点表无 H/I/J 列 → 零值回退。
+  </div>
+
+
+  <!-- ══ 常见问题 ══ -->
+  <h2 id="troubleshoot">常见问题</h2>
+
+  <h3>模拟器启动报错</h3>
+  <p>检查端口是否被占用、点表文件是否存在、配置文件目录权限。</p>
+
+  <h3>Web 界面无法访问</h3>
+  <p>确认 <code>--http</code> 参数正确，防火墙未屏蔽端口。检查日志中是否有启动成功记录。</p>
+
+  <h3>MCP 连接失败</h3>
+  <pre>Error: dial tcp connection refused</pre>
+  <p>检查：模拟器是否已启动、-simulator 地址是否正确、HTTP 端口是否可达。</p>
+
+  <h3>IEC104 客户端无法连接</h3>
+  <p>检查实例是否已启动（Web 界面中状态应为 running）。每个实例只接受一个客户端连接。</p>
+
+  <h3>测点值不变化</h3>
+  <p>确认自动变化策略已启用（enabled=true）。检查策略参数是否正确。CSV 回放检查文件是否上传、列映射是否正确。</p>
+
+  <h3>置数失败</h3>
+  <p>确认 IOA 存在于点表中。配置了"接口更新"或"手动"策略的点，只能通过 API 写入。</p>
+
+  <div class="info-box danger">
+    <div class="label">⚠️ 安全提醒</div>
+    <ul style="margin:4px 0 0 16px;">
+      <li>JWT token 存储在 localStorage（已知 XSS 风险），生产环境建议配置 HTTPS + CSP 头</li>
+      <li>HTTP 服务缺少超时配置，生产环境建议使用反向代理（nginx/Caddy）</li>
+      <li>API 无速率限制，建议生产环境添加</li>
+    </ul>
+  </div>
+
+</div>
+
+<script>
+  // Sidebar active section tracking
+  const sections = document.querySelectorAll('h2[id]');
+  const navLinks = document.querySelectorAll('.sidebar nav a');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        navLinks.forEach(link => link.classList.remove('active'));
+        const activeLink = document.querySelector(`.sidebar nav a[href="#${entry.target.id}"]`);
+        if (activeLink) activeLink.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-80px 0px -60% 0px' });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+
+</body>
+</html>

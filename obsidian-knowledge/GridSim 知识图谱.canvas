@@ -212,6 +212,46 @@
       "color": "#3b82f6"
     },
     {
+      "id": "microgrid",
+      "type": "file",
+      "file": "微电网/微电网概述.md",
+      "x": 1380,
+      "y": 320,
+      "width": 240,
+      "height": 80,
+      "color": "#ef4444"
+    },
+    {
+      "id": "mgengine",
+      "type": "file",
+      "file": "微电网/微电网架构与引擎.md",
+      "x": 1380,
+      "y": 450,
+      "width": 200,
+      "height": 60,
+      "color": "#ef4444"
+    },
+    {
+      "id": "mgapi",
+      "type": "file",
+      "file": "微电网/微电网API.md",
+      "x": 1620,
+      "y": 450,
+      "width": 180,
+      "height": 60,
+      "color": "#ef4444"
+    },
+    {
+      "id": "mgioa",
+      "type": "file",
+      "file": "微电网/微电网IOA分配.md",
+      "x": 1840,
+      "y": 450,
+      "width": 180,
+      "height": 60,
+      "color": "#ef4444"
+    },
+    {
       "id": "frontend",
       "type": "file",
       "file": "前端/Vue3 前端架构.md",
@@ -250,6 +290,17 @@
       "width": 240,
       "height": 80,
       "color": "#ec4899"
+    },
+    {
+      "id": "mgeditor",
+      "type": "file",
+      "file": "前端/Vue3 前端架构.md",
+      "x": 1300,
+      "y": 560,
+      "width": 240,
+      "height": 80,
+      "color": "#ec4899",
+      "text": "MicrogridEditor.vue\n微电网设备管理"
     },
     {
       "id": "backendstandards",
@@ -296,7 +347,7 @@
       "type": "file",
       "file": "设计文档/设计文档索引.md",
       "x": 1300,
-      "y": 560,
+      "y": 700,
       "width": 240,
       "height": 80,
       "color": "#6366f1"
@@ -306,7 +357,7 @@
       "type": "file",
       "file": "PRD/PRD 索引.md",
       "x": 1600,
-      "y": 560,
+      "y": 700,
       "width": 240,
       "height": 80,
       "color": "#6366f1"
@@ -316,7 +367,7 @@
       "type": "file",
       "file": "测试/测试体系总览.md",
       "x": 1300,
-      "y": 700,
+      "y": 840,
       "width": 240,
       "height": 80,
       "color": "#ef4444"
@@ -326,7 +377,7 @@
       "type": "file",
       "file": "测试/EGC AI自动化测试方案.md",
       "x": 1600,
-      "y": 700,
+      "y": 840,
       "width": 240,
       "height": 80,
       "color": "#ef4444"
@@ -336,7 +387,7 @@
       "type": "file",
       "file": "技术栈/技术栈.md",
       "x": 1300,
-      "y": 840,
+      "y": 980,
       "width": 240,
       "height": 80,
       "color": "#8b5cf6"
@@ -348,6 +399,7 @@
     { "id": "e3", "fromNode": "root", "fromSide": "bottom", "toNode": "autochange", "toSide": "top", "label": "核心功能", "color": "#f59e0b" },
     { "id": "e4", "fromNode": "root", "fromSide": "bottom", "toNode": "restapi", "toSide": "top", "label": "接口", "color": "#3b82f6" },
     { "id": "e5", "fromNode": "root", "fromSide": "bottom", "toNode": "frontend", "toSide": "top", "label": "前端", "color": "#ec4899" },
+    { "id": "e40", "fromNode": "root", "fromSide": "bottom", "toNode": "microgrid", "toSide": "top", "label": "微电网", "color": "#ef4444" },
     { "id": "e6", "fromNode": "architecture", "fromSide": "right", "toNode": "datamodel", "toSide": "left", "label": "包含", "color": "#6366f1" },
     { "id": "e7", "fromNode": "architecture", "fromSide": "bottom", "toNode": "autochange", "toSide": "top", "label": "驱动", "color": "#6366f1" },
     { "id": "e8", "fromNode": "iec104", "fromSide": "right", "toNode": "modbus", "toSide": "left", "label": "并列协议", "color": "#22c55e" },
@@ -381,6 +433,13 @@
     { "id": "e36", "fromNode": "iec104", "fromSide": "bottom", "toNode": "restapi", "toSide": "top", "label": "API 控制", "color": "#22c55e" },
     { "id": "e37", "fromNode": "modbus", "fromSide": "bottom", "toNode": "restapi", "toSide": "top", "label": "API 控制", "color": "#22c55e" },
     { "id": "e38", "fromNode": "datamodel", "fromSide": "bottom", "toNode": "backendstandards", "toSide": "top", "label": "实现规范", "color": "#6366f1" },
-    { "id": "e39", "fromNode": "customformula", "fromSide": "right", "toNode": "csvmultipoint", "toSide": "bottom", "label": "高级特性", "color": "#f59e0b" }
+    { "id": "e39", "fromNode": "customformula", "fromSide": "right", "toNode": "csvmultipoint", "toSide": "bottom", "label": "高级特性", "color": "#f59e0b" },
+    { "id": "e41", "fromNode": "microgrid", "fromSide": "bottom", "toNode": "mgengine", "toSide": "top", "label": "引擎设计", "color": "#ef4444" },
+    { "id": "e42", "fromNode": "microgrid", "fromSide": "bottom", "toNode": "mgapi", "toSide": "top", "label": "API", "color": "#ef4444" },
+    { "id": "e43", "fromNode": "microgrid", "fromSide": "bottom", "toNode": "mgioa", "toSide": "top", "label": "IOA 分配", "color": "#ef4444" },
+    { "id": "e44", "fromNode": "microgrid", "fromSide": "left", "toNode": "restapi", "toSide": "right", "label": "扩展 API", "color": "#ef4444" },
+    { "id": "e45", "fromNode": "microgrid", "fromSide": "bottom", "toNode": "mgeditor", "toSide": "top", "label": "前端编辑器", "color": "#ec4899" },
+    { "id": "e46", "fromNode": "mgengine", "fromSide": "left", "toNode": "soc", "toSide": "right", "label": "复用 SOC", "color": "#ef4444" },
+    { "id": "e47", "fromNode": "microgrid", "fromSide": "left", "toNode": "mcp", "toSide": "right", "label": "MCP 管理", "color": "#ef4444" }
   ]
 }

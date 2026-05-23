@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GridSim — 多协议电网仿真平台 | 团队手册</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-primary: #0a0e17;
+    --bg-secondary: #111827;
+    --bg-card: #1a2236;
+    --bg-card-hover: #1f2a42;
+    --border: #2a3a5c;
+    --text-primary: #e8edf5;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --accent-blue: #3b82f6;
+    --accent-cyan: #06b6d4;
+    --accent-green: #22c55e;
+    --accent-amber: #f59e0b;
+    --accent-red: #ef4444;
+    --accent-purple: #8b5cf6;
+    --accent-pink: #ec4899;
+    --gradient-hero: linear-gradient(135deg, #1e3a5f 0%, #0a0e17 50%, #1a1040 100%);
+    --gradient-card: linear-gradient(180deg, rgba(59,130,246,0.08) 0%, transparent 100%);
+    --glow-blue: 0 0 30px rgba(59,130,246,0.15);
+    --glow-green: 0 0 30px rgba(34,197,94,0.12);
+    --radius: 16px;
+    --radius-sm: 10px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.7;
+    overflow-x: hidden;
+  }
+
+  /* ── Animated Background ── */
+  .bg-grid {
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(59,130,246,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(59,130,246,0.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none; z-index: 0;
+  }
+
+  .bg-glow {
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(59,130,246,0.08), transparent),
+      radial-gradient(ellipse 60% 40% at 80% 60%, rgba(6,182,212,0.05), transparent),
+      radial-gradient(ellipse 50% 40% at 20% 80%, rgba(139,92,246,0.04), transparent);
+    pointer-events: none; z-index: 0;
+  }
+
+  /* ── Hero ── */
+  .hero {
+    position: relative; z-index: 1;
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center;
+    padding: 80px 24px 60px;
+  }
+
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 18px;
+    border-radius: 100px;
+    background: rgba(59,130,246,0.1);
+    border: 1px solid rgba(59,130,246,0.25);
+    font-size: 13px; font-weight: 500;
+    color: var(--accent-blue);
+    margin-bottom: 32px;
+    letter-spacing: 0.3px;
+  }
+
+  .hero-badge .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  .hero h1 {
+    font-size: clamp(42px, 8vw, 80px);
+    font-weight: 900;
+    line-height: 1.1;
+    letter-spacing: -2px;
+    background: linear-gradient(135deg, #e8edf5 0%, #60a5fa 50%, #06b6d4 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 16px;
+  }
+
+  .hero .subtitle {
+    font-size: clamp(18px, 2.5vw, 24px);
+    color: var(--text-secondary);
+    max-width: 680px;
+    margin: 0 auto 12px;
+    font-weight: 400;
+  }
+
+  .hero .version-tag {
+    display: inline-block;
+    padding: 4px 14px;
+    border-radius: 6px;
+    background: rgba(34,197,94,0.12);
+    border: 1px solid rgba(34,197,94,0.3);
+    color: var(--accent-green);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    margin-top: 8px;
+  }
+
+  .hero-stats {
+    display: flex; gap: 40px;
+    margin-top: 48px;
+    flex-wrap: wrap; justify-content: center;
+  }
+
+  .hero-stat { text-align: center; }
+
+  .hero-stat .num {
+    font-size: 32px; font-weight: 800;
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .hero-stat .label {
+    font-size: 13px; color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .scroll-indicator {
+    position: absolute; bottom: 30px; left: 50%;
+    transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center;
+    gap: 8px; color: var(--text-muted); font-size: 12px;
+    animation: bounce 2s ease-in-out infinite;
+  }
+
+  @keyframes bounce {
+    0%, 100% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-50%) translateY(8px); }
+  }
+
+  .scroll-indicator .arrow {
+    width: 20px; height: 20px;
+    border-right: 2px solid var(--text-muted);
+    border-bottom: 2px solid var(--text-muted);
+    transform: rotate(45deg);
+  }
+
+  /* ── Sections ── */
+  section { position: relative; z-index: 1; }
+
+  .section-header {
+    text-align: center; max-width: 700px;
+    margin: 0 auto 56px; padding: 0 24px;
+  }
+
+  .section-header h2 {
+    font-size: clamp(30px, 4vw, 44px);
+    font-weight: 800;
+    letter-spacing: -1px;
+    margin-bottom: 12px;
+  }
+
+  .section-header p {
+    color: var(--text-secondary);
+    font-size: 17px;
+  }
+
+  .section-header .accent-line {
+    width: 60px; height: 3px;
+    border-radius: 2px;
+    margin: 16px auto 0;
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 80px 24px 100px;
+  }
+
+  /* ── What is GridSim ── */
+  #intro .intro-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+    align-items: center;
+  }
+
+  #intro .intro-text p {
+    color: var(--text-secondary);
+    font-size: 16px;
+    margin-bottom: 16px;
+  }
+
+  #intro .intro-text .highlight {
+    color: var(--accent-cyan);
+    font-weight: 500;
+  }
+
+  .specs-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .spec-item {
+    background: var(--bg-card);
+    border-radius: var(--radius-sm);
+    padding: 16px 20px;
+    border: 1px solid var(--border);
+  }
+
+  .spec-item .key {
+    font-size: 12px; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+
+  .spec-item .val {
+    font-size: 16px; font-weight: 600;
+    margin-top: 4px;
+  }
+
+  /* ── Features ── */
+  #features {
+    background: linear-gradient(180deg, transparent 0%, rgba(59,130,246,0.02) 50%, transparent 100%);
+  }
+
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 20px;
+  }
+
+  .feature-card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 32px 28px;
+    border: 1px solid var(--border);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .feature-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 3px;
+    opacity: 0; transition: opacity 0.3s ease;
+  }
+
+  .feature-card:hover {
+    background: var(--bg-card-hover);
+    border-color: rgba(59,130,246,0.3);
+    transform: translateY(-4px);
+  }
+
+  .feature-card:hover::before { opacity: 1; }
+
+  .feature-card .icon {
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; margin-bottom: 20px;
+  }
+
+  .feature-card h3 {
+    font-size: 18px; font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .feature-card p {
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1.7;
+  }
+
+  .feature-card ul {
+    list-style: none;
+    margin-top: 14px;
+  }
+
+  .feature-card ul li {
+    font-size: 13px;
+    color: var(--text-muted);
+    padding: 4px 0;
+    padding-left: 18px;
+    position: relative;
+  }
+
+  .feature-card ul li::before {
+    content: '';
+    position: absolute; left: 0; top: 11px;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent-blue);
+  }
+
+  .fc-blue::before { background: var(--accent-blue); }
+  .fc-blue .icon { background: rgba(59,130,246,0.12); color: var(--accent-blue); }
+  .fc-cyan::before { background: var(--accent-cyan); }
+  .fc-cyan .icon { background: rgba(6,182,212,0.12); color: var(--accent-cyan); }
+  .fc-green::before { background: var(--accent-green); }
+  .fc-green .icon { background: rgba(34,197,94,0.12); color: var(--accent-green); }
+  .fc-amber::before { background: var(--accent-amber); }
+  .fc-amber .icon { background: rgba(245,158,11,0.12); color: var(--accent-amber); }
+  .fc-purple::before { background: var(--accent-purple); }
+  .fc-purple .icon { background: rgba(139,92,246,0.12); color: var(--accent-purple); }
+  .fc-pink::before { background: var(--accent-pink); }
+  .fc-pink .icon { background: rgba(236,72,153,0.12); color: var(--accent-pink); }
+  .fc-red::before { background: var(--accent-red); }
+  .fc-red .icon { background: rgba(239,68,68,0.12); color: var(--accent-red); }
+
+  /* ── Architecture ── */
+  .arch-diagram {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    padding: 40px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .arch-diagram .comment { color: #64748b; }
+  .arch-diagram .keyword { color: var(--accent-blue); font-weight: 600; }
+  .arch-diagram .string { color: var(--accent-green); }
+  .arch-diagram .type { color: var(--accent-cyan); }
+  .arch-diagram .arrow { color: var(--accent-amber); }
+  .arch-diagram .bracket { color: var(--accent-purple); }
+  .arch-diagram .highlight-row { color: var(--accent-amber); }
+
+  /* ── Strategies ── */
+  .strategy-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+  }
+
+  .strategy-item {
+    background: var(--bg-card);
+    border-radius: var(--radius-sm);
+    padding: 18px 20px;
+    border: 1px solid var(--border);
+    display: flex; align-items: center; gap: 14px;
+    transition: all 0.2s;
+  }
+
+  .strategy-item:hover {
+    border-color: rgba(59,130,246,0.3);
+    background: var(--bg-card-hover);
+  }
+
+  .strategy-item .s-number {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    min-width: 22px;
+  }
+
+  .strategy-item .s-name {
+    font-size: 14px; font-weight: 600;
+  }
+
+  .strategy-item .s-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+
+  /* ── Timeline ── */
+  .timeline {
+    position: relative;
+    padding-left: 32px;
+  }
+
+  .timeline::before {
+    content: '';
+    position: absolute; left: 11px; top: 8px; bottom: 8px;
+    width: 2px;
+    background: linear-gradient(180deg, var(--accent-blue), var(--accent-cyan), var(--accent-green));
+    border-radius: 1px;
+  }
+
+  .tl-item {
+    position: relative;
+    margin-bottom: 28px;
+    padding-left: 0;
+  }
+
+  .tl-item::before {
+    content: '';
+    position: absolute;
+    left: -24px; top: 8px;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--bg-primary);
+    border: 2px solid var(--accent-blue);
+  }
+
+  .tl-item:nth-child(2)::before { border-color: var(--accent-cyan); }
+  .tl-item:nth-child(3)::before { border-color: var(--accent-green); }
+  .tl-item:nth-child(4)::before { border-color: var(--accent-amber); }
+  .tl-item:nth-child(5)::before { border-color: var(--accent-purple); }
+  .tl-item:nth-child(6)::before { border-color: var(--accent-pink); }
+
+  .tl-item .tl-version {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+  }
+
+  .tl-item .tl-title {
+    font-size: 16px; font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .tl-item .tl-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  /* ── Protocols ── */
+  .protocol-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+
+  .protocol-table th {
+    text-align: left;
+    padding: 12px 16px;
+    background: rgba(59,130,246,0.08);
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  .protocol-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(42,58,92,0.5);
+  }
+
+  .protocol-table tr:hover td {
+    background: rgba(59,130,246,0.04);
+  }
+
+  .tag {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .tag-blue { background: rgba(59,130,246,0.12); color: var(--accent-blue); }
+  .tag-green { background: rgba(34,197,94,0.12); color: var(--accent-green); }
+  .tag-amber { background: rgba(245,158,11,0.12); color: var(--accent-amber); }
+  .tag-purple { background: rgba(139,92,246,0.12); color: var(--accent-purple); }
+
+  /* ── Use Cases ── */
+  .usecase-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+  }
+
+  .usecase-card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 28px;
+    border: 1px solid var(--border);
+    transition: all 0.3s;
+  }
+
+  .usecase-card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(59,130,246,0.3);
+  }
+
+  .usecase-card .uc-number {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 32px;
+    font-weight: 800;
+    color: rgba(59,130,246,0.15);
+    margin-bottom: 8px;
+  }
+
+  .usecase-card h3 {
+    font-size: 16px; font-weight: 700;
+    margin-bottom: 6px;
+  }
+
+  .usecase-card p {
+    color: var(--text-secondary);
+    font-size: 13px;
+  }
+
+  /* ── Footer ── */
+  footer {
+    text-align: center;
+    padding: 48px 24px;
+    border-top: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+
+  footer a {
+    color: var(--accent-blue);
+    text-decoration: none;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    #intro .intro-grid {
+      grid-template-columns: 1fr;
+    }
+    .specs-grid {
+      grid-template-columns: 1fr;
+    }
+    .features-grid {
+      grid-template-columns: 1fr;
+    }
+    .hero-stats {
+      gap: 24px;
+    }
+    .arch-diagram {
+      padding: 20px;
+      font-size: 11px;
+    }
+    .section-header h2 {
+      font-size: 28px;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+<div class="bg-glow"></div>
+
+<!-- ═══ HERO ═══ -->
+<header class="hero">
+  <div class="hero-badge">
+    <span class="dot"></span>
+    项目状态 · 活跃开发中
+  </div>
+  <h1>GridSim</h1>
+  <p class="subtitle">多协议电网仿真平台 — IEC104 &amp; Modbus TCP 从站模拟器</p>
+  <span class="version-tag">v2.5.3 · 2026-05-22</span>
+
+  <div class="hero-stats">
+    <div class="hero-stat">
+      <div class="num">11</div>
+      <div class="label">自动变化策略</div>
+    </div>
+    <div class="hero-stat">
+      <div class="num">28</div>
+      <div class="label">MCP 工具</div>
+    </div>
+    <div class="hero-stat">
+      <div class="num">1000</div>
+      <div class="label">最大实例数</div>
+    </div>
+    <div class="hero-stat">
+      <div class="num">2</div>
+      <div class="label">协议支持</div>
+    </div>
+    <div class="hero-stat">
+      <div class="num">3</div>
+      <div class="label">编译平台</div>
+    </div>
+  </div>
+
+  <div class="scroll-indicator">
+    <span>向下滚动</span>
+    <div class="arrow"></div>
+  </div>
+</header>
+
+<!-- ═══ INTRO ═══ -->
+<section id="intro">
+  <div class="container">
+    <div class="intro-grid">
+      <div class="intro-text">
+        <h2 style="font-size:32px;font-weight:800;letter-spacing:-1px;margin-bottom:16px;">什么是 GridSim？</h2>
+        <p>GridSim 是一个 <span class="highlight">生产级 IEC104 从站模拟器</span>，用于变电站自动化测试。支持多实例并行运行，模拟 RTU 及间隔层设备，适用于 SCADA 系统开发和集成测试。</p>
+        <p>自 v2.0 起引入多实例服务模式 + Vue 3 Web 界面，v2.4 起支持 Modbus TCP 协议并行运行，v2.5 新增微电网仿真模块。目前已迭代至 <strong>v2.5.3</strong>。</p>
+        <p>背后技术栈：Go 1.21+ 后端 + Vue 3 + TypeScript + Element Plus + ECharts 前端，纯静态编译单二进制部署。</p>
+      </div>
+      <div class="specs-grid">
+        <div class="spec-item"><div class="key">语言</div><div class="val">Go 1.21+</div></div>
+        <div class="spec-item"><div class="key">前端</div><div class="val">Vue 3 + TS + ECharts</div></div>
+        <div class="spec-item"><div class="key">协议</div><div class="val">IEC 104 · Modbus TCP</div></div>
+        <div class="spec-item"><div class="key">运行模式</div><div class="val">传统 CLI / 服务模式</div></div>
+        <div class="spec-item"><div class="key">部署</div><div class="val">Linux · Windows · .deb</div></div>
+        <div class="spec-item"><div class="key">许可证</div><div class="val">MIT</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ FEATURES ═══ -->
+<section id="features">
+  <div class="container">
+    <div class="section-header">
+      <h2>核心能力</h2>
+      <p>从一个模拟器到一个仿真平台 — GridSim 不断进化</p>
+      <div class="accent-line" style="background:linear-gradient(90deg,var(--accent-blue),var(--accent-cyan));"></div>
+    </div>
+
+    <div class="features-grid">
+
+      <div class="feature-card fc-blue">
+        <div class="icon">⚡</div>
+        <h3>IEC 104 协议引擎</h3>
+        <p>完整实现 IEC104 从站协议：遥测 AI、遥信 DI、遥脉 PI、遥控 DO、遥调 AO。支持总召唤、电度召唤、变化上送 (COT=3)、品质描述 QDS。</p>
+      </div>
+
+      <div class="feature-card fc-green">
+        <div class="icon">🔌</div>
+        <h3>Modbus TCP 并行运行</h3>
+        <p>与 IEC104 共享同一数据源，支持功能码 01/02/03/04/05/06/15/16。点表扩展列自动识别，支持 4 种字节序（ABCD/CDAB/BADC/DCBA）。</p>
+      </div>
+
+      <div class="feature-card fc-amber">
+        <div class="icon">🔄</div>
+        <h3>11 种自动变化策略</h3>
+        <p>递增、随机、CSV 回放、MAX/MIN、SOC 计算、电量统计、AO 关联、接口更新、手动、自定义公式。每个策略独立 goroutine 调度，实例启停自动管理。</p>
+      </div>
+
+      <div class="feature-card fc-cyan">
+        <div class="icon">📊</div>
+        <h3>ECharts 实时趋势</h3>
+        <p>TrendPage 全面重构，基于测点真实时间戳渲染。缩放拖拽、十字准线 tooltip、8 色主题、图例显隐。时间范围 5m~2h，轮询 200ms~5s 可配置。</p>
+      </div>
+
+      <div class="feature-card fc-purple">
+        <div class="icon">📡</div>
+        <h3>CSV 多测点同步回放</h3>
+        <p>上传多列 CSV 文件，每列映射到不同测点。相对/绝对时间两种模式，多个测点共享同一时间基准严格同步。支持文件下拉选择和列名自动匹配。</p>
+      </div>
+
+      <div class="feature-card fc-pink">
+        <div class="icon">🧠</div>
+        <h3>MCP Server（28 工具）</h3>
+        <p>Model Context Protocol 服务，提供完整程序化控制接口。实例管理（9 工具）、数据接口（17 工具）、全局工具（2 工具）。AI 助手可直接控制模拟器。</p>
+      </div>
+
+      <div class="feature-card fc-red">
+        <div class="icon">🔬</div>
+        <h3>微电网仿真模块</h3>
+        <p>设备管理 + SVG拓扑 + 6-step tick 仿真引擎。支持光伏、储能、负荷、充电桩四种设备。功率平衡公式、SOC 计算、远方/本地控制模式、SVG 拓扑图。</p>
+      </div>
+
+      <div class="feature-card fc-blue">
+        <div class="icon">⚙️</div>
+        <h3>多实例管理（最多 1000）</h3>
+        <p>serve 子命令启动服务模式，通过 Vue 3 Web 界面管理实例生命周期。增删改查、启停控制、运行监控（自动刷新）、配置持久化。</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ═══ ARCHITECTURE ═══ -->
+<section id="architecture">
+  <div class="container">
+    <div class="section-header">
+      <h2>架构总览</h2>
+      <p>分层设计，各模块职责清晰</p>
+      <div class="accent-line" style="background:linear-gradient(90deg,var(--accent-purple),var(--accent-pink));"></div>
+    </div>
+
+    <div class="arch-diagram">
+<pre>┌──────────────────────────────────────────────────────────────┐
+│                      <span class="keyword">gridsim</span> (入口)                              │
+├──────────────────────────────────────────────────────────────┤
+│                                                               │
+│  ┌──────────────────┐    ┌──────────────────┐                │
+│  │  <span class="type">Config Loader</span>   │    │  <span class="type">Point Library</span>   │                │
+│  │  (excelize .xlsx) │───▶│ map[uint32]Point  │                │
+│  │  解析 → 校验       │    │ sync.RWMutex     │                │
+│  └──────────────────┘    └────────┬─────────┘                │
+│                                   │                           │
+│  ┌──────────────────────────────────────────────────────┐    │
+│  │                <span class="keyword">Core Engine</span>                          │    │
+│  │  ┌──────────────────┐  ┌────────────────────────┐    │    │
+│  │  │  <span class="type">Protocol Server</span>  │  │  <span class="type">Change Publisher</span>    │    │    │
+│  │  │  (IEC104/Modbus)  │  │  (值变更→组包→发送)    │    │    │
+│  │  │  - 总召响应        │  │                          │    │    │
+│  │  │  - AO/DO 控制     │  │                          │    │    │
+│  │  │  - 变化上送        │  │                          │    │    │
+│  │  └──────────────────┘  └────────────────────────┘    │    │
+│  └──────────────────────────────────────────────────────┘    │
+│                                                               │
+│  ┌──────────────────────────────────────────────────────┐    │
+│  │              <span class="keyword">HTTP API Server</span> (net/http)               │    │
+│  │  ┌─────────────┐  ┌──────────────┐  ┌────────────┐    │    │
+│  │  │ Instance    │  │ Detail/Points│  │ Auto-Change│    │    │
+│  │  │ Management  │  │ CRUD         │  │ Config     │    │    │
+│  │  └─────────────┘  └──────────────┘  └────────────┘    │    │
+│  └──────────────────────────────────────────────────────┘    │
+│                                                               │
+│  ┌──────────────────────────────────────────────────────┐    │
+│  │              <span class="keyword">MCP Server</span> (28 工具)                     │    │
+│  └──────────────────────────────────────────────────────┘    │
+│                                                               │
+│  CLI: gridsim serve --http :8989 --config-dir ./config        │
+│       gridsim -p 2404 -c point.xlsx -H :8080                  │
+└──────────────────────────────────────────────────────────────┘</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ STRATEGIES ═══ -->
+<section id="strategies">
+  <div class="container">
+    <div class="section-header">
+      <h2>自动变化策略全家桶</h2>
+      <p>后台独立 goroutine 调度，覆盖从简单到复杂的全部仿真需求</p>
+      <div class="accent-line" style="background:linear-gradient(90deg,var(--accent-amber),var(--accent-red));"></div>
+    </div>
+
+    <div class="strategy-grid">
+      <div class="strategy-item">
+        <div class="s-number">01</div>
+        <div><div class="s-name">递增 <span style="font-size:12px;color:var(--text-muted);font-weight:400;">Increment</span></div><div class="s-desc">每周期 +step，达上限回起始值</div></div>
+      </div>
+      <div class="strategy-item">
+        <div class="s-number">02</div>
+        <div><div class="s-name">随机 <span style="font-size:12px;color:var(--text-muted);font-weight:400;">Random</span></div><div class="s-desc">区间内随机取值，模拟噪声波动</div></div>
+      </div>
+      <div class="strategy-item">
+        <div class="s-number">03</div>
+        <div><div class="s-name">CSV 回放 <span style="font-size:12px;color:var(--text-muted);font-weight:400;">CSV Replay</span></div><div class="s-desc">按时间序列播放真实录波数据</div></div>
+      </div>
+      <div class="strategy-item">
+        <div class="s-number">04</div>
+        <div><div class="s-name">MAX 取大</div><div class="s-desc">取多个 IOA 最大值，联锁逻辑</div></div>
+      </div>
+      <div class="strategy-item">
+        <div class="s-number">05</div>
+        <div><div class="s-name">MIN 取小</div><div class="s-desc">取多个 IOA 最小值，联锁逻辑</div></div>
+      </div>
+      <div class="strategy-item">
+        <div class="s-number">06</div>
+        <div><div class="s-name">SOC 计算 <span style="font-size:12px;color:var(--text-muted);font-weight:400;">SOC</span></div><div class="s-desc">基于功率积分计算电池荷电状态</div></div>
+      </div>
+      <div class="strategy-item">
+        <div class="s-number">07</div>
+        <div><div class="s-name">电量统计 <span style="font-size:12px;color:var(--text-muted);font-weight:400;">Energy</span></div><div class="s-desc">积分累计充放电电量</div></div>
+      </div>
+      <div class="strategy-item">
+        <div class="s-number">08</div>
+        <div><div class="s-name">AO 关联 <span style="font-size:12px;color:var(--text-muted);font-weight:400;">AO Follow</span></div><div class="s-desc">跟随 AO 遥控值变化</div></div>
+      </div>
+      <div class="strategy-item">
+        <div class="s-number">09</div>
+        <div><div class="s-name">接口更新 <span style="font-size:12px;color:var(--text-muted);font-weight:400;">API Update</span></div><div class="s-desc">仅允许 HTTP API 写入</div></div>
+      </div>
+      <div class="strategy-item">
+        <div class="s-number">10</div>
+        <div><div class="s-name">手动 <span style="font-size:12px;color:var(--text-muted);font-weight:400;">Manual</span></div><div class="s-desc">不自动计算，需 API 置数</div></div>
+      </div>
+      <div class="strategy-item">
+        <div class="s-number">11</div>
+        <div><div class="s-name">自定义公式 <span style="font-size:12px;color:var(--text-muted);font-weight:400;">Custom</span></div><div class="s-desc">四则运算公式，2~50 关联测点</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ PROTOCOL ═══ -->
+<section id="protocols">
+  <div class="container">
+    <div class="section-header">
+      <h2>协议支持对比</h2>
+      <p>IEC104 与 Modbus TCP 并行运行，共享同一数据源</p>
+      <div class="accent-line" style="background:linear-gradient(90deg,var(--accent-green),var(--accent-cyan));"></div>
+    </div>
+
+    <table class="protocol-table">
+      <thead>
+        <tr><th>维度</th><th>IEC104</th><th>Modbus TCP</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>地址标识</strong></td><td>IOA（信息体地址）</td><td>Register Address / Coil Address</td></tr>
+        <tr><td><strong>功能标识</strong></td><td>ASDU TypeID（13/1/15/45/48）</td><td>Function Code（01~06,15,16）</td></tr>
+        <tr><td><strong>数据类型</strong></td><td>AI/DI/PI/DO/AO</td><td>Holding/Input Register, Coil, DI</td></tr>
+        <tr><td><strong>默认端口</strong></td><td>2404</td><td>502</td></tr>
+        <tr><td><strong>字节序</strong></td><td>IEEE 754 float</td><td>ABCD / CDAB / BADC / DCBA</td></tr>
+        <tr><td><strong>并发客户端</strong></td><td>1</td><td>≥10</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══ USE CASES ═══ -->
+<section id="usecases">
+  <div class="container">
+    <div class="section-header">
+      <h2>典型应用场景</h2>
+      <p>从变电站仿真到微电网研究，GridSim 无处不在</p>
+      <div class="accent-line" style="background:linear-gradient(90deg,var(--accent-green),var(--accent-amber));"></div>
+    </div>
+
+    <div class="usecase-grid">
+      <div class="usecase-card">
+        <div class="uc-number">01</div>
+        <h3>变电站遥测仿真</h3>
+        <p>模拟 RTU 设备，通过 IEC104 协议向 SCADA 系统发送遥测/遥信数据。支持 HTTP API 动态修改值，实时触发变化上送 (COT=3)。</p>
+      </div>
+      <div class="usecase-card">
+        <div class="uc-number">02</div>
+        <h3>SCADA 集成测试</h3>
+        <p>无需真实硬件，在开发环境中模拟上百个测点。多实例并行运行模拟不同变电站，验证 SCADA 系统的总召、遥控、变化上报处理逻辑。</p>
+      </div>
+      <div class="usecase-card">
+        <div class="uc-number">03</div>
+        <h3>微电网仿真研究</h3>
+        <p>表单式设备管理，配置 PV/储能/负荷/充电桩。功率平衡自动计算，SOC 动态更新。适合微电网控制策略验证和能量管理系统测试。</p>
+      </div>
+      <div class="usecase-card">
+        <div class="uc-number">04</div>
+        <h3>AI Agent 工具链集成</h3>
+        <p>通过 MCP Server 暴露 28 个工具，AI 助手可以直接操作模拟器。创建实例、读写测点、配置策略、控制 CSV 回放 — 全链路 AI 驱动自动化测试。</p>
+      </div>
+      <div class="usecase-card">
+        <div class="uc-number">05</div>
+        <h3>多规约网关验证</h3>
+        <p>同一数据源同时提供 IEC104 和 Modbus TCP 接口，验证协议网关的数据一致性。适用多规约转换设备的出厂测试和验收。</p>
+      </div>
+      <div class="usecase-card">
+        <div class="uc-number">06</div>
+        <h3>CSV 录波数据回放</h3>
+        <p>将真实故障录波 CSV 文件导入模拟器，多测点同步回放。用于保护装置测试、故障分析复现、算法验证。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ TECH ═══ -->
+<section id="tech">
+  <div class="container" style="padding-bottom:60px;">
+    <div class="section-header">
+      <h2>技术栈一览</h2>
+      <div class="accent-line" style="background:linear-gradient(90deg,var(--accent-blue),var(--accent-purple));"></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;">
+      <div class="strategy-item"><div class="s-number">Go</div><div><div class="s-name">1.21+</div><div class="s-desc">后端主语言</div></div></div>
+      <div class="strategy-item"><div class="s-number">Vue3</div><div><div class="s-name">Composition API</div><div class="s-desc">前端框架</div></div></div>
+      <div class="strategy-item"><div class="s-number">TS</div><div><div class="s-name">TypeScript</div><div class="s-desc">前端语言</div></div></div>
+      <div class="strategy-item"><div class="s-number">Element</div><div><div class="s-name">Element Plus</div><div class="s-desc">UI 组件库</div></div></div>
+      <div class="strategy-item"><div class="s-number">ECharts</div><div><div class="s-name">5.x</div><div class="s-desc">图表引擎</div></div></div>
+      <div class="strategy-item"><div class="s-number">Vite</div><div><div class="s-name">构建工具</div><div class="s-desc">前端打包</div></div></div>
+      <div class="strategy-item"><div class="s-number">excelize</div><div><div class="s-name">v2</div><div class="s-desc">Excel 解析</div></div></div>
+      <div class="strategy-item"><div class="s-number">pflag</div><div><div class="s-name">spf13/pflag</div><div class="s-desc">CLI 参数</div></div></div>
+      <div class="strategy-item"><div class="s-number">IEC</div><div><div class="s-name">go-iecp5</div><div class="s-desc">IEC104 库</div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ FOOTER ═══ -->
+<footer>
+  <p>GridSim — 多协议电网仿真平台 &nbsp;·&nbsp; <a href="https://github.com/your-org/gridsim" target="_blank">GitHub</a></p>
+  <p style="margin-top:6px;">Built with Go + Vue 3 &nbsp;·&nbsp; MIT License &nbsp;·&nbsp; v2.5.3</p>
+</footer>
+
+<!-- ═══ ENTRANCE ANIMATION ═══ -->
+<script>
+  (function() {
+    const cards = document.querySelectorAll('.feature-card, .usecase-card, .strategy-item, .spec-item');
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry, i) => {
+        if (entry.isIntersecting) {
+          entry.target.style.opacity = '1';
+          entry.target.style.transform = 'translateY(0)';
+        }
+      });
+    }, { threshold: 0.1 });
+
+    cards.forEach((card, i) => {
+      card.style.opacity = '0';
+      card.style.transform = 'translateY(20px)';
+      card.style.transition = `all 0.5s ease ${(i % 8) * 0.06}s`;
+      observer.observe(card);
+    });
+  })();
+</script>
+
+</body>
+</html>

@@ -98,6 +98,24 @@ curl -X PUT .../points/auto-change/16385 \
 | 409 | 冲突 |
 | 500 | 服务端内部错误 |
 
+## 微电网 API（v2.5+）
+
+| 方法 | 端点 | 说明 |
+|------|------|------|
+| `GET` | `/api/v1/microgrid/{id}/topology` | 获取拓扑配置 |
+| `PUT` | `/api/v1/microgrid/{id}/topology` | 更新拓扑配置 |
+| `POST` | `/api/v1/microgrid/{id}/device` | 新增设备 |
+| `PUT` | `/api/v1/microgrid/{id}/device/{devId}` | 更新设备 |
+| `DELETE` | `/api/v1/microgrid/{id}/device/{devId}` | 删除设备 |
+| `POST` | `/api/v1/microgrid/{id}/control/{devId}` | 开关控制 |
+| `GET` | `/api/v1/microgrid/{id}/dashboard` | 实时仪表盘数据 |
+| `GET` | `/api/v1/microgrid/{id}/points` | IEC104 测点列表 |
+| `GET` | `/api/v1/microgrid/{id}/formulas` | 自定义公式列表 |
+| `POST` | `/api/v1/microgrid/{id}/formulas` | 创建自定义公式 |
+| `PUT` | `/api/v1/microgrid/{id}/formulas/{fid}` | 更新自定义公式 |
+| `DELETE` | `/api/v1/microgrid/{id}/formulas/{fid}` | 删除自定义公式 |
+| `GET` | `/api/v1/microgrid/{id}/export-xlsx` | 导出标准点表 xlsx |
+
 ---
 
-相关笔记：[[API/MCP 服务|MCP 服务]]、[[架构设计/数据模型|数据模型]]
+相关笔记：[[API/MCP 服务|MCP 服务]]、[[架构设计/数据模型|数据模型]]、[[微电网/微电网API|微电网 API 详情]]
