@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 
 	"gridsim/internal/model"
@@ -229,6 +230,7 @@ func HandleMicrogridPoints(mgr ManagerBridge) http.HandlerFunc {
 
 		if store := mgr.GetStore(id); store != nil {
 			pts := store.GetAll()
+			sort.Slice(pts, func(i, j int) bool { return pts[i].IOA < pts[j].IOA })
 			result := make([]map[string]interface{}, len(pts))
 			for i, p := range pts {
 				unit := ""

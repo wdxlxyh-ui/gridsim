@@ -1,0 +1,185 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>微电网拓扑 v5 — 方向感知流动</title>
+<style>
+:root{--bg:#f8f9fb;--sf:#fff;--bd:#e4e7ed;--tx:#303133;--t2:#909399;--pv:#67c23a;--bat:#409eff;--ld:#e6a23c;--ch:#909399;--off:#c0c4cc}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,-apple-system,sans-serif;background:#eef1f6;color:var(--tx);min-height:100vh;display:flex;justify-content:center;align-items:flex-start;padding:24px}
+.panel{background:var(--sf);border:1px solid var(--bd);border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.08);max-width:960px;width:100%;overflow:hidden}
+.ph{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid var(--bd);background:#fafbfc;flex-wrap:wrap;gap:8px}
+.ph h2{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--pv);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.ctls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.legend{display:flex;gap:12px;font-size:11px;color:var(--t2)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:3px;vertical-align:middle}
+.bg{display:flex;border:1px solid var(--bd);border-radius:6px;overflow:hidden}
+.bg button{background:var(--sf);border:none;border-right:1px solid var(--bd);color:var(--tx);font-size:14px;font-weight:600;width:34px;height:30px;cursor:pointer;transition:background .15s}
+.bg button:hover{background:var(--pv);color:#fff}
+.bg button:last-child{border-right:none}
+.canvas{overflow:auto;max-height:600px;background:linear-gradient(180deg,#fafbfc,#f0f2f5)}
+.xform{transform-origin:0 0;transition:transform .15s ease;min-width:680px}
+.sb{padding:10px 20px;border-top:1px solid var(--bd);background:#fafbfc;display:flex;justify-content:space-between;font-size:12px;color:var(--t2);flex-wrap:wrap;gap:8px}
+.sb strong{color:var(--tx)}
+
+/* ═══ 方向感知流动效 ═══ */
+@keyframes f-up{to{stroke-dashoffset:32}}
+@keyframes f-dn{to{stroke-dashoffset:-32}}
+.fl-up{stroke-dasharray:12 4;animation:f-up .6s linear infinite;stroke-width:3.5}
+.fl-dn{stroke-dasharray:12 4;animation:f-dn .6s linear infinite;stroke-width:3.5}
+.fz{stroke-dasharray:4 8;stroke:var(--off);stroke-width:2}
+</style></head><body>
+<div class="panel">
+<div class="ph">
+<h2><span class="dot"></span>微电网拓扑 — 10kV 母线</h2>
+<div class="ctls">
+<div class="legend">
+<span><i style="background:var(--pv)"></i>发电</span>
+<span><i style="background:var(--ld)"></i>用电</span>
+<span><i style="background:var(--bat)"></i>储能</span>
+<span><i style="background:var(--off)"></i>断开</span>
+</div>
+<div class="bg">
+<button onclick="zoomIn()">+</button>
+<button onclick="zoomReset()" style="font-size:12px;width:40px">1:1</button>
+<button onclick="zoomOut()">−</button>
+</div>
+</div></div>
+<div class="canvas" id="wrap"><div class="xform" id="xf"><svg id="sv"></svg></div></div>
+<div class="sb" id="sbar">
+<span>设备: <strong id="sc">0</strong></span><span>发电: <strong id="sg">--</strong></span>
+<span>用电: <strong id="sl" style="color:var(--ld)">--</strong></span>
+<span>关口: <strong id="sgr">--</strong></span><span>频率: <strong id="sf">50.00 Hz</strong></span>
+</div></div>
+<script>
+var scale=1
+var devs=[
+  {id:'pv1',name:'光伏阵列 A',type:'pv',sw:{name:'QF1',closed:true},p:48.5,rate:80},
+  {id:'bat1',name:'ESS-1',type:'battery',sw:{name:'QF2',closed:true},p:-30,rate:200,soc:68},
+  {id:'load1',name:'车间负荷',type:'load',sw:{name:'QF3',closed:true},p:32,rate:60},
+  {id:'ch1',name:'充电桩 #1',type:'charger',sw:{name:'QF4',closed:true},p:15.5,rate:40},
+  {id:'pv2',name:'光伏阵列 B',type:'pv',sw:{name:'QF5',closed:false},p:0,rate:50},
+  {id:'load2',name:'办公楼',type:'load',sw:{name:'QF6',closed:true},p:0,rate:35}
+]
+var LB={pv:'光伏',battery:'储能',load:'负荷',charger:'充电桩'}
+var FC={pv:'#67c23a',battery:'#409eff',load:'#e6a23c',charger:'#909399'}
+
+var BUS_Y=260, MIN_GAP=120, ROW_H=126
+
+/* Direction-aware flow class */
+function fcls(dev){
+  if(!dev.sw.closed)return'fz'
+  if(dev.type==='pv')return dev.p>0.1?'fl-up':'fz'
+  if(dev.type==='battery')return dev.p>0.1?'fl-dn':(dev.p<-0.1?'fl-up':'fz')
+  /* load/charger: always consuming */
+  return dev.p>0.1?'fl-dn':'fz'
+}
+
+function render(){
+  var N=devs.length, W=Math.max(680,N*MIN_GAP+80), H=BUS_Y+N*ROW_H+60
+  var cx=W/2, sp=(W-80)/Math.max(N,1), sx=cx-(sp*(N-1))/2
+  var sv=document.getElementById('sv')
+  sv.setAttribute('viewBox','0 0 '+W+' '+H)
+  sv.setAttribute('width',W); sv.setAttribute('height',H)
+
+  var minX=sx-20, maxX=sx+(N-1)*sp+20
+  var swY=BUS_Y+50, swR=12, boxT=BUS_Y+90
+
+  var rows=''
+  for(var i=0;i<N;i++){
+    var d=devs[i], dx=sx+i*sp, cl=d.sw.closed, t=d.type
+    var fcname=fcls(d), lc=cl?FC[t]:'#c0c4cc'
+
+    rows+='<line x1="'+dx+'" y1="'+BUS_Y+'" x2="'+dx+'" y2="'+(swY-swR)+'" stroke="'+(cl?lc:'#c0c4cc')+'" stroke-width="3.5" stroke-linecap="round" class="'+fcname+'"/>'
+    var sf=cl?(t==='pv'?'#e8f5e9':t==='battery'?'#e3f2fd':'#fff3e0'):'#fef0f0'
+    rows+='<circle cx="'+dx+'" cy="'+swY+'" r="'+swR+'" fill="'+sf+'" stroke="'+(cl?'#67c23a':'#f56c6c')+'" stroke-width="2" style="cursor:pointer"/>'
+    rows+=cl?'<line x1="'+(dx-7)+'" y1="'+swY+'" x2="'+(dx+7)+'" y2="'+swY+'" stroke="#67c23a" stroke-width="2" stroke-linecap="round"/>'
+          :'<line x1="'+(dx-6)+'" y1="'+(swY-6)+'" x2="'+(dx+6)+'" y2="'+(swY+6)+'" stroke="#f56c6c" stroke-width="2" stroke-linecap="round"/>'
+    rows+='<line x1="'+dx+'" y1="'+(swY+swR)+'" x2="'+dx+'" y2="'+boxT+'" stroke="'+(cl?lc:'#c0c4cc')+'" stroke-width="3.5" stroke-linecap="round" class="'+fcname+'"/>'
+    rows+='<text x="'+dx+'" y="'+(swY+swR+13)+'" text-anchor="middle" font-size="9" fill="#909399">'+d.sw.name+'</text>'
+    rows+='<rect x="'+(dx-46)+'" y="'+boxT+'" width="92" height="34" rx="6" fill="'+(cl?FC[t]:'#e0e0e0')+'" stroke="'+lc+'" stroke-width="1.5" opacity="'+(cl?1:.5)+'"/>'
+    rows+='<text x="'+dx+'" y="'+(boxT+12)+'" text-anchor="middle" font-size="12" font-weight="700" fill="'+(cl?'#fff':'#999')+'">'+LB[t]+'</text>'
+    rows+='<text x="'+dx+'" y="'+(boxT+26)+'" text-anchor="middle" font-size="10" fill="'+(cl?'rgba(255,255,255,.9)':'#999')+'">'+d.name+'</text>'
+    if(cl){
+      var pv=d.p.toFixed(1)
+      rows+='<rect x="'+(dx-40)+'" y="'+(boxT+38)+'" width="80" height="18" rx="4" fill="'+lc+'" opacity=".1"/>'
+      rows+='<text x="'+dx+'" y="'+(boxT+50)+'" text-anchor="middle" font-size="11" font-weight="700" style="font-family:monospace" fill="'+lc+'">'+pv+' kW</text>'
+    }else{rows+='<text x="'+dx+'" y="'+(boxT+44)+'" text-anchor="middle" font-size="10" fill="#c0c4cc">已断开</text>'}
+  }
+
+  function act(d){return d.sw.closed}
+  var PV=devs.filter(function(d){return d.type=='pv'&&act(d)}).reduce(function(s,d){return s+d.p},0)
+  var LD=devs.filter(function(d){return d.type=='load'&&act(d)}).reduce(function(s,d){return s+d.p},0)
+  var CH=devs.filter(function(d){return d.type=='charger'&&act(d)}).reduce(function(s,d){return s+d.p},0)
+  var BAT=devs.filter(function(d){return d.type=='battery'&&act(d)}).reduce(function(s,d){return s+d.p},0)
+  var GRID=LD+CH+BAT-PV
+  var gen=PV+(BAT<0?-BAT:0), fr=50-GRID/(Math.max(gen+LD+CH,1))*.5
+  var sgn=GRID>=0?'+':'',gl=GRID>=0?'从电网用电':'向电网送电'
+
+  /* Trunk flow direction: GRID>0=importing→down, GRID<0=exporting→up */
+  var trunkFlow=GRID>0.1?'fl-dn':(GRID<-0.1?'fl-up':'fz')
+  var sy=H-50, sw2=Math.min(W-40,840), sxx=(W-sw2)/2
+
+  sv.innerHTML=
+  '<defs><pattern id="g" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0L0 0 0 40" fill="none" stroke="#e8eaef" stroke-width=".5"/></pattern></defs>'+
+  '<rect x="0" y="0" width="'+W+'" height="'+H+'" fill="url(#g)" opacity=".4"/>'+
+
+  // ═══ Grid ═══
+  '<rect x="'+(cx-56)+'" y="12" width="112" height="38" rx="6" fill="#fef0f0" stroke="#f89898" stroke-width="1.5" style="filter:drop-shadow(0 2px 4px rgba(0,0,0,.1))"/>'+
+  '<text x="'+cx+'" y="36" text-anchor="middle" font-size="14" font-weight="700" fill="#e63946">⚡ 电网</text>'+
+
+  // Grid → Meter (flow line, direction-aware)
+  '<line x1="'+cx+'" y1="50" x2="'+cx+'" y2="78" stroke="#bbb" stroke-width="3.5" stroke-linecap="round" class="'+trunkFlow+'"/>'+
+
+  // ═══ Meter ═══
+  '<rect x="'+(cx-56)+'" y="80" width="112" height="38" rx="6" fill="#fef7e0" stroke="#e8c560" stroke-width="1.5" style="filter:drop-shadow(0 2px 4px rgba(0,0,0,.1))"/>'+
+  '<text x="'+cx+'" y="104" text-anchor="middle" font-size="14" font-weight="700" fill="#b8860b">🔌 关口表</text>'+
+
+  // Meter → Bus (flow line, to bus bar at BUS_Y)
+  '<line x1="'+cx+'" y1="118" x2="'+cx+'" y2="'+BUS_Y+'" stroke="#bbb" stroke-width="3.5" stroke-linecap="round" class="'+trunkFlow+'"/>'+
+
+  // Bus label
+  '<text x="'+(cx+20)+'" y="'+(BUS_Y-45)+'" font-size="13" font-weight="700" fill="#303133">10kV 母线</text>'+
+  '<text x="'+(cx+20)+'" y="'+(BUS_Y-30)+'" font-size="11" fill="#909399">0.4 ~ 220 kV</text>'+
+
+  // ═══ Bus bar ═══
+  '<line x1="'+minX+'" y1="'+BUS_Y+'" x2="'+maxX+'" y2="'+BUS_Y+'" stroke="#555" stroke-width="3" stroke-linecap="round"/>'+
+
+  rows+
+
+  // ═══ Summary ═══
+  '<rect x="'+sxx+'" y="'+sy+'" width="'+sw2+'" height="36" rx="6" fill="#f0f4ff" stroke="#c6d6f0" stroke-width="1"/>'+
+  '<text x="'+(W/2)+'" y="'+(sy+12)+'" text-anchor="middle" font-size="12" font-weight="600" fill="#303133">GRID = ('+LD.toFixed(1)+'+'+CH.toFixed(1)+'<tspan fill="#e6a23c">+'+BAT.toFixed(1)+'</tspan>) − '+PV.toFixed(1)+' = <tspan fill="'+(GRID>=0?'#e6a23c':'#67c23a')+'" font-weight="700">'+sgn+GRID.toFixed(1)+' kW</tspan></text>'+
+  '<text x="'+(W/2)+'" y="'+(sy+28)+'" text-anchor="middle" font-size="11" fill="#909399">频率 '+fr.toFixed(2)+' Hz · '+gl+'</text>'
+
+  document.getElementById('sc').textContent=N
+  document.getElementById('sg').textContent=PV.toFixed(1)+' kW'
+  document.getElementById('sl').textContent=(LD+CH).toFixed(1)+' kW'
+  var e=document.getElementById('sgr'); e.textContent=(GRID>=0?'+':'')+GRID.toFixed(1)+' kW'; e.style.color=GRID>=0?'#e6a23c':'#67c23a'
+  document.getElementById('sf').textContent=fr.toFixed(2)+' Hz'
+}
+
+function appZ(){document.getElementById('xf').style.transform='scale('+scale+')'}
+function zoomIn(){scale=Math.min(3,+(scale+.25).toFixed(2));appZ()}
+function zoomOut(){scale=Math.max(.3,+(scale-.25).toFixed(2));appZ()}
+function zoomReset(){scale=1;appZ()}
+document.getElementById('wrap').addEventListener('wheel',function(e){if(!e.ctrlKey)return;e.preventDefault();e.deltaY<0?zoomIn():zoomOut()},{passive:false})
+
+/* When GRID changes sign, trunk lines swap direction. Simulate occasional reversal. */
+var tick=0
+function sim(){
+  tick++
+  devs.forEach(function(d){
+    if(!d.sw.closed)return
+    var j=(Math.random()-.5)*d.rate*.06
+    d.p=Math.round((d.p+j)*10)/10
+    if(d.type=='pv')d.p=Math.abs(d.p)
+    if(d.type=='battery'){
+      d.p=Math.max(-d.rate,Math.min(d.rate,d.p+j*2))
+      d.soc=Math.max(0,Math.min(100,d.soc+(d.p>0?.08:-.08)))
+    }
+    /* Occasional sign flips for load2 demo (drops to 0) */
+    if(d.id==='load2'&&tick%10===0)d.p=Math.random()<.3?0:25*(.5+Math.random()*.5)
+  })
+  render()
+}
+render();setInterval(sim,2000)
+</script></body></html>

@@ -329,6 +329,8 @@ export interface MicrogridDevice {
   name: string
   switch: MicrogridDeviceSwitch
   params: MicrogridDeviceParams
+  power?: number
+  soc?: number
   custom_points?: MicrogridCustomPoint[]
 }
 

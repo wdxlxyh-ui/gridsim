@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GridSim 微电网 — 单母线拓扑</title>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@300;400;500;600;700&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --primary: #F97316; --primary-hover: #EA580C; --on-primary: #0F172A;
+  --accent: #22C55E; --accent-hover: #16A34A;
+  --bg: #0F172A; --bg-card: #1E293B; --bg-surface: #1F2937;
+  --bg-hover: #334155; --fg: #F8FAFC; --fg-secondary: #94A3B8;
+  --fg-muted: #64748B; --muted: #37414F; --border: #374151;
+  --destructive: #EF4444; --warning: #F59E0B;
+  --font-sans: 'Fira Sans', system-ui, sans-serif;
+  --font-mono: 'Fira Code', monospace;
+  --radius: 8px; --radius-sm: 4px;
+  --shadow: 0 1px 3px rgba(0,0,0,.3);
+  --shadow-lg: 0 10px 25px rgba(0,0,0,.5);
+  --transition: 150ms ease;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--font-sans);background:var(--bg);color:var(--fg);overflow:hidden;height:100vh}
+.app{display:flex;height:100vh}
+
+/* Sidebar */
+.sidebar{width:260px;min-width:260px;background:var(--bg-card);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.sb-head{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.sb-head .logo{width:30px;height:30px;background:var(--primary);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:var(--on-primary)}
+.sb-head h1{font-size:15px;font-weight:600}
+.sb-head .badge{font-size:10px;padding:2px 6px;background:var(--muted);border-radius:10px;color:var(--fg-secondary);margin-left:auto}
+.sb-nav{flex:1;overflow-y:auto;padding:6px}
+.nav-sect{font-size:10px;font-weight:600;text-transform:uppercase;color:var(--fg-muted);padding:10px 12px 4px;letter-spacing:.05em}
+.nav-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--radius);cursor:pointer;transition:background var(--transition);font-size:13px;position:relative}
+.nav-item:hover{background:var(--bg-hover)}
+.nav-item.active{background:rgba(249,115,22,.12);color:var(--primary);border-left:3px solid var(--primary)}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.dot-g{background:var(--accent);box-shadow:0 0 6px rgba(34,197,94,.4)}
+.dot-r{background:var(--destructive)}
+.dot-y{background:var(--warning)}
+.dot-gray{background:var(--fg-muted)}
+.nav-item .tag-sm{font-size:10px;padding:1px 5px;border-radius:3px;margin-left:auto}
+.tag-unconfig{background:rgba(245,158,11,.15);color:var(--warning)}
+.tag-stopped{background:var(--muted);color:var(--fg-secondary)}
+.tag-running{background:rgba(34,197,94,.15);color:#4ADE80}
+.nav-item .port{font-size:10px;font-family:var(--font-mono);color:var(--fg-muted);background:var(--bg);padding:1px 5px;border-radius:3px}
+.sb-foot{padding:10px 12px;border-top:1px solid var(--border);font-size:11px;color:var(--fg-muted)}
+.sb-foot .row{display:flex;align-items:center;gap:6px;margin-top:4px}
+/* Main */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.toolbar{display:flex;align-items:center;gap:10px;padding:10px 20px;background:var(--bg-card);border-bottom:1px solid var(--border);min-height:50px;flex-wrap:wrap}
+.toolbar h2{font-size:15px;font-weight:600}
+.status-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600}
+.status-badge.stopped{background:var(--muted);color:var(--fg-secondary)}
+.status-badge.running{background:rgba(34,197,94,.15);color:#4ADE80}
+.status-badge.config{background:rgba(245,158,11,.15);color:var(--warning)}
+.ml-auto{margin-left:auto}
+.btn-group{display:flex;gap:6px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:var(--radius);font-family:var(--font-sans);font-size:12px;font-weight:500;border:1px solid var(--border);background:var(--bg-surface);color:var(--fg);cursor:pointer;transition:all var(--transition);white-space:nowrap}
+.btn:hover{background:var(--bg-hover)}
+.btn-primary{background:var(--primary);color:var(--on-primary);border-color:var(--primary)}
+.btn-primary:hover{background:var(--primary-hover)}
+.btn-primary:disabled{opacity:.4;cursor:not-allowed}
+.btn-accent{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn-accent:hover{background:var(--accent-hover)}
+.btn-danger{color:var(--destructive);border-color:var(--destructive)}
+.btn-danger:hover{background:rgba(239,68,68,.15)}
+.btn-sm{padding:4px 10px;font-size:11px}
+.btn-ghost{background:transparent;border-color:transparent}
+.btn-ghost:hover{background:var(--bg-hover)}
+.btn-icon{padding:5px;min-width:28px;justify-content:center}
+/* Tabs */
+.tabs{display:flex;border-bottom:1px solid var(--border);background:var(--bg-card);padding:0 16px}
+.tab{padding:10px 14px;font-size:13px;font-weight:500;color:var(--fg-muted);cursor:pointer;border-bottom:2px solid transparent;transition:all var(--transition)}
+.tab:hover{color:var(--fg)}
+.tab.active{color:var(--primary);border-bottom-color:var(--primary)}
+.content{flex:1;overflow-y:auto;padding:16px 20px}
+.tab-content{display:none}
+.tab-content.active{display:block}
+
+/* Topology Canvas */
+.topo-wrap{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;position:relative;min-height:380px}
+.topo-canvas{width:100%;height:400px;position:relative;overflow:hidden}
+.topo-canvas svg{width:100%;height:100%;display:block}
+.topo-toolbar{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg-card);border-top:1px solid var(--border);flex-wrap:wrap}
+.topo-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--fg-muted);gap:12px}
+.topo-empty svg{width:56px;height:56px;opacity:.35}
+.topo-empty .hint{font-size:14px}
+.topo-empty .sub{font-size:12px;opacity:.7}
+/* Floating add panel */
+.add-panel{position:absolute;right:12px;top:12px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:12px;width:176px;z-index:10}
+.add-panel h4{font-size:10px;color:var(--fg-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em}
+.add-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.add-btn{display:flex;align-items:center;gap:5px;padding:6px 8px;border-radius:var(--radius-sm);background:var(--bg-surface);border:1px solid var(--border);color:var(--fg);cursor:pointer;font-size:11px;transition:all var(--transition)}
+.add-btn:hover{background:var(--bg-hover);border-color:var(--primary)}
+.add-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+/* Device stats legend */
+.topo-legend{display:flex;flex-wrap:wrap;gap:6px;padding:6px 12px;background:var(--bg);border-top:1px solid var(--border);font-size:11px;color:var(--fg-muted)}
+.topo-legend-item{display:flex;align-items:center;gap:4px}
+.topo-legend-dot{width:9px;height:9px;border-radius:2px}
+
+/* Cards */
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:14px}
+.card-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.card-hd h3{font-size:14px;font-weight:600}
+.card-hd .sub{font-size:11px;color:var(--fg-muted)}
+/* Stats */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:16px}
+.stat-c{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px}
+.stat-l{font-size:11px;color:var(--fg-muted)}
+.stat-v{font-size:22px;font-weight:700;font-family:var(--font-mono);margin-top:2px}
+.stat-u{font-size:12px;color:var(--fg-secondary);font-weight:400}
+.stat-chg{font-size:11px;margin-top:2px}
+
+/* Points table */
+.ptab{width:100%;border-collapse:collapse;font-size:12px}
+.ptab th{text-align:left;padding:6px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--fg-muted);border-bottom:1px solid var(--border);letter-spacing:.04em}
+.ptab td{padding:6px 10px;border-bottom:1px solid rgba(55,65,81,.35);font-family:var(--font-mono);font-size:11px}
+.ptab tr:hover td{background:var(--bg-hover)}
+.type-tg{display:inline-block;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:600}
+.tg-ai{background:rgba(34,197,94,.2);color:#4ADE80}
+.tg-di{background:rgba(59,130,246,.2);color:#60A5FA}
+.tg-ao{background:rgba(249,115,22,.2);color:#FB923C}
+.tg-do{background:rgba(239,68,68,.2);color:#F87171}
+/* Switch indicator */
+.sw-ind{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.sw-cl{background:rgba(34,197,56,.12);color:#4ADE80}
+.sw-op{background:rgba(239,68,68,.12);color:#F87171}
+/* Tags */
+.tag{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:3px;font-size:10px;font-weight:500}
+.tag-gr{background:rgba(34,197,56,.12);color:#4ADE80}
+.tag-or{background:rgba(249,115,22,.12);color:#FB923C}
+.tag-bl{background:rgba(59,130,246,.12);color:#60A5FA}
+.tag-gy{background:var(--muted);color:var(--fg-secondary)}
+.tag-pu{background:rgba(167,139,250,.15);color:#A78BFA}
+/* Alert */
+.alert{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:var(--radius);font-size:12px;margin-bottom:10px}
+.alert-info{background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.25);color:#60A5FA}
+.alert-warn{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);color:#FBBF24}
+.alert-ok{background:rgba(34,197,56,.1);border:1px solid rgba(34,197,56,.25);color:#4ADE80}
+
+/* Modal */
+.m-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;z-index:1000;opacity:0;pointer-events:none;transition:opacity .2s}
+.m-overlay.open{opacity:1;pointer-events:all}
+.modal{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;width:480px;max-width:92vw;box-shadow:var(--shadow-lg);overflow:hidden}
+.modal-hd{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border)}
+.modal-hd h2{font-size:15px;font-weight:600}
+.modal-bd{padding:16px 18px;max-height:65vh;overflow-y:auto}
+.modal-ft{display:flex;justify-content:flex-end;gap:8px;padding:10px 18px;border-top:1px solid var(--border)}
+.modal-lg{width:580px}
+
+/* Forms */
+.fg{margin-bottom:10px}
+.fg label{display:block;font-size:12px;font-weight:500;color:var(--fg-secondary);margin-bottom:3px}
+.fg .hint{font-size:10px;color:var(--fg-muted);margin-top:2px}
+.fi{width:100%;padding:7px 10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--fg);font-family:var(--font-sans);font-size:13px;transition:border-color var(--transition)}
+.fi:focus{outline:none;border-color:var(--primary)}
+.fi::placeholder{color:var(--fg-muted)}
+select.fi{cursor:pointer}
+.fr{display:flex;gap:10px}
+.fr>*{flex:1}
+
+/* Device param modal specific */
+.param-section{margin-bottom:12px}
+.param-section h4{font-size:11px;font-weight:600;color:var(--fg-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+
+/* Text utilities */
+.text-muted{color:var(--fg-muted)}
+.text-sm{font-size:12px}
+.text-xs{font-size:11px}
+.text-mono{font-family:var(--font-mono)}
+.flex{display:flex}
+.items-center{align-items:center}
+.gap-1{gap:4px};.gap-2{gap:8px};.gap-3{gap:12px}
+.mb-2{margin-bottom:8px};.mb-3{margin-bottom:12px}
+.mt-1{margin-top:4px};.mt-2{margin-top:8px}
+.ml-auto{margin-left:auto}
+.truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--muted);border-radius:3px}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sb-head">
+      <div class="logo">GS</div>
+      <div><h1>GridSim</h1><div style="font-size:10px;color:var(--fg-muted)">微电网仿真</div></div>
+      <span class="badge">v2.6</span>
+    </div>
+    <div class="sb-nav">
+      <div class="nav-sect">微电网实例</div>
+      <div id="instanceList"></div>
+      <div style="padding:6px 12px;margin-top:4px">
+        <button class="btn btn-primary btn-sm" style="width:100%;justify-content:center" onclick="showCreate()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+          新建微电网
+        </button>
+      </div>
+      <div class="nav-sect" style="margin-top:8px">普通实例</div>
+      <div class="nav-item"><span class="dot dot-g"></span><span class="truncate">RTU-变电站A</span><span class="port">:2407</span></div>
+      <div class="nav-item"><span class="dot dot-gray"></span><span class="truncate">RTU-变电站B</span><span class="port">:2408</span></div>
+    </div>
+    <div class="sb-foot">
+      <div class="row"><span class="dot dot-r"></span>微电网: <span id="sbRunningCount">0</span>/<span id="sbTotalCount">3</span> 运行</div>
+      <div class="row" style="color:var(--fg-muted)">端口: <span id="sbPorts">:2404 ~ :2406</span></div>
+    </div>
+  </aside>
+  <div class="main">
+    <div class="toolbar">
+      <h2 id="tbTitle">微电网-园区</h2>
+      <span id="tbStatus" class="status-badge stopped">● 已停止</span>
+      <span id="tbPort" class="text-muted text-mono text-sm">:2404</span>
+      <div class="ml-auto btn-group">
+        <button id="btnStart" class="btn btn-sm btn-accent" onclick="startInstance()" disabled>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> 启动
+        </button>
+        <button class="btn btn-sm btn-ghost" onclick="stopInstance()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg> 停止
+        </button>
+        <button class="btn btn-sm btn-ghost" onclick="showPortEdit()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> 编辑
+        </button>
+        <button id="btnSaveTopo" class="btn btn-sm btn-primary" onclick="saveTopology()">保存配置</button>
+        <button class="btn btn-sm btn-ghost" onclick="openExport()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 导出
+        </button>
+      </div>
+    </div>
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab(this,'topo')">拓扑</div>
+      <div class="tab" onclick="switchTab(this,'dash')">仪表盘</div>
+      <div class="tab" onclick="switchTab(this,'points')">点表</div>
+      <div class="tab" onclick="switchTab(this,'export')">导出</div>
+    </div>
+    <div class="content">
+      <!-- Tab: Topology -->
+      <div id="tab-topo" class="tab-content active">
+        <div class="topo-wrap">
+          <div class="topo-canvas" id="topoCanvas"></div>
+          <div class="topo-toolbar">
+            <span id="deviceCountLabel" class="text-sm text-muted">设备: 0 个</span>
+            <span id="switchCountLabel" class="text-sm text-muted" style="margin-left:4px">| 开关: 0 合闸</span>
+            <span id="topoStatusLabel" class="ml-auto text-xs text-muted">点击开关切换分/合 · 点击设备编辑参数</span>
+          </div>
+        </div>
+      </div>
+      <!-- Tab: Dashboard -->
+      <div id="tab-dash" class="tab-content">
+        <div id="dashRunning">
+          <div class="stats-grid">
+            <div class="stat-c"><div class="stat-l">总发电</div><div class="stat-v">86.5 <span class="stat-u">kW</span></div><div class="stat-chg" style="color:#4ADE80">↑ 12.3 kW</div></div>
+            <div class="stat-c"><div class="stat-l">总负荷</div><div class="stat-v">142.8 <span class="stat-u">kW</span></div><div class="stat-chg" style="color:var(--destructive)">↑ 8.2 kW</div></div>
+            <div class="stat-c"><div class="stat-l">储能 SOC</div><div class="stat-v" style="color:#22C55E">67.2 <span class="stat-u">%</span></div><div class="stat-chg" style="color:#22C55E">充电中</div></div>
+            <div class="stat-c"><div class="stat-l">并网功率</div><div class="stat-v">56.3 <span class="stat-u">kW</span></div><div class="stat-chg" style="color:#60A5FA">购电中</div></div>
+            <div class="stat-c"><div class="stat-l">频率</div><div class="stat-v">50.02 <span class="stat-u">Hz</span></div><div class="stat-chg" style="color:#4ADE80">正常</div></div>
+            <div class="stat-c"><div class="stat-l">运行时长</div><div class="stat-v">127 <span class="stat-u">h</span></div><div class="stat-chg" style="color:var(--fg-muted)">已连续运行 5.3 天</div></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            <div class="card">
+              <div class="card-hd"><h3>PV 出力曲线</h3><span class="sub">今日</span></div>
+              <div style="height:150px;display:flex;align-items:flex-end;gap:3px;padding:6px 0">
+                <div style="flex:1;height:20%;background:rgba(52,211,153,.4);border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:15%;background:rgba(52,211,153,.4);border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:18%;background:rgba(52,211,153,.4);border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:30%;background:rgba(52,211,153,.5);border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:45%;background:rgba(52,211,153,.6);border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:60%;background:rgba(52,211,153,.7);border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:78%;background:rgba(52,211,153,.85);border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:90%;background:#34D399;border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:100%;background:#34D399;border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:95%;background:#34D399;border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:85%;background:rgba(52,211,153,.9);border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:70%;background:rgba(52,211,153,.8);border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:55%;background:rgba(52,211,153,.65);border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:40%;background:rgba(52,211,153,.5);border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:30%;background:rgba(52,211,153,.4);border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:22%;background:rgba(52,211,153,.35);border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:15%;background:rgba(52,211,153,.3);border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:10%;background:rgba(52,211,153,.25);border-radius:2px 2px 0 0"></div>
+              </div>
+              <div class="flex" style="justify-content:space-between;font-size:9px;color:var(--fg-muted);padding:0 2px"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
+            </div>
+            <div class="card">
+              <div class="card-hd"><h3>SOC 趋势</h3><span class="sub">最近 1h</span></div>
+              <div style="height:150px;display:flex;align-items:flex-end;gap:3px;padding:6px 0">
+                <div style="flex:1;height:55%;background:rgba(96,165,250,.6);border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:53%;background:rgba(96,165,250,.6);border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:52%;background:rgba(96,165,250,.6);border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:54%;background:rgba(96,165,250,.65);border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:56%;background:rgba(96,165,250,.65);border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:58%;background:rgba(96,165,250,.7);border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:60%;background:rgba(96,165,250,.75);border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:62%;background:rgba(96,165,250,.8);border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:64%;background:rgba(96,165,250,.85);border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:65%;background:rgba(96,165,250,.85);border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:66%;background:rgba(96,165,250,.9);border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:67%;background:#60A5FA;border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:67%;background:#60A5FA;border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:67%;background:#60A5FA;border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:67%;background:rgba(96,165,250,.9);border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:67%;background:rgba(96,165,250,.9);border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:67%;background:rgba(96,165,250,.85);border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:67%;background:rgba(96,165,250,.85);border-radius:2px 2px 0 0"></div>
+                <div style="flex:1;height:67%;background:rgba(96,165,250,.8);border-radius:2px 2px 0 0"></div>
+              </div>
+              <div class="flex" style="justify-content:space-between;font-size:9px;color:var(--fg-muted);padding:0 2px"><span>65%</span><span>66%</span><span>67%</span><span>68%</span></div>
+            </div>
+          </div>
+        </div>
+        <div id="dashStopped" class="card">
+          <div class="alert alert-info">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            实例未运行，启动后显示实时仪表盘数据
+          </div>
+        </div>
+      </div>
+      <!-- Tab: Points -->
+      <div id="tab-points" class="tab-content">
+        <div class="card">
+          <div class="card-hd"><h3>IEC104 点表</h3><div class="flex gap-1 items-center"><span class="text-xs text-muted" id="ptCount">共 0 点</span><button class="btn btn-sm btn-accent" onclick="openExport()">导出 .xlsx</button></div></div>
+          <div id="pointTableWrap"><div class="text-sm text-muted" style="padding:16px;text-align:center">请先在拓扑中添加设备并保存配置</div></div>
+        </div>
+      </div>
+      <!-- Tab: Export -->
+      <div id="tab-export" class="tab-content">
+        <div class="card">
+          <div class="card-hd"><h3>导出点表</h3></div>
+          <div class="alert alert-ok mb-3">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            微电网拓扑自动展开为 IEC104 标准点表
+          </div>
+          <div class="fr mb-3">
+            <div class="fg"><label>导出格式</label><select id="exportFormat" class="fi"><option>GridSim Excel (.xlsx)</option><option>CSV 格式</option></select></div>
+            <div class="fg"><label>包含测点</label>
+              <div class="flex gap-2" style="flex-wrap:wrap;margin-top:4px">
+                <label class="flex items-center gap-1" style="cursor:pointer;font-size:12px"><input type="checkbox" checked><span>AI</span></label>
+                <label class="flex items-center gap-1" style="cursor:pointer;font-size:12px"><input type="checkbox" checked><span>DI</span></label>
+                <label class="flex items-center gap-1" style="cursor:pointer;font-size:12px"><input type="checkbox" checked><span>AO</span></label>
+                <label class="flex items-center gap-1" style="cursor:pointer;font-size:12px"><input type="checkbox" checked><span>DO</span></label>
+              </div>
+            </div>
+          </div>
+          <div class="card" style="background:var(--bg)">
+            <div class="flex items-center gap-2"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22C55E" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><div><div style="font-weight:500;font-size:13px" id="exportFileName">microgrid_实例名_points.xlsx</div><div style="font-size:11px;color:var(--fg-muted)"><span id="exportPointCount">0</span> 个测点</div></div></div>
+          </div>
+          <div class="flex gap-2 mt-2"><button class="btn btn-accent" onclick="doExport()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 导出文件</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Create Modal -->
+<div class="m-overlay" id="createModal">
+  <div class="modal">
+    <div class="modal-hd"><h2>新建微电网实例</h2><button class="btn btn-icon btn-ghost" onclick="hideCreate()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div class="modal-bd">
+      <div class="alert alert-info mb-3">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        创建后请在详情页配置拓扑和参数，完成后启动
+      </div>
+      <div class="fg"><label>实例名称</label><input id="createName" class="fi" placeholder="如: 微电网-园区" value="微电网-光储充"></div>
+      <div class="fg"><label>IEC104 端口号</label><input id="createPort" class="fi text-mono" type="number" placeholder="2404" value="2409" min="1024" max="65535"><div class="hint">每个实例端口必须唯一，创建后可修改</div></div>
+    </div>
+    <div class="modal-ft"><button class="btn" onclick="hideCreate()">取消</button><button class="btn btn-primary" onclick="createInstance()">创建实例</button></div>
+  </div>
+</div>
+
+<!-- Device Param Modal -->
+<div class="m-overlay" id="deviceModal">
+  <div class="modal modal-lg">
+    <div class="modal-hd"><h2 id="devModalTitle">设备参数</h2><button class="btn btn-icon btn-ghost" onclick="hideDeviceModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div class="modal-bd">
+      <!-- Common fields -->
+      <div class="fr">
+        <div class="fg"><label>设备名称</label><input id="dpName" class="fi" placeholder="设备名称"></div>
+        <div class="fg"><label>开关标识</label><input id="dpSwitchName" class="fi text-mono" placeholder="如 QF1"></div>
+      </div>
+      <div class="fg"><label>开关状态</label>
+        <div class="flex gap-2 mt-1">
+          <label style="cursor:pointer;display:flex;align-items:center;gap:4px;font-size:13px"><input type="radio" name="swState" value="closed" checked> 合闸</label>
+          <label style="cursor:pointer;display:flex;align-items:center;gap:4px;font-size:13px"><input type="radio" name="swState" value="open"> 分闸</label>
+        </div>
+      </div>
+      <div id="dpPv" class="param-section" style="display:none"><h4>光伏参数</h4>
+        <div class="fr"><div class="fg"><label>额定功率 (kW)</label><input class="fi text-mono" type="number" id="pvRated" value="100" min="0" step="1"></div>
+        <div class="fg"><label>逆变效率</label><input class="fi text-mono" type="number" id="pvEff" value="0.95" min="0.7" max="1" step="0.01"><div class="hint">0.70 ~ 1.00</div></div></div>
+      </div>
+      <div id="dpBat" class="param-section" style="display:none"><h4>储能参数</h4>
+        <div class="fr"><div class="fg"><label>额定容量 (kWh)</label><input class="fi text-mono" type="number" id="batCap" value="200" min="0" step="1"></div>
+        <div class="fg"><label>额定功率 (kW)</label><input class="fi text-mono" type="number" id="batPower" value="100" min="0" step="1"></div></div>
+        <div class="fr"><div class="fg"><label>初始 SOC (%)</label><input class="fi text-mono" type="number" id="batInitSoc" value="50" min="0" max="100" step="1"></div>
+        <div class="fg"><label>SOC 下限 (%)</label><input class="fi text-mono" type="number" id="batSocMin" value="10" min="0" max="100" step="1"></div>
+        <div class="fg"><label>SOC 上限 (%)</label><input class="fi text-mono" type="number" id="batSocMax" value="90" min="0" max="100" step="1"></div></div>
+        <div class="fg"><label>充放电效率</label><input class="fi text-mono" type="number" id="batEff" value="0.95" min="0.7" max="1" step="0.01"></div>
+      </div>
+      <div id="dpLoad" class="param-section" style="display:none"><h4>负荷参数</h4>
+        <div class="fr"><div class="fg"><label>额定功率 (kW)</label><input class="fi text-mono" type="number" id="loadRated" value="50" min="0" step="1"></div>
+        <div class="fg"><label>功率因数</label><input class="fi text-mono" type="number" id="loadPf" value="0.95" min="0" max="1" step="0.01"></div></div>
+      </div>
+      <div id="dpChg" class="param-section" style="display:none"><h4>充电桩参数</h4>
+        <div class="fr"><div class="fg"><label>额定功率 (kW)</label><input class="fi text-mono" type="number" id="chgRated" value="60" min="0" step="1"></div>
+        <div class="fg"><label>充电效率</label><input class="fi text-mono" type="number" id="chgEff" value="0.90" min="0.7" max="1" step="0.01"></div></div>
+      </div>
+      <div id="dpDefault" class="alert alert-info"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> 请先选择设备类型</div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn btn-danger" id="btnDeleteDevice" onclick="deleteDevice()">删除设备</button>
+      <div class="ml-auto flex gap-2">
+        <button class="btn" onclick="hideDeviceModal()">取消</button>
+        <button class="btn btn-primary" onclick="saveDevice()">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Port Edit Modal -->
+<div class="m-overlay" id="portModal">
+  <div class="modal" style="width:380px">
+    <div class="modal-hd"><h2>编辑实例</h2><button class="btn btn-icon btn-ghost" onclick="hidePortEdit()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div class="modal-bd">
+      <div class="fg"><label>实例名称</label><input id="editName" class="fi"></div>
+      <div class="fg"><label>IEC104 端口</label><input id="editPort" class="fi text-mono" type="number" min="1024" max="65535"><div class="hint">修改端口需停止后生效</div></div>
+    </div>
+    <div class="modal-ft"><button class="btn" onclick="hidePortEdit()">取消</button><button class="btn btn-primary" onclick="savePortEdit()">保存</button></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toastC" style="position:fixed;bottom:20px;right:20px;z-index:9999"></div>
+
+<script>
+// =========================== STATE ===========================
+let nextDevId = 100;
+const COLORS = { pv: '#34D399', battery: '#60A5FA', load: '#FBBF24', charger: '#A78BFA' };
+const COLOR_BG = { pv: '#059669', battery: '#1D4ED8', load: '#92400E', charger: '#5B21B6' };
+const TYPE_LABELS = { pv:'光伏', battery:'储能', load:'负荷', charger:'充电桩' };
+const DEFAULT_PARAMS = {
+  pv: { ratedPowerKW: 100, efficiency: 0.95 },
+  battery: { capacityKWH: 200, ratedPowerKW: 100, initSOC: 50, socMin: 10, socMax: 90, eff: 0.95 },
+  load: { ratedPowerKW: 50, powerFactor: 0.95 },
+  charger: { ratedPowerKW: 60, eff: 0.90 }
+};
+
+const instances = {
+  'mg-1': makeInstance('微电网-园区', 2404, [
+    makeDev('pv','光伏#1', 'QF1', {ratedPowerKW:100,efficiency:0.95}),
+    makeDev('battery','储能#1','QF2',{capacityKWH:200,ratedPowerKW:100,initSOC:50,socMin:10,socMax:90,eff:0.95}),
+    makeDev('load','负荷#1','QF3',{ratedPowerKW:50,powerFactor:0.95}),
+    makeDev('charger','充电桩#1','QF4',{ratedPowerKW:60,eff:0.90})
+  ], true),
+  'mg-2': makeInstance('微电网-光储', 2405, [
+    makeDev('pv','光伏#1','QF1',{ratedPowerKW:80,efficiency:0.94}),
+    makeDev('battery','储能#1','QF2',{capacityKWH:100,ratedPowerKW:50,initSOC:30,socMin:5,socMax:95,eff:0.93})
+  ], false),
+  'mg-3': makeInstance('微电网-工厂', 2406, [], false)
+};
+let curId = 'mg-1';
+let editingDevId = null;
+
+function makeInstance(name, port, devices, configured) {
+  const id = 'mg-'+(Object.keys(instances).length+1);
+  return {
+    name, port, status: 'stopped', configured,
+    topology: { busName:'10kV 母线', busVoltageKV:10, devices: devices||[] }
+  };
+}
+function makeDev(type, name, swName, params) {
+  return { id:'dev-'+(nextDevId++), type, name, switch:{id:swName.toLowerCase(), name:swName, closed:true, controllable:true}, params:{...params} };
+}
+
+// =========================== RENDER ===========================
+function cur() { return instances[curId]; }
+
+function renderSidebar() {
+  const el = document.getElementById('instanceList');
+  let html = '';
+  let runCnt = 0, total = 0;
+  Object.entries(instances).forEach(([id, inst]) => {
+    total++;
+    if(inst.status==='running') runCnt++;
+    const isActive = id===curId;
+    const dotClass = inst.status==='running' ? 'dot-g' : (inst.configured ? 'dot-gray' : 'dot-y');
+    const tagHtml = inst.status==='running' ? '<span class="tag-sm tag-running">运行</span>'
+      : (inst.configured ? '<span class="tag-sm tag-stopped">已停止</span>' : '<span class="tag-sm tag-unconfig">未配置</span>');
+    html += `<div class="nav-item ${isActive?'active':''}" onclick="selectInstance('${id}')">
+      <span class="dot ${dotClass}"></span><span class="truncate">${inst.name}</span>
+      <span class="port">:${inst.port}</span>${tagHtml}</div>`;
+  });
+  el.innerHTML = html;
+  document.getElementById('sbRunningCount').textContent = runCnt;
+  document.getElementById('sbTotalCount').textContent = total;
+  const ports = Object.values(instances).map(i=>':'+i.port).join(' ~ ');
+  document.getElementById('sbPorts').textContent = ports;
+}
+
+function renderToolbar() {
+  const inst = cur();
+  document.getElementById('tbTitle').textContent = inst.name;
+  document.getElementById('tbPort').textContent = ':'+inst.port;
+  const st = document.getElementById('tbStatus');
+  if(inst.status==='running'){st.className='status-badge running';st.textContent='● 运行中';}
+  else if(inst.configured){st.className='status-badge stopped';st.textContent='● 已停止';}
+  else{st.className='status-badge config';st.textContent='● 未配置';}
+  const btn = document.getElementById('btnStart');
+  btn.disabled = !inst.configured || inst.status==='running';
+  btn.title = inst.configured ? '' : '请先添加设备并保存配置';
+}
+
+function renderTopo() {
+  const inst = cur();
+  const canvas = document.getElementById('topoCanvas');
+  const devs = inst.topology.devices;
+  const N = devs.length;
+  document.getElementById('deviceCountLabel').textContent = `设备: ${N} 个`;
+  const closedCnt = devs.filter(d=>d.switch.closed).length;
+  document.getElementById('switchCountLabel').textContent = `| 开关: ${closedCnt}/${N} 合闸`;
+
+  if(N===0) {
+    canvas.innerHTML = `<div class="topo-empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 3h6v3H9zM4 12h16M7 12v9M17 12v9M12 3v9"/><circle cx="12" cy="18" r="2"/></svg>
+      <div class="hint">母线已就绪，请添加设备</div>
+      <div class="sub">点击右侧面板选择设备类型</div>
+    </div>`;
+    return;
+  }
+
+  // Compute device X positions
+  const xMin = 220, xMax = 780;
+  const devX = N===1 ? [500] : Array.from({length:N}, (_,i)=> xMin + i*(xMax-xMin)/(N-1));
+
+  let svg = `<svg viewBox="0 0 900 380">
+    <defs>
+      <marker id="arr-g" markerWidth="6" markerHeight="5" refX="6" refY="2.5" orient="auto"><path d="M0,0 L6,2.5 L0,5" fill="#4ADE80"/></marker>
+      <marker id="arr-o" markerWidth="6" markerHeight="5" refX="6" refY="2.5" orient="auto"><path d="M0,0 L6,2.5 L0,5" fill="#F97316"/></marker>
+    </defs>
+    <!-- Grid icon -->
+    <rect x="70" y="12" width="40" height="32" rx="6" fill="#6B7280" stroke="#9CA3AF" stroke-width="1.5"/>
+    <text x="90" y="33" text-anchor="middle" fill="#fff" font-size="11" font-weight="600">电网</text>
+    <!-- Grid Meter -->
+    <rect x="68" y="80" width="44" height="44" rx="6" fill="#1F2937" stroke="#9CA3AF" stroke-width="1.5" stroke-dasharray="4,2"/>
+    <text x="90" y="102" text-anchor="middle" fill="#D1D5DB" font-size="8">关口表</text>
+    <text x="90" y="114" text-anchor="middle" fill="#9CA3AF" font-size="7">PCC</text>
+    <!-- Vertical lines Grid→Meter→Bus -->
+    <line x1="90" y1="44" x2="90" y2="80" stroke="#9CA3AF" stroke-width="1.5"/>
+    <line x1="90" y1="124" x2="90" y2="155" stroke="#9CA3AF" stroke-width="1.5"/>
+    <circle cx="90" cy="155" r="3" fill="#9CA3AF"/>
+    <!-- Bus line -->
+    <line x1="140" y1="155" x2="840" y2="155" stroke="#F97316" stroke-width="3.5" stroke-dasharray="8,4" stroke-linecap="round"/>
+    <text x="160" y="147" fill="#64748B" font-size="9" font-family="'Fira Sans'">${inst.topology.busName}</text>
+    <!-- Power label on bus -->
+    <text x="500" y="140" text-anchor="middle" fill="#64748B" font-size="8" font-family="'Fira Code'">10 kV</text>
+    <!-- Devices -->
+    ${devs.map((d,i)=>{
+      const x = devX[i];
+      const c = COLORS[d.type];
+      const cb = COLOR_BG[d.type];
+      const cName = TYPE_LABELS[d.type];
+      const closed = d.switch.closed;
+      const swColor = closed ? '#22C55E' : '#EF4444';
+      const lineColor = closed ? c : '#EF4444';
+      const lineDash = closed ? '' : ' stroke-dasharray="4,3"';
+      const powerDisplay = closed ? `${d.params.ratedPowerKW||'--'} kW` : '已断开';
+      const powerColor = closed ? c : '#EF4444';
+      return `
+        <!-- Device ${i}: ${d.name} -->
+        <!-- Vertical bus→switch -->
+        <line x1="${x}" y1="155" x2="${x}" y2="177" stroke="${lineColor}" stroke-width="2"${lineDash}/>
+        <!-- Switch circle -->
+        <g class="switch-click" data-devid="${d.id}" style="cursor:pointer">
+          <circle cx="${x}" cy="184" r="11" fill="var(--bg)" stroke="${swColor}" stroke-width="2.5"/>
+          ${closed ? `<line x1="${x}" y1="177" x2="${x}" y2="191" stroke="${swColor}" stroke-width="2.5"/>` 
+                  : `<line x1="${x-6}" y1="178" x2="${x+6}" y2="190" stroke="${swColor}" stroke-width="2.5"/>`}
+          <text x="${x}" y="202" text-anchor="middle" fill="#64748B" font-size="7" font-family="'Fira Code'">${d.switch.name}</text>
+        </g>
+        <!-- switch→device line -->
+        <line x1="${x}" y1="195" x2="${x}" y2="215" stroke="${lineColor}" stroke-width="2"${lineDash}/>
+        <!-- Device box -->
+        <g class="device-click" data-devid="${d.id}" style="cursor:pointer">
+          <rect x="${x-38}" y="215" width="76" height="52" rx="6" fill="${cb}" stroke="${c}" stroke-width="1.5" opacity="${closed?1:0.5}"/>
+          <text x="${x}" y="236" text-anchor="middle" fill="#fff" font-size="10" font-weight="600">${d.name}</text>
+          <text x="${x}" y="250" text-anchor="middle" fill="${powerColor}" font-size="8" font-family="'Fira Code'">${powerDisplay}</text>
+          <text x="${x}" y="261" text-anchor="middle" fill="#94A3B8" font-size="7">${cName}</text>
+        </g>
+      `;
+    }).join('')}
+    <!-- Grid meter label -->
+    <text x="90" y="138" text-anchor="middle" fill="#64748B" font-size="7" font-family="'Fira Code'" id="gridPowerLabel">P=— kW</text>
+  </svg>`;
+
+  // Add floating add-panel
+  svg += `<div class="add-panel"><h4>添加设备</h4><div class="add-grid">
+    <div class="add-btn" onclick="addDevice('pv')"><span class="add-dot" style="background:#34D399"></span>光伏</div>
+    <div class="add-btn" onclick="addDevice('battery')"><span class="add-dot" style="background:#60A5FA"></span>储能</div>
+    <div class="add-btn" onclick="addDevice('load')"><span class="add-dot" style="background:#FBBF24"></span>负荷</div>
+    <div class="add-btn" onclick="addDevice('charger')"><span class="add-dot" style="background:#A78BFA"></span>充电桩</div>
+  </div></div>`;
+
+  canvas.innerHTML = svg;
+
+  // Attach click handlers
+  canvas.querySelectorAll('.switch-click').forEach(el => {
+    el.addEventListener('click', () => toggleSwitch(el.dataset.devid));
+  });
+  canvas.querySelectorAll('.device-click').forEach(el => {
+    el.addEventListener('click', () => openDeviceModal(el.dataset.devid));
+  });
+  updateGridPowerLabel();
+}
+
+function updateGridPowerLabel() {
+  const el = document.getElementById('gridPowerLabel');
+  if(!el) return;
+  const inst = cur();
+  const devs = inst.topology.devices;
+  let totalGen = 0, totalLoad = 0;
+  devs.forEach(d => {
+    if(!d.switch.closed) return;
+    if(d.type==='pv') totalGen += (d.params.ratedPowerKW||0) * 0.65;
+    if(d.type==='battery') totalGen -= (d.params.ratedPowerKW||0) * 0.3;
+    if(d.type==='load') totalLoad += (d.params.ratedPowerKW||0) * 0.7;
+    if(d.type==='charger') totalLoad += (d.params.ratedPowerKW||0) * 0.4;
+  });
+  const grid = totalGen - totalLoad;
+  const sign = grid >= 0 ? '售电' : '购电';
+  el.textContent = `P=${Math.abs(grid).toFixed(1)} kW (${sign})`;
+}
+
+function renderPoints() {
+  const inst = cur();
+  const devs = inst.topology.devices;
+  let rows = [];
+  // Grid meter fixed points
+  rows.push(
+    {ioa:1,name:'GRID_P',type:'AI',val:inst.status==='running'?'56.3':'--',unit:'kW',comp:'关口表'},
+    {ioa:2,name:'GRID_Q',type:'AI',val:'12.8',unit:'kvar',comp:'关口表'},
+    {ioa:3,name:'GRID_V',type:'AI',val:'10.21',unit:'kV',comp:'关口表'},
+    {ioa:4,name:'GRID_F',type:'AI',val:'50.02',unit:'Hz',comp:'关口表'},
+    {ioa:1001,name:'GRID_Connected',type:'DI',val:'1',unit:'-',comp:'关口表'},
+    {ioa:1002,name:'GRID_Island',type:'DI',val:'0',unit:'-',comp:'关口表'}
+  );
+  // Per device points
+  let k = {pv:0, battery:0, load:0, charger:0};
+  devs.forEach(d => {
+    const idx = k[d.type]++;
+    const swClosed = d.switch.closed;
+    const swVal = swClosed ? '1' : '0';
+    const swLabel = swClosed ? '合' : '分';
+    if(d.type==='pv') {
+      rows.push({ioa:11+idx,name:d.name+'_Power',type:'AI',val:inst.status==='running'&&swClosed?'42.3':'--',unit:'kW',comp:d.name});
+      rows.push({ioa:21+idx,name:d.name+'_DailyEnergy',type:'AI',val:'185.6',unit:'kWh',comp:d.name});
+      rows.push({ioa:1011+idx,name:d.name+'_Status',type:'DI',val:swClosed?'1':'0',unit:'-',comp:d.name});
+      rows.push({ioa:1021+idx,name:d.name+'_SwStatus',type:'DI',val:swVal,unit:`${swLabel}`,comp:d.name+'.开关'});
+      rows.push({ioa:4011+idx,name:d.name+'_SwCtrl',type:'DO',val:swVal,unit:'-',comp:d.name+'.开关'});
+    } else if(d.type==='battery') {
+      rows.push({ioa:51+idx,name:d.name+'_SOC',type:'AI',val:inst.status==='running'&&swClosed?'67.2':'--',unit:'%',comp:d.name});
+      rows.push({ioa:61+idx,name:d.name+'_Power',type:'AI',val:inst.status==='running'&&swClosed?'-32.5':'--',unit:'kW',comp:d.name});
+      rows.push({ioa:1031+idx,name:d.name+'_Status',type:'DI',val:swClosed?'1':'0',unit:'-',comp:d.name});
+      rows.push({ioa:1051+idx,name:d.name+'_SwStatus',type:'DI',val:swVal,unit:`${swLabel}`,comp:d.name+'.开关'});
+      rows.push({ioa:3001+idx,name:d.name+'_Setpoint',type:'AO',val:'-30.0',unit:'kW',comp:d.name});
+      rows.push({ioa:4021+idx,name:d.name+'_SwCtrl',type:'DO',val:swVal,unit:'-',comp:d.name+'.开关'});
+    } else if(d.type==='load') {
+      rows.push({ioa:91+idx,name:d.name+'_Power',type:'AI',val:inst.status==='running'&&swClosed?'72.3':'--',unit:'kW',comp:d.name});
+      rows.push({ioa:1021+idx,name:d.name+'_Status',type:'DI',val:swClosed?'1':'0',unit:'-',comp:d.name});
+      rows.push({ioa:1031+idx,name:d.name+'_SwStatus',type:'DI',val:swVal,unit:`${swLabel}`,comp:d.name+'.开关'});
+      rows.push({ioa:4031+idx,name:d.name+'_SwCtrl',type:'DO',val:swVal,unit:'-',comp:d.name+'.开关'});
+    } else if(d.type==='charger') {
+      rows.push({ioa:111+idx,name:d.name+'_Power',type:'AI',val:inst.status==='running'&&swClosed?'25.0':'--',unit:'kW',comp:d.name});
+      rows.push({ioa:1041+idx,name:d.name+'_Status',type:'DI',val:swClosed?'1':'0',unit:'-',comp:d.name});
+      rows.push({ioa:1051+idx,name:d.name+'_SwStatus',type:'DI',val:swVal,unit:`${swLabel}`,comp:d.name+'.开关'});
+      rows.push({ioa:4041+idx,name:d.name+'_SwCtrl',type:'DO',val:swVal,unit:'-',comp:d.name+'.开关'});
+    }
+  });
+  document.getElementById('ptCount').textContent = `共 ${rows.length} 点`;
+  if(rows.length===0) {
+    document.getElementById('pointTableWrap').innerHTML = `<div class="text-sm text-muted" style="padding:16px;text-align:center">请先在拓扑中添加设备并保存配置</div>`;
+  } else {
+    document.getElementById('pointTableWrap').innerHTML = `<table class="ptab">
+      <thead><tr><th>IOA</th><th>名称</th><th>类型</th><th>值</th><th>单位</th><th>所属</th></tr></thead>
+      <tbody>${rows.map(r=>`<tr><td>${r.ioa}</td><td>${r.name}</td><td><span class="type-tg tg-${r.type.toLowerCase()}">${r.type}</span></td><td>${r.val}</td><td>${r.unit}</td><td style="font-family:var(--font-sans)">${r.comp}</td></tr>`).join('')}</tbody>
+    </table>`;
+  }
+  // Update export count
+  document.getElementById('exportPointCount').textContent = rows.length;
+}
+
+function renderAll() {
+  renderSidebar();
+  renderToolbar();
+  renderTopo();
+  renderPoints();
+  // Dashboard visibility
+  const inst = cur();
+  document.getElementById('dashRunning').style.display = inst.status==='running'?'block':'none';
+  document.getElementById('dashStopped').style.display = inst.status==='running'?'none':'block';
+  // Export filename
+  document.getElementById('exportFileName').textContent = `microgrid_${inst.name}_points.xlsx`;
+}
+
+// =========================== ACTIONS ===========================
+function selectInstance(id) {
+  curId = id;
+  renderAll();
+}
+
+// Create instance
+function showCreate() { document.getElementById('createModal').classList.add('open'); }
+function hideCreate() { document.getElementById('createModal').classList.remove('open'); }
+function createInstance() {
+  const name = document.getElementById('createName').value.trim() || '新微电网';
+  const port = parseInt(document.getElementById('createPort').value) || 2404;
+  const id = 'mg-'+(Object.keys(instances).length+1);
+  instances[id] = makeInstance(name, port, [], false);
+  curId = id;
+  hideCreate();
+  renderAll();
+  toast(`实例 "${name}" 已创建，请在拓扑中添加设备`);
+}
+
+// Add device
+function addDevice(type) {
+  const inst = cur();
+  if(inst.status==='running'){toast('请先停止实例后再编辑拓扑');return;}
+  const count = inst.topology.devices.filter(d=>d.type===type).length + 1;
+  const label = TYPE_LABELS[type];
+  const dev = makeDev(type, `${label}#${count}`, `QF${inst.topology.devices.length+1}`, {...DEFAULT_PARAMS[type]});
+  inst.topology.devices.push(dev);
+  renderTopo();
+  toast(`已添加${label}`);
+  openDeviceModal(dev.id);
+}
+
+// Toggle switch
+function toggleSwitch(devId) {
+  const inst = cur();
+  const dev = inst.topology.devices.find(d=>d.id===devId);
+  if(!dev) return;
+  dev.switch.closed = !dev.switch.closed;
+  renderTopo();
+  renderPoints();
+  renderToolbar();
+  toast(`开关 ${dev.switch.name} 已${dev.switch.closed?'合闸':'分闸'}`);
+}
+
+// Device modal
+function openDeviceModal(devId) {
+  const inst = cur();
+  const dev = inst.topology.devices.find(d=>d.id===devId);
+  if(!dev) return;
+  editingDevId = devId;
+  document.getElementById('devModalTitle').textContent = `${TYPE_LABELS[dev.type]} — ${dev.name}`;
+  document.getElementById('dpName').value = dev.name;
+  document.getElementById('dpSwitchName').value = dev.switch.name;
+  document.querySelectorAll('[name="swState"]').forEach(r=>{r.checked=(r.value==='closed')===dev.switch.closed;});
+  // Show/hide sections
+  ['dpPv','dpBat','dpLoad','dpChg','dpDefault'].forEach(id=>document.getElementById(id).style.display='none');
+  if(dev.type==='pv') {
+    document.getElementById('dpPv').style.display='block';
+    document.getElementById('pvRated').value = dev.params.ratedPowerKW||100;
+    document.getElementById('pvEff').value = dev.params.efficiency||0.95;
+  } else if(dev.type==='battery') {
+    document.getElementById('dpBat').style.display='block';
+    document.getElementById('batCap').value = dev.params.capacityKWH||200;
+    document.getElementById('batPower').value = dev.params.ratedPowerKW||100;
+    document.getElementById('batInitSoc').value = dev.params.initSOC||50;
+    document.getElementById('batSocMin').value = dev.params.socMin||10;
+    document.getElementById('batSocMax').value = dev.params.socMax||90;
+    document.getElementById('batEff').value = dev.params.eff||0.95;
+  } else if(dev.type==='load') {
+    document.getElementById('dpLoad').style.display='block';
+    document.getElementById('loadRated').value = dev.params.ratedPowerKW||50;
+    document.getElementById('loadPf').value = dev.params.powerFactor||0.95;
+  } else if(dev.type==='charger') {
+    document.getElementById('dpChg').style.display='block';
+    document.getElementById('chgRated').value = dev.params.ratedPowerKW||60;
+    document.getElementById('chgEff').value = dev.params.eff||0.90;
+  }
+  document.getElementById('deviceModal').classList.add('open');
+}
+function hideDeviceModal() { document.getElementById('deviceModal').classList.remove('open'); editingDevId=null; }
+
+function saveDevice() {
+  const inst = cur();
+  const dev = inst.topology.devices.find(d=>d.id===editingDevId);
+  if(!dev) return;
+  dev.name = document.getElementById('dpName').value.trim() || dev.name;
+  dev.switch.name = document.getElementById('dpSwitchName').value.trim() || dev.switch.name;
+  dev.switch.closed = document.querySelector('[name="swState"]:checked').value === 'closed';
+  if(dev.type==='pv') {
+    dev.params.ratedPowerKW = parseFloat(document.getElementById('pvRated').value)||100;
+    dev.params.efficiency = parseFloat(document.getElementById('pvEff').value)||0.95;
+  } else if(dev.type==='battery') {
+    dev.params.capacityKWH = parseFloat(document.getElementById('batCap').value)||200;
+    dev.params.ratedPowerKW = parseFloat(document.getElementById('batPower').value)||100;
+    dev.params.initSOC = parseFloat(document.getElementById('batInitSoc').value)||50;
+    dev.params.socMin = parseFloat(document.getElementById('batSocMin').value)||10;
+    dev.params.socMax = parseFloat(document.getElementById('batSocMax').value)||90;
+    dev.params.eff = parseFloat(document.getElementById('batEff').value)||0.95;
+  } else if(dev.type==='load') {
+    dev.params.ratedPowerKW = parseFloat(document.getElementById('loadRated').value)||50;
+    dev.params.powerFactor = parseFloat(document.getElementById('loadPf').value)||0.95;
+  } else if(dev.type==='charger') {
+    dev.params.ratedPowerKW = parseFloat(document.getElementById('chgRated').value)||60;
+    dev.params.eff = parseFloat(document.getElementById('chgEff').value)||0.90;
+  }
+  hideDeviceModal();
+  renderTopo();
+  toast('设备参数已保存');
+}
+
+function deleteDevice() {
+  const inst = cur();
+  if(inst.status==='running'){toast('请先停止实例');return;}
+  const dev = inst.topology.devices.find(d=>d.id===editingDevId);
+  if(!dev) return;
+  if(!confirm(`确定删除设备"${dev.name}"？`)) return;
+  inst.topology.devices = inst.topology.devices.filter(d=>d.id!==editingDevId);
+  hideDeviceModal();
+  renderTopo();
+  toast(`已删除 ${dev.name}`);
+}
+
+// Save topology (mark configured)
+function saveTopology() {
+  const inst = cur();
+  if(inst.topology.devices.length===0){toast('请至少添加一个设备');return;}
+  if(inst.status==='running'){toast('请先停止实例');return;}
+  inst.configured = true;
+  renderAll();
+  toast('拓扑配置已保存，可以启动了');
+}
+
+// Start/stop
+function startInstance() {
+  const inst = cur();
+  if(!inst.configured){toast('请先添加设备并保存配置');return;}
+  if(inst.topology.devices.length===0){toast('请至少添加一个设备');return;}
+  // Check params
+  const incomplete = inst.topology.devices.some(d=>{
+    if(d.type==='pv') return !d.params.ratedPowerKW;
+    if(d.type==='battery') return !d.params.capacityKWH||!d.params.ratedPowerKW;
+    if(d.type==='load') return !d.params.ratedPowerKW;
+    if(d.type==='charger') return !d.params.ratedPowerKW;
+    return false;
+  });
+  if(incomplete){toast('请完善所有设备参数');return;}
+  inst.status = 'running';
+  renderAll();
+  toast(`"${inst.name}" 已启动`);
+}
+function stopInstance() {
+  const inst = cur();
+  if(inst.status!=='running'){toast('实例未运行');return;}
+  inst.status = 'stopped';
+  renderAll();
+  toast(`"${inst.name}" 已停止`);
+}
+
+// Port edit
+function showPortEdit() {
+  const inst = cur();
+  document.getElementById('editName').value = inst.name;
+  document.getElementById('editPort').value = inst.port;
+  document.getElementById('portModal').classList.add('open');
+}
+function hidePortEdit() { document.getElementById('portModal').classList.remove('open'); }
+function savePortEdit() {
+  const inst = cur();
+  inst.name = document.getElementById('editName').value.trim() || inst.name;
+  inst.port = parseInt(document.getElementById('editPort').value) || inst.port;
+  hidePortEdit();
+  renderAll();
+  toast('实例信息已更新');
+}
+
+// Tab switching
+function switchTab(el, name) {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+}
+
+// Export
+function openExport() {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab')[3].classList.add('active'); // Export tab
+  document.getElementById('tab-export').classList.add('active');
+}
+function doExport() { toast('点表已导出: '+document.getElementById('exportFileName').textContent); }
+
+// Toast
+function toast(msg) {
+  const c = document.getElementById('toastC');
+  const t = document.createElement('div');
+  t.style.cssText = 'background:#1E293B;border:1px solid #374151;border-radius:8px;padding:8px 16px;margin-top:6px;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,.4);animation:si .25s ease';
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(()=>t.remove(),300);}, 2500);
+}
+
+// Init
+renderAll();
+</script>
+</body>
+</html>

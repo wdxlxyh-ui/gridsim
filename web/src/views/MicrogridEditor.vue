@@ -137,143 +137,22 @@
 
             <!-- Vertical Topology SVG -->
             <el-card shadow="never" class="section-card">
-              <template #header><span style="font-weight:600">拓扑图</span></template>
-              <div class="topology-svg">
-                <svg viewBox="0 0 600 480" xmlns="http://www.w3.org/2000/svg">
-                  <!-- Grid (top) -->
-                  <rect x="230" y="10" width="100" height="44" rx="6"
-                    fill="var(--el-color-primary-light-3)" stroke="var(--el-color-primary)" stroke-width="2" />
-                  <text x="280" y="37" text-anchor="middle" fill="#fff" font-size="14" font-weight="600">电网</text>
-
-                  <!-- Arrow: Grid → Meter -->
-                  <line x1="280" y1="54" x2="280" y2="84" stroke="var(--el-border-color)" stroke-width="2" />
-                  <polygon points="274,80 280,90 286,80" fill="var(--el-border-color)" />
-
-                  <!-- Grid Meter -->
-                  <rect x="230" y="88" width="100" height="44" rx="6"
-                    fill="var(--el-color-warning-light-3)" stroke="var(--el-color-warning)" stroke-width="2" />
-                  <text x="280" y="115" text-anchor="middle" fill="#fff" font-size="13" font-weight="600">关口表</text>
-
-                  <!-- Bus: no box, just label to the right of the vertical line -->
-                  <text x="295" y="200" fill="var(--el-text-color-primary)" font-size="13" font-weight="600">
-                    {{ busName }}
-                  </text>
-                  <text x="295" y="216" fill="var(--el-text-color-secondary)" font-size="11">
-                    {{ busVoltage }} kV
-                  </text>
-
-                  <!-- Arrow: Meter → Devices area -->
-                  <line x1="280" y1="132" x2="280" y2="240" stroke="var(--el-border-color)" stroke-width="2" stroke-dasharray="6,3" />
-                  <polygon points="274,236 280,246 286,236" fill="var(--el-border-color)" />
-
-                  <!-- Horizontal distribution line -->
-                  <line x1="100" y1="260" x2="460" y2="260" stroke="var(--el-border-color)" stroke-width="2" />
-
-                  <!-- Vertical drops for each device -->
-                  <template v-for="(dev, idx) in visibleDevices" :key="dev.id">
-                    <!-- Vertical tap from horizontal line -->
-                    <line
-                      x1="100 + idx * 120"
-                      y1="260"
-                      x2="100 + idx * 120"
-                      y2="290"
-                      stroke="var(--el-border-color)"
-                      stroke-width="2"
-                    />
-
-                    <!-- Switch circle (clickable when running) -->
-                    <g
-                      @click="running && handleSwitchToggle(dev.id, !dev.switch.closed)"
-                      style="cursor: pointer"
-                    >
-                      <circle
-                        :cx="100 + idx * 120"
-                        :cy="306"
-                        r="14"
-                        :fill="dev.switch.closed ? '#67c23a' : '#f56c6c'"
-                        stroke="var(--el-border-color)"
-                        stroke-width="1.5"
-                      />
-                      <line
-                        v-if="dev.switch.closed"
-                        x1="92" :x2="108" :y1="306" :y2="306"
-                        stroke="white" stroke-width="2.5"
-                      />
-                      <line
-                        v-else
-                        x1="92" :x2="108" :y1="298" :y2="314"
-                        stroke="white" stroke-width="2.5"
-                      />
-                    </g>
-
-                    <!-- Wire: switch → device box -->
-                    <line
-                      :x1="100 + idx * 120"
-                      y1="320"
-                      :x2="100 + idx * 120"
-                      y2="342"
-                      stroke="var(--el-border-color)"
-                      stroke-width="2"
-                    />
-
-                    <text
-                      :x="100 + idx * 120"
-                      y="332"
-                      text-anchor="middle"
-                      font-size="9"
-                      fill="var(--el-text-color-secondary)"
-                    >{{ dev.switch.name || 'QF' + (idx + 1) }}</text>
-
-                    <!-- Device box -->
-                    <rect
-                      :x="60 + idx * 120"
-                      y="342"
-                      width="80"
-                      height="36"
-                      rx="6"
-                      :fill="devTypeColor(dev.type)"
-                      stroke="var(--el-border-color)"
-                      stroke-width="1.5"
-                    />
-                    <text
-                      :x="100 + idx * 120"
-                      y="358"
-                      text-anchor="middle"
-                      fill="#fff"
-                      font-size="11"
-                      font-weight="600"
-                    >{{ devTypeLabel(dev.type) }}</text>
-                    <text
-                      :x="100 + idx * 120"
-                      y="372"
-                      text-anchor="middle"
-                      fill="rgba(255,255,255,0.85)"
-                      font-size="9"
-                    >{{ dev.name }}</text>
-                  </template>
-
-                  <!-- Overflow indicator -->
-                  <text
-                    v-if="devices.length > maxVisibleDevices"
-                    x="280"
-                    y="410"
-                    text-anchor="middle"
-                    font-size="12"
-                    fill="var(--el-text-color-secondary)"
-                  >
-                    ... 还有 {{ devices.length - maxVisibleDevices }} 个设备未显示
-                  </text>
-
-                  <!-- Empty state -->
-                  <text
-                    v-if="devices.length === 0"
-                    x="280"
-                    y="330"
-                    text-anchor="middle"
-                    font-size="13"
-                    fill="var(--el-text-color-secondary)"
-                  >请在左侧添加设备</text>
-                </svg>
+              <template #header>
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+                  <span style="font-weight:600">拓扑图</span>
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <el-button-group size="small">
+                      <el-button @click="zoomIn">+</el-button>
+                      <el-button @click="zoomReset">1:1</el-button>
+                      <el-button @click="zoomOut">−</el-button>
+                    </el-button-group>
+                  </div>
+                </div>
+              </template>
+              <div class="topology-wrap">
+                <div class="topology-xform" :style="{ transform: `scale(${svgScale})`, transformOrigin: '0 0' }">
+                  <svg v-html="svgTopology" class="topology-svg"></svg>
+                </div>
               </div>
             </el-card>
 
@@ -319,82 +198,7 @@
           </el-table>
         </el-card>
       </el-tab-pane>
-
-      <!-- Tab 3: 公式配置 -->
-      <el-tab-pane label="公式配置" name="formulas">
-        <el-card shadow="never">
-          <template #header>
-            <div style="display:flex;justify-content:space-between;align-items:center">
-              <span style="font-weight:600">自定义公式列表</span>
-              <div>
-                <el-button size="small" @click="fetchFormulas" :loading="loadingFormulas" type="primary" plain>
-                  刷新
-                </el-button>
-                <el-button size="small" type="success" :disabled="running" @click="openAddFormula">
-                  + 添加公式
-                </el-button>
-              </div>
-            </div>
-          </template>
-          <el-table :data="formulas" stripe size="small" max-height="520" empty-text="暂无公式配置" v-loading="loadingFormulas">
-            <el-table-column label="启用" width="80">
-              <template #default="{ row }">
-                <el-switch v-model="row.enabled" size="small" @change="handleFormulaToggle(row)" />
-              </template>
-            </el-table-column>
-            <el-table-column prop="name" label="名称" min-width="150" />
-            <el-table-column prop="target" label="目标测点" width="150" />
-            <el-table-column prop="expression" label="表达式" min-width="280">
-              <template #default="{ row }">
-                <code style="font-size:12px;background:var(--el-fill-color);padding:2px 6px;border-radius:4px">{{ row.expression }}</code>
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" width="180" fixed="right">
-              <template #default="{ row }">
-                <el-button text size="small" :disabled="running" @click="openEditFormula(row)">编辑</el-button>
-                <el-button text size="small" type="danger" :disabled="running" @click="handleDeleteFormula(row.id)">删除</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-card>
-      </el-tab-pane>
     </el-tabs>
-
-    <!-- Formula Dialog -->
-    <el-dialog v-model="showFormulaDialog" :title="isEditingFormula ? '编辑公式' : '添加公式'" width="560px" destroy-on-close>
-      <el-form label-width="90px" size="small">
-        <el-form-item label="公式名称">
-          <el-input v-model="editingFormula.name" placeholder="例如: 关口表功率" />
-        </el-form-item>
-        <el-form-item label="目标测点">
-          <el-select v-model="editingFormula.target" placeholder="选择或输入目标测点名" allow-create filterable style="width:100%">
-            <el-option label="GRID_P（关口有功）" value="GRID_P" />
-            <el-option label="GRID_Q（关口无功）" value="GRID_Q" />
-            <el-option v-for="p in points" :key="p.name" :label="p.name" :value="p.name" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="表达式">
-          <el-input
-            v-model="editingFormula.expression"
-            type="textarea"
-            :rows="3"
-            placeholder="例如: {battery1_Power} + {load1_Power}&#10;支持 {测点名}、+、-、*、/、()"
-          />
-        </el-form-item>
-        <el-form-item>
-          <div style="font-size:12px;color:var(--el-text-color-secondary);line-height:1.6">
-            <b>语法说明：</b><br>
-            • 使用 <code>{测点名}</code> 引用实时值，例如 <code>{battery1_Power}</code>、<code>{GRID_P}</code><br>
-            • 支持运算符: <code>+</code> <code>-</code> <code>*</code> <code>/</code> <code>(</code> <code>)</code><br>
-            • 示例: <code>{GRID_P} + {battery1_Power}</code> 或 <code>({pv1_Power} + {battery1_Power}) * 0.9</code>
-          </div>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="showFormulaDialog = false">取消</el-button>
-        <el-button type="primary" @click="handleSaveFormula" :loading="savingFormula">保存</el-button>
-      </template>
-    </el-dialog>
 
     <!-- Add Device Dialog -->
     <el-dialog v-model="showAddDevice" title="添加设备" width="520px" destroy-on-close>
@@ -532,15 +336,10 @@ import {
   getInstance,
   startInstance,
   stopInstance,
-  getMicrogridFormulas,
-  addMicrogridFormula,
-  updateMicrogridFormula,
-  deleteMicrogridFormula,
   type MicrogridTopology,
   type MicrogridDevice,
   type MicrogridDashboard,
   type MicrogridDeviceParams,
-  type MicrogridFormula,
 } from '../api'
 
 const route = useRoute()
@@ -562,14 +361,6 @@ const dash = ref<MicrogridDashboard>({ total_generation_kw: 0, total_load_kw: 0,
 const points = ref<any[]>([])
 const loadingPoints = ref(false)
 
-// Formulas
-const formulas = ref<MicrogridFormula[]>([])
-const showFormulaDialog = ref(false)
-const editingFormula = ref<Partial<MicrogridFormula>>({})
-const isEditingFormula = ref(false)
-const loadingFormulas = ref(false)
-const savingFormula = ref(false)
-
 // Add device
 const showAddDevice = ref(false)
 const addingDevice = ref(false)
@@ -584,37 +375,153 @@ const editingDevice = ref<MicrogridDevice | null>(null)
 const editingDeviceName = ref('')
 const editingDeviceParams = ref<MicrogridDeviceParams>({})
 
+// Zoom
+const svgScale = ref(1)
+function zoomIn()  { svgScale.value = Math.min(3, +(svgScale.value + 0.25).toFixed(2)) }
+function zoomOut() { svgScale.value = Math.max(0.3, +(svgScale.value - 0.25).toFixed(2)) }
+function zoomReset(){ svgScale.value = 1 }
+
 // Polling
 let pollTimer: ReturnType<typeof setInterval> | null = null
+let pointsTimer: ReturnType<typeof setInterval> | null = null
 
 // ── Computed ──
-const maxVisibleDevices = 3
-const visibleDevices = computed(() => devices.value.slice(0, maxVisibleDevices))
+
+function deviceFlowClass(dev: any): string {
+  if (!dev.switch.closed) return 'fz'
+  if (dev.type === 'pv') return dev.power > 0.1 ? 'fl-up' : 'fz'
+  if (dev.type === 'battery') return dev.power > 0.1 ? 'fl-dn' : (dev.power < -0.1 ? 'fl-up' : 'fz')
+  return dev.power > 0.1 ? 'fl-dn' : 'fz'
+}
+
+const svgTopology = computed(() => {
+  const N = devices.value.length
+  const BUS_Y = 260, MIN_GAP = 120, ROW_H = 126
+  const W = Math.max(680, N * MIN_GAP + 80)
+  const H = BUS_Y + N * ROW_H + 60
+  const cx = W / 2
+  const sp = (W - 80) / Math.max(N, 1)
+  const sx = cx - (sp * (N - 1)) / 2
+  const minX = sx - 20
+  const maxX = sx + (N - 1) * sp + 20
+  const swY = BUS_Y + 50, swR = 12, boxT = BUS_Y + 90
+
+  const gridPowerVal = _gridPower() // cached for trunk flow
+
+  let rows = ''
+  devices.value.forEach((dev: any, idx: number) => {
+    const dx = sx + idx * sp
+    const cl = dev.switch.closed
+    const t = dev.type
+    const fc = deviceFlowClass(dev)
+    const lc = cl ? (FC as any)[t] : '#c0c4cc'
+
+    rows += `<line x1="${dx}" y1="${BUS_Y}" x2="${dx}" y2="${swY - swR}" stroke="${cl ? lc : '#c0c4cc'}" stroke-width="3.5" stroke-linecap="round" class="${fc}"/>`
+    const sf = cl ? (t === 'pv' ? '#e8f5e9' : t === 'battery' ? '#e3f2fd' : '#fff3e0') : '#fef0f0'
+    rows += `<circle cx="${dx}" cy="${swY}" r="${swR}" fill="${sf}" stroke="${cl ? '#67c23a' : '#f56c6c'}" stroke-width="2" style="cursor:pointer"/>`
+    rows += cl
+      ? `<line x1="${dx - 7}" y1="${swY}" x2="${dx + 7}" y2="${swY}" stroke="#67c23a" stroke-width="2" stroke-linecap="round"/>`
+      : `<line x1="${dx - 6}" y1="${swY - 6}" x2="${dx + 6}" y2="${swY + 6}" stroke="#f56c6c" stroke-width="2" stroke-linecap="round"/>`
+    rows += `<line x1="${dx}" y1="${swY + swR}" x2="${dx}" y2="${boxT}" stroke="${cl ? lc : '#c0c4cc'}" stroke-width="3.5" stroke-linecap="round" class="${fc}"/>`
+    rows += `<text x="${dx}" y="${swY + swR + 13}" text-anchor="middle" font-size="9" fill="#909399">${dev.switch.name || 'QF' + (idx + 1)}</text>`
+    rows += `<rect x="${dx - 46}" y="${boxT}" width="92" height="34" rx="6" fill="${cl ? (FC as any)[t] : '#e0e0e0'}" stroke="${lc}" stroke-width="1.5" opacity="${cl ? 1 : 0.5}"/>`
+    rows += `<text x="${dx}" y="${boxT + 12}" text-anchor="middle" font-size="12" font-weight="700" fill="${cl ? '#fff' : '#999'}">${(LB as any)[t]}</text>`
+    rows += `<text x="${dx}" y="${boxT + 26}" text-anchor="middle" font-size="10" fill="${cl ? 'rgba(255,255,255,0.9)' : '#999'}">${dev.name}</text>`
+    if (cl) {
+      const pval = (dev.power ?? 0).toFixed(1)
+      rows += `<rect x="${dx - 40}" y="${boxT + 38}" width="80" height="18" rx="4" fill="${lc}" opacity="0.1"/>`
+      rows += `<text x="${dx}" y="${boxT + 50}" text-anchor="middle" font-size="11" font-weight="700" style="font-family:monospace" fill="${lc}">${pval} kW</text>`
+    } else {
+      rows += `<text x="${dx}" y="${boxT + 44}" text-anchor="middle" font-size="10" fill="#c0c4cc">已断开</text>`
+    }
+  })
+
+  const tFlow = gridPowerVal > 0.1 ? 'fl-dn' : (gridPowerVal < -0.1 ? 'fl-up' : 'fz')
+  const sy = H - 50
+  const sw2 = Math.min(W - 40, 840)
+  const sxx = (W - sw2) / 2
+
+  const act = (d: any) => d.switch.closed
+  const PV = devices.value.filter((d: any) => d.type === 'pv' && act(d)).reduce((s: number, d: any) => s + d.power, 0)
+  const LD = devices.value.filter((d: any) => d.type === 'load' && act(d)).reduce((s: number, d: any) => s + d.power, 0)
+  const CH = devices.value.filter((d: any) => d.type === 'charger' && act(d)).reduce((s: number, d: any) => s + d.power, 0)
+  const BAT = devices.value.filter((d: any) => d.type === 'battery' && act(d)).reduce((s: number, d: any) => s + d.power, 0)
+  const GRID = LD + CH + BAT - PV
+  const fr = 50 - GRID / (Math.max(PV + LD + CH, 1)) * 0.5
+  const sgn = GRID >= 0 ? '+' : ''
+  const gl = GRID >= 0 ? '从电网用电' : '向电网送电'
+
+  const svgW = W.toString(), svgH = H.toString()
+  return `<defs><pattern id="g" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0L0 0 0 40" fill="none" stroke="#e8eaef" stroke-width="0.5"/></pattern></defs>
+<rect x="0" y="0" width="${svgW}" height="${svgH}" fill="url(#g)" opacity="0.4"/>
+<rect x="${cx - 56}" y="12" width="112" height="38" rx="6" fill="#fef0f0" stroke="#f89898" stroke-width="1.5"/>
+<text x="${cx}" y="36" text-anchor="middle" font-size="14" font-weight="700" fill="#e63946">⚡ 电网</text>
+<line x1="${cx}" y1="50" x2="${cx}" y2="78" stroke="#bbb" stroke-width="3.5" stroke-linecap="round" class="${tFlow}"/>
+<rect x="${cx - 56}" y="80" width="112" height="38" rx="6" fill="#fef7e0" stroke="#e8c560" stroke-width="1.5"/>
+<text x="${cx}" y="104" text-anchor="middle" font-size="14" font-weight="700" fill="#b8860b">🔌 关口表</text>
+<line x1="${cx}" y1="118" x2="${cx}" y2="${BUS_Y}" stroke="#bbb" stroke-width="3.5" stroke-linecap="round" class="${tFlow}"/>
+<text x="${cx + 20}" y="${BUS_Y - 45}" font-size="13" font-weight="700" fill="#303133">10kV 母线</text>
+<text x="${cx + 20}" y="${BUS_Y - 30}" font-size="11" fill="#909399">0.4 ~ 220 kV</text>
+<line x1="${minX}" y1="${BUS_Y}" x2="${maxX}" y2="${BUS_Y}" stroke="#555" stroke-width="3" stroke-linecap="round"/>
+${rows}
+<rect x="${sxx}" y="${sy}" width="${sw2}" height="36" rx="6" fill="#f0f4ff" stroke="#c6d6f0" stroke-width="1"/>
+<text x="${W / 2}" y="${sy + 12}" text-anchor="middle" font-size="12" font-weight="600" fill="#303133">GRID = (${LD.toFixed(1)}+${CH.toFixed(1)}<tspan fill="#e6a23c">${BAT >= 0 ? '+' : ''}${BAT.toFixed(1)}</tspan>) − ${PV.toFixed(1)} = <tspan fill="${GRID >= 0 ? '#e6a23c' : '#67c23a'}" font-weight="700">${sgn}${GRID.toFixed(1)} kW</tspan></text>
+<text x="${W / 2}" y="${sy + 28}" text-anchor="middle" font-size="11" fill="#909399">频率 ${fr.toFixed(2)} Hz  ·  ${gl}</text>`
+})
+
+const LB: Record<string, string> = { pv: '光伏', battery: '储能', load: '负荷', charger: '充电桩' }
+const FC: Record<string, string> = { pv: '#67c23a', battery: '#409eff', load: '#e6a23c', charger: '#909399' }
+
+function _gridPower(): number {
+  const act = (d: any) => d.switch.closed
+  const PV = devices.value.filter((d: any) => d.type === 'pv' && act(d)).reduce((s: number, d: any) => s + (d.power ?? 0), 0)
+  const LD = devices.value.filter((d: any) => d.type === 'load' && act(d)).reduce((s: number, d: any) => s + (d.power ?? 0), 0)
+  const CH = devices.value.filter((d: any) => d.type === 'charger' && act(d)).reduce((s: number, d: any) => s + (d.power ?? 0), 0)
+  const BAT = devices.value.filter((d: any) => d.type === 'battery' && act(d)).reduce((s: number, d: any) => s + (d.power ?? 0), 0)
+  return LD + CH + BAT - PV
+}
 
 const autoFormulas = computed(() => {
   const result: { label: string; expr: string }[] = []
+  const active = (d: any) => d.switch.closed
   const pvs = devices.value.filter(d => d.type === 'pv')
   const bats = devices.value.filter(d => d.type === 'battery')
   const loads = devices.value.filter(d => d.type === 'load')
   const chargers = devices.value.filter(d => d.type === 'charger')
-
   const mkRef = (dev: any) => `{${dev.id}_Power}`
   const plus = (arr: string[]) => arr.join(' + ') || '0'
+  const activeRef = (arr: any[]) => plus(arr.filter(active).map(mkRef))
+  const activeName = (dev: any) => `${dev.name} (${dev.switch.closed ? '合' : '断'})`
 
-  if (pvs.length) result.push({ label: '光伏总功率', expr: plus(pvs.map(mkRef)) })
+  if (pvs.length) {
+    const a = pvs.filter(active)
+    result.push({ label: '光伏总功率', expr: a.length ? activeRef(pvs) : '0 (全部断开)' })
+    for (const d of pvs) result.push({ label: `  ${activeName(d)}`, expr: active(d) ? `${mkRef(d)} = SETPOINT ∈ [0, ${d.params.rated_power_kw || '?'}]` : '0 (断路)' })
+  }
   if (bats.length) {
-    result.push({ label: '储能总功率', expr: plus(bats.map(mkRef)) })
+    const a = bats.filter(active)
+    result.push({ label: '储能总功率', expr: a.length ? activeRef(bats) : '0 (全部断开)' })
     for (const b of bats) {
-      result.push({ label: `${b.name} 功率`, expr: `${mkRef(b)} = SETPOINT (±${b.params.rated_power_kw_b || '?'} kW)` })
+      if (active(b)) {
+        result.push({ label: `  ${activeName(b)}`, expr: `${mkRef(b)} = SETPOINT (±${b.params.rated_power_kw_b || '?'} kW, +充电 −放电)` })
+      } else { result.push({ label: `  ${activeName(b)}`, expr: '0 (断路)' }) }
     }
   }
-  if (loads.length) result.push({ label: '负荷总功率', expr: plus(loads.map(mkRef)) })
-  if (chargers.length) result.push({ label: '充电桩总功率', expr: plus(chargers.map(mkRef)) })
+  if (loads.length) {
+    const a = loads.filter(active)
+    result.push({ label: '负荷总功率', expr: a.length ? activeRef(loads) : '0 (全部断开)' })
+    for (const d of loads) { if (!active(d)) result.push({ label: `  ${activeName(d)}`, expr: '0 (断路)' }) }
+  }
+  if (chargers.length) {
+    const a = chargers.filter(active)
+    result.push({ label: '充电桩总功率', expr: a.length ? activeRef(chargers) : '0 (全部断开)' })
+    for (const d of chargers) { if (!active(d)) result.push({ label: `  ${activeName(d)}`, expr: '0 (断路)' }) }
+  }
 
-  const genExpr = [...pvs, ...bats].map(mkRef).join(' + ') || '0'
-  const loadExpr = [...loads, ...chargers].map(mkRef).join(' + ') || '0'
-  result.push({ label: '关口表功率 (GRID_P)', expr: `(${genExpr}) - (${loadExpr})` })
-  result.push({ label: '系统频率', expr: '50.0 + (P_不平衡 / P_发电) × 0.2 Hz' })
+  const genExpr = [...pvs.filter(active), ...bats.filter(d => d.switch.closed && (d.power ?? 0) < 0)].map(mkRef).join(' + ') || '0'
+  const loadExpr = [...loads.filter(active), ...chargers.filter(active), ...bats.filter(d => d.switch.closed && (d.power ?? 0) > 0)].map(mkRef).join(' + ') || '0'
+  result.push({ label: '关口表功率 (GRID_P)', expr: `(${loadExpr}) − (${genExpr}) = 用电 − 发电` })
+  result.push({ label: '  └ 符号', expr: '储能>0=充电(用电), <0=放电(发电) | 关口>0=从电网用电, <0=送电' })
 
   return result
 })
@@ -683,7 +590,7 @@ async function fetchPoints() {
 }
 
 async function loadAll() {
-  await Promise.all([fetchTopology(), fetchInstance(), fetchPoints(), fetchFormulas()])
+  await Promise.all([fetchTopology(), fetchInstance(), fetchPoints()])
   if (running.value) {
     await fetchDashboard()
   }
@@ -816,87 +723,15 @@ function resetNewDevice() {
   newDeviceParams.value = {}
 }
 
-// ── Formula handlers ──
-
-async function fetchFormulas() {
-  loadingFormulas.value = true
-  try {
-    formulas.value = await getMicrogridFormulas(instanceId)
-  } catch {
-    formulas.value = []
-  } finally {
-    loadingFormulas.value = false
-  }
-}
-
-function openAddFormula() {
-  editingFormula.value = { name: '', target: '', expression: '', enabled: true }
-  isEditingFormula.value = false
-  showFormulaDialog.value = true
-}
-
-function openEditFormula(f: MicrogridFormula) {
-  editingFormula.value = { ...f }
-  isEditingFormula.value = true
-  showFormulaDialog.value = true
-}
-
-async function handleSaveFormula() {
-  if (!editingFormula.value.name || !editingFormula.value.expression || !editingFormula.value.target) {
-    ElMessage.warning('请填写完整信息')
-    return
-  }
-  savingFormula.value = true
-  try {
-    if (isEditingFormula.value && editingFormula.value.id) {
-      await updateMicrogridFormula(instanceId, editingFormula.value as MicrogridFormula)
-    } else {
-      await addMicrogridFormula(instanceId, editingFormula.value)
-    }
-    ElMessage.success('公式已保存')
-    showFormulaDialog.value = false
-    await fetchFormulas()
-  } catch (e: any) {
-    ElMessage.error('保存失败: ' + (e?.response?.data?.error || e.message))
-  } finally {
-    savingFormula.value = false
-  }
-}
-
-async function handleDeleteFormula(id: string) {
-  const f = formulas.value.find(x => x.id === id)
-  try {
-    await ElMessageBox.confirm(`确定删除公式 "${f?.name || id}"？`, '确认')
-    await deleteMicrogridFormula(instanceId, id)
-    ElMessage.success('公式已删除')
-    await fetchFormulas()
-  } catch (e: any) {
-    if (e !== 'cancel') {
-      ElMessage.error('删除失败: ' + (e?.response?.data?.error || e.message))
-    }
-  }
-}
-
-async function handleFormulaToggle(f: MicrogridFormula) {
-  try {
-    await updateMicrogridFormula(instanceId, f)
-  } catch {
-    ElMessage.error('更新失败')
-  }
-}
-
 function startPolling() {
   stopPolling()
-  pollTimer = setInterval(async () => {
-    await fetchDashboard()
-  }, 3000)
+  pollTimer = setInterval(async () => { await fetchDashboard() }, 3000)
+  pointsTimer = setInterval(async () => { await fetchPoints() }, 1000)
 }
 
 function stopPolling() {
-  if (pollTimer) {
-    clearInterval(pollTimer)
-    pollTimer = null
-  }
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+  if (pointsTimer) { clearInterval(pointsTimer); pointsTimer = null }
 }
 
 onMounted(async () => {
@@ -994,18 +829,6 @@ onUnmounted(() => {
   gap: 8px;
 }
 
-/* Topology SVG */
-.topology-svg {
-  width: 100%;
-  overflow-x: auto;
-}
-
-.topology-svg svg {
-  width: 100%;
-  min-width: 400px;
-  height: 480px;
-}
-
 /* Dashboard */
 .dashboard-grid {
   display: grid;
@@ -1059,5 +882,41 @@ onUnmounted(() => {
 /* Tab pane spacing */
 .el-tabs :deep(.el-tabs__content) {
   padding: 16px;
+}
+
+/* ═══ SVG Topology ═══ */
+.topology-wrap {
+  overflow: auto;
+  max-height: 560px;
+  background: linear-gradient(180deg, #fafbfc, #f0f2f5);
+}
+.topology-xform {
+  transform-origin: 0 0;
+  transition: transform .15s ease;
+}
+.topology-svg {
+  display: block;
+}
+.topology-svg :deep(text) {
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* Flow animation: energy beam (style #3) */
+@keyframes flow-up { to { stroke-dashoffset: 32; } }
+@keyframes flow-dn { to { stroke-dashoffset: -32; } }
+.topology-svg :deep(.fl-up) {
+  stroke-dasharray: 12 4;
+  animation: flow-up .6s linear infinite;
+  stroke-width: 3.5;
+}
+.topology-svg :deep(.fl-dn) {
+  stroke-dasharray: 12 4;
+  animation: flow-dn .6s linear infinite;
+  stroke-width: 3.5;
+}
+.topology-svg :deep(.fz) {
+  stroke-dasharray: 4 8;
+  stroke: #c0c4cc !important;
+  stroke-width: 2;
 }
 </style>

@@ -160,10 +160,10 @@ func (e *Engine) Dashboard() map[string]interface{} {
 			totalGen += e.pvPower[dev.ID]
 		case CompBattery:
 			p := e.batPower[dev.ID]
-			if p > 0 {
-				totalGen += p
+			if p < 0 {
+				totalGen += -p
 			} else {
-				totalLoad += -p
+				totalLoad += p
 			}
 			batPower += p
 			if s, ok := e.soc[dev.ID]; ok {
@@ -180,7 +180,7 @@ func (e *Engine) Dashboard() map[string]interface{} {
 	if batCnt > 0 {
 		avgSOC = batSOC / float64(batCnt)
 	}
-	grid := totalGen - totalLoad
+	grid := totalLoad - totalGen
 	return map[string]interface{}{
 		"total_generation_kw": math.Round(totalGen*10) / 10,
 		"total_load_kw":       math.Round(totalLoad*10) / 10,
@@ -211,17 +211,33 @@ func (e *Engine) tick() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	// 1. Calculate PV power
+	// 1. Calculate PV power: AO setpoint > irradiance fallback
 	for _, dev := range e.topology.Devices {
-		if dev.Type == CompPV && dev.Switch.Closed {
+		if dev.Type != CompPV {
+			continue
+		}
+		if !dev.Switch.Closed {
+			e.pvPower[dev.ID] = 0
+			continue
+		}
+		ratedP := dev.Params.RatedPowerKW
+		if ratedP <= 0 {
+			ratedP = 100
+		}
+		// Try AO setpoint first
+		setpoint := e.readStoreValue(dev.ID + "_Setpoint")
+		if setpoint > 0 {
+			if setpoint > ratedP {
+				setpoint = ratedP
+			}
+			e.pvPower[dev.ID] = setpoint
+		} else {
 			irradiance := 300.0 + rand.Float64()*600.0
 			p := irradiance / 1000.0 * dev.Params.RatedPowerKW * dev.Params.Efficiency
 			if p < 0 {
 				p = 0
 			}
 			e.pvPower[dev.ID] = p
-		} else if dev.Type == CompPV {
-			e.pvPower[dev.ID] = 0
 		}
 	}
 
@@ -246,7 +262,18 @@ func (e *Engine) tick() {
 	// 3. Calculate battery power from AO setpoint or dispatch
 	for _, dev := range e.topology.Devices {
 		if dev.Type == CompBattery {
-			e.batPower[dev.ID] = e.calcBatteryPowerLocked(dev)
+			if dev.Switch.Closed {
+				e.batPower[dev.ID] = e.calcBatteryPowerLocked(dev)
+			} else {
+				e.batPower[dev.ID] = 0
+			}
+		}
+	}
+
+	// 3.5 Update SOC for all batteries based on final power
+	for _, dev := range e.topology.Devices {
+		if dev.Type == CompBattery && dev.Switch.Closed {
+			e.updateSOC(dev, e.batPower[dev.ID])
 		}
 	}
 
@@ -282,7 +309,7 @@ func (e *Engine) tick() {
 	e.history.Push(snap)
 }
 
-// calcBatteryPowerLocked 计算电池功率 (+放电, -充电)
+// calcBatteryPowerLocked 计算电池功率 (+充电, -放电)
 // 优先使用 AO 设定值，回退到按时段调度
 func (e *Engine) calcBatteryPowerLocked(dev Device) float64 {
 	ratedP := dev.Params.RatedPowerKW_B
@@ -293,59 +320,34 @@ func (e *Engine) calcBatteryPowerLocked(dev Device) float64 {
 	// 1. Try AO setpoint from store (遥控/遥调设定值)
 	setpoint := e.readStoreValue(dev.ID + "_Setpoint")
 	if setpoint != 0 {
-		// Cap by rated power (不超过额定功率)
 		if setpoint > ratedP {
 			setpoint = ratedP
 		} else if setpoint < -ratedP {
 			setpoint = -ratedP
 		}
-		// Update SOC based on power exchange
-		e.updateSOC(dev, setpoint)
 		return setpoint
 	}
 
 	// 2. Fall back to time-based dispatch
 	hour := time.Now().Hour()
 	if hour >= 10 && hour <= 15 {
-		// PV peak - charge battery
+		// PV peak - charge battery (+ = charge)
 		chargeP := ratedP * 0.3
-		if s, ok := e.soc[dev.ID]; ok {
-			newSOC := s + chargeP*0.05/dev.Params.CapacityKWH*100
-			if newSOC > dev.Params.SOCMax {
-				chargeP = 0
-			} else {
-				e.soc[dev.ID] = newSOC
-			}
-		}
-		return -chargeP
+		return chargeP
 	} else if hour >= 18 && hour <= 22 {
-		// Evening peak - discharge
+		// Evening peak - discharge (- = discharge)
 		dischargeP := ratedP * 0.4
-		if s, ok := e.soc[dev.ID]; ok {
-			newSOC := s - dischargeP*0.05/dev.Params.CapacityKWH*100
-			if newSOC < dev.Params.SOCMin {
-				dischargeP = 0
-			} else {
-				e.soc[dev.ID] = newSOC
-			}
-		}
-		return dischargeP
+		return -dischargeP
 	}
 	// Off-peak: charge at low rate
-	if s, ok := e.soc[dev.ID]; ok && s < 50 {
-		chargeP := ratedP * 0.15
-		newSOC := s + chargeP*0.05/dev.Params.CapacityKWH*100
-		if newSOC > dev.Params.SOCMax {
-			chargeP = 0
-		} else {
-			e.soc[dev.ID] = newSOC
-		}
-		return -chargeP
+	if ratedP < 1 {
+		ratedP = 50
 	}
 	return 0
 }
 
 // updateSOC 根据充放电功率更新 SOC
+// power > 0 = 充电 → SOC↑, power < 0 = 放电 → SOC↓
 func (e *Engine) updateSOC(dev Device, power float64) {
 	if dev.Params.CapacityKWH <= 0 {
 		return
@@ -354,13 +356,11 @@ func (e *Engine) updateSOC(dev Device, power float64) {
 	if !ok {
 		return
 	}
-	// power positive = discharge (decrease SOC), negative = charge (increase SOC)
-	// deltaSOC = -power * dt / capacity * 100
 	dtHours := float64(e.cfg.TickMs) / 1000.0 / 3600.0
 	if e.cfg.TickMs <= 0 {
-		dtHours = 1.0 / 3600.0 // default 1s
+		dtHours = 1.0 / 3600.0
 	}
-	deltaSOC := -power * dtHours / dev.Params.CapacityKWH * 100
+	deltaSOC := power * dtHours / dev.Params.CapacityKWH * 100
 	newSOC := s + deltaSOC
 	if newSOC > dev.Params.SOCMax {
 		newSOC = dev.Params.SOCMax
@@ -571,10 +571,10 @@ func (e *Engine) calcPowerBalanceLocked() *PowerBalanceResult {
 		case CompBattery:
 			p := e.batPower[dev.ID]
 			batChargeTotal += p
-			if p > 0 {
-				totalGen += p
+			if p < 0 {
+				totalGen += -p // discharge = generation
 			} else {
-				totalLoad += -p
+				totalLoad += p // charge = load
 			}
 		case CompLoad:
 			totalLoad += e.loadPower[dev.ID]
@@ -583,8 +583,9 @@ func (e *Engine) calcPowerBalanceLocked() *PowerBalanceResult {
 		}
 	}
 
-	imbalance := totalGen - totalLoad
 	island := e.topology.GridMeter.IslandMode
+	grossLoad := totalLoad
+	grossGen := totalGen
 	gridPower := 0.0
 
 	if !island {
@@ -592,18 +593,22 @@ func (e *Engine) calcPowerBalanceLocked() *PowerBalanceResult {
 		if cap <= 0 {
 			cap = 10000
 		}
-		if imbalance > cap {
+		// GRID > 0 = 从电网用电, GRID < 0 = 向电网送电
+		raw := grossLoad - grossGen
+		if raw > cap {
 			gridPower = cap
-		} else if imbalance < -cap {
+		} else if raw < -cap {
 			gridPower = -cap
 		} else {
-			gridPower = imbalance
+			gridPower = raw
 		}
 	}
 
+	// Frequency: load-centric (more load → lower freq, more gen → higher freq)
 	freq := 50.0
-	if totalGen > 1 {
-		freq = 50.0 + (imbalance/totalGen)*0.2
+	denom := grossGen + grossLoad
+	if denom > 1 {
+		freq = 50.0 - (gridPower/denom)*0.5
 	}
 
 	return &PowerBalanceResult{
@@ -612,7 +617,7 @@ func (e *Engine) calcPowerBalanceLocked() *PowerBalanceResult {
 		BatteryPowerKW:    batChargeTotal,
 		GridPowerKW:       math.Round(gridPower*10) / 10,
 		GridReactiveKVAR:  math.Round(gridPower*0.15*10) / 10,
-		ImbalanceKW:       math.Round(imbalance*10) / 10,
+		ImbalanceKW:       math.Round((grossLoad - grossGen)*10) / 10,
 		Frequency:         math.Round(freq*100) / 100,
 		Island:            island,
 	}
