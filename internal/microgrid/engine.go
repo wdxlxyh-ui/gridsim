@@ -42,12 +42,20 @@ type Engine struct {
 
 // buildPointIndex 扫描 store 所有点，建立 name→IOA 索引
 func (e *Engine) buildPointIndex() {
-	if e.store == nil {
-		return
-	}
+	if e.store == nil { return }
 	e.pointIOA = make(map[string]uint32)
 	for _, p := range e.store.GetAll() {
 		e.pointIOA[p.Name] = p.IOA
+	}
+	// Also index by dev.ID suffixes for engine internal use
+	for _, dev := range e.topology.Devices {
+		for _, suffix := range []string{"_Power", "_SOC", "_Setpoint", "_SwStatus", "_SwCtrl", "_Status"} {
+			nameKey := dev.Name + suffix
+			idKey := dev.ID + suffix
+			if ioa, ok := e.pointIOA[nameKey]; ok {
+				e.pointIOA[idKey] = ioa
+			}
+		}
 	}
 }
 
@@ -135,11 +143,11 @@ func (e *Engine) ensureGridFormula() {
 	for _, dev := range e.topology.Devices {
 		switch dev.Type {
 		case CompPV:
-			genTerms = append(genTerms, "{"+dev.ID+"_Power}")
+			genTerms = append(genTerms, "{"+dev.Name+"_Power}")
 		case CompLoad, CompCharger:
-			loadTerms = append(loadTerms, "{"+dev.ID+"_Power}")
+			loadTerms = append(loadTerms, "{"+dev.Name+"_Power}")
 		case CompBattery:
-			loadTerms = append(loadTerms, "{"+dev.ID+"_Power}") // Battery included in load (charge=+, discharge=-)
+			loadTerms = append(loadTerms, "{"+dev.Name+"_Power}") // Battery included in load (charge=+, discharge=-)
 		}
 	}
 	if len(loadTerms) == 0 && len(genTerms) == 0 { return }

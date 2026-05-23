@@ -7,7 +7,7 @@
           <el-button @click="goBack" text>
             ← 返回
           </el-button>
-          <span style="font-size: 16px; font-weight: 600; margin-left: 8px">{{ instanceName || '微电网' }}</span>
+          <span style="font-size: 16px; font-weight: 600; margin-left: 8px">{{ instanceName || '微电网仿真系统' }}</span>
           <el-tag :type="running ? 'success' : 'info'" style="margin-left: 12px">
             {{ running ? '运行中' : '已停止' }}
           </el-tag>
@@ -20,6 +20,7 @@
             type="primary"
             @click="handleSaveTopology"
           >保存拓扑</el-button>
+          <el-button @click="handleExportCSV">导出CSV</el-button>
         </div>
       </div>
     </el-card>
@@ -737,6 +738,10 @@ async function handleSaveTopology() {
   } catch (e: any) {
     ElMessage.error('保存失败: ' + (e?.response?.data?.error || e.message))
   }
+}
+
+function handleExportCSV() {
+  window.open(`/api/v1/microgrid/${instanceId}/export-csv`, '_blank')
 }
 
 async function handleAddDevice() {

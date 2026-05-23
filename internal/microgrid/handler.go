@@ -371,6 +371,32 @@ func extractMicrogridID(path, prefix, suffix string) string {
 	return strings.TrimSuffix(s, suffix)
 }
 
+// HandleMicrogridExportCSV GET /api/v1/microgrid/{id}/export-csv
+func HandleMicrogridExportCSV(mgr ManagerBridge) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := extractMicrogridID(r.URL.Path, "/api/v1/microgrid/", "/export-csv")
+
+		if store := mgr.GetStore(id); store != nil {
+			pts := store.GetAll()
+			sort.Slice(pts, func(i, j int) bool { return pts[i].IOA < pts[j].IOA })
+			w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+			w.Header().Set("Content-Disposition", `attachment; filename="`+id+`_points.csv"`)
+			w.Write([]byte("IOA,名称,类型,当前值,单位,描述\n"))
+			for _, p := range pts {
+				unit := ""
+				desc := p.Alias
+				if idx := strings.Index(p.Alias, "|"); idx >= 0 {
+					desc = p.Alias[:idx]
+					unit = p.Alias[idx+1:]
+				}
+				fmt.Fprintf(w, "%d,%s,%s,%.3f,%s,%s\n", p.IOA, p.Name, p.PointType, p.Value, unit, desc)
+			}
+			return
+		}
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "store not found"})
+	}
+}
+
 func defaultTopology() Topology {
 	return Topology{
 		BusName:      "10kV 母线",
