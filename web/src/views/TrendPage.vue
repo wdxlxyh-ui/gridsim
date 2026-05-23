@@ -54,6 +54,16 @@
           <span style="font-size: 12px; color: var(--el-text-color-secondary)">
             {{ lastUpdate }}
           </span>
+          <el-divider direction="vertical" />
+          <el-button size="small" :type="paused ? 'warning' : 'info'" @click="togglePause" :disabled="traces.length === 0">
+            {{ paused ? '▶ 恢复' : '⏸ 暂停' }}
+          </el-button>
+          <el-button size="small" @click="clearAllData" :disabled="traces.length === 0">
+            🔄 清空
+          </el-button>
+          <el-button size="small" type="primary" @click="downloadCSV" :disabled="traces.length === 0">
+            📥 下载 CSV
+          </el-button>
         </div>
       </div>
 
@@ -123,6 +133,7 @@ const formPoints = ref<PointSnapshot[]>([])
 const chartRef = ref<HTMLElement | null>(null)
 let chartInstance: echarts.ECharts | null = null
 let pollTimer: ReturnType<typeof setInterval> | null = null
+const paused = ref(false)
 
 function initChart() {
   if (!chartRef.value) return
@@ -212,6 +223,7 @@ function trimData() {
 
 async function fetchAllPoints() {
   if (traces.value.length === 0) return
+  if (paused.value) return
   const byInstance = new Map<string, number[]>()
   traces.value.forEach(t => {
     if (!byInstance.has(t.instId)) byInstance.set(t.instId, [])
@@ -238,7 +250,69 @@ async function fetchAllPoints() {
 
 function restartTimer() {
   if (pollTimer) clearInterval(pollTimer)
-  pollTimer = setInterval(fetchAllPoints, pollInterval.value)
+  if (!paused.value) {
+    pollTimer = setInterval(fetchAllPoints, pollInterval.value)
+  }
+}
+
+function togglePause() {
+  paused.value = !paused.value
+  if (paused.value) {
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+    lastUpdate.value = '已暂停'
+  } else {
+    pollTimer = setInterval(fetchAllPoints, pollInterval.value)
+  }
+}
+
+function clearAllData() {
+  traces.value.forEach(t => { t.data = [] })
+  updateChart()
+}
+
+function downloadCSV() {
+  const MAX_POINTS = 50000
+  // Collect all unique timestamps across all traces
+  const tsSet = new Set<number>()
+  traces.value.forEach(t => {
+    const slice = t.data.length > MAX_POINTS ? t.data.slice(-MAX_POINTS) : t.data
+    slice.forEach(d => tsSet.add(d[0]))
+  })
+  const timestamps = Array.from(tsSet).sort((a, b) => a - b)
+
+  // Build header
+  const header = ['时间']
+  traces.value.forEach(t => {
+    header.push(`${t.inst}·${t.alias || t.name}`)
+  })
+
+  // Build rows: for each timestamp, find each trace's value at that exact time
+  const rows: string[][] = []
+  timestamps.forEach(ts => {
+    const d = new Date(ts)
+    const tStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}.${String(d.getMilliseconds()).padStart(3, '0')}`
+    const row = [tStr]
+    traces.value.forEach(t => {
+      const pt = t.data.find(d => d[0] === ts)
+      row.push(pt !== undefined ? String(pt[1]) : '')
+    })
+    rows.push(row)
+  })
+
+  // Build CSV content
+  const csvLines = [header.join(',')]
+  rows.forEach(r => csvLines.push(r.join(',')))
+  const csvContent = '\uFEFF' + csvLines.join('\n')
+
+  // Trigger download
+  const now = new Date()
+  const filename = `trend_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}.csv`
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = filename
+  document.body.appendChild(a); a.click()
+  document.body.removeChild(a); URL.revokeObjectURL(url)
 }
 
 function addTraces() {
