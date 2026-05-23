@@ -20,7 +20,10 @@
             type="primary"
             @click="handleSaveTopology"
           >保存拓扑</el-button>
+          <el-button @click="handleExportTopology">导出拓扑</el-button>
+          <el-button @click="handleImportTopology" :disabled="running">导入拓扑</el-button>
           <el-button @click="handleExportXLSX">导出点表</el-button>
+          <input ref="topoImportRef" type="file" accept=".json" style="display:none" @change="onTopoFile" />
         </div>
       </div>
     </el-card>
@@ -453,6 +456,7 @@ const newDeviceParams = ref<MicrogridDeviceParams>({})
 
 // Edit device
 const showEditDevice = ref(false)
+const topoImportRef = ref<HTMLInputElement>()
 const updatingDevice = ref(false)
 const editingDevice = ref<MicrogridDevice | null>(null)
 const editingDeviceName = ref('')
@@ -738,6 +742,28 @@ async function handleSaveTopology() {
   } catch (e: any) {
     ElMessage.error('保存失败: ' + (e?.response?.data?.error || e.message))
   }
+}
+
+function handleExportTopology() {
+  const topo = { bus_name: busName.value, bus_voltage_kv: busVoltage.value, grid_meter: { ...gridMeter.value }, devices: devices.value }
+  const blob = new Blob([JSON.stringify(topo, null, 2)], { type: 'application/json' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob); a.download = `${instanceId}_topology.json`
+  a.click(); URL.revokeObjectURL(a.href)
+}
+function handleImportTopology() { topoImportRef.value?.click() }
+async function onTopoFile(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  try {
+    const topo = JSON.parse(await file.text())
+    busName.value = topo.bus_name || '10kV 母线'
+    busVoltage.value = topo.bus_voltage_kv || 10
+    gridMeter.value = topo.grid_meter || { rated_capacity_kw: 500, island_mode: false }
+    devices.value = topo.devices || []
+    topologyChanged.value = true
+    ElMessage.success('拓扑已加载，请点击保存拓扑')
+  } catch (e: any) { ElMessage.error('导入失败: ' + (e?.message || '格式错误')) }
 }
 
 function handleExportXLSX() {
