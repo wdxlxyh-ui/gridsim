@@ -169,6 +169,38 @@ func (h *DetailHandler) getSnapshot(w http.ResponseWriter, ioa uint32) {
 	writeJSON(w, http.StatusOK, pointToSnapshot(p))
 }
 
+// handleBatchRead handles GET /points/batch?ioas=16385,16386,16387
+func (h *DetailHandler) handleBatchRead(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
+	}
+	ioasStr := r.URL.Query().Get("ioas")
+	if ioasStr == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing ioas query parameter"})
+		return
+	}
+	parts := strings.Split(ioasStr, ",")
+	snapshots := make([]model.PointSnapshot, 0, len(parts))
+	for _, s := range parts {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		ioa, err := strconv.ParseUint(s, 10, 32)
+		if err != nil {
+			continue
+		}
+		if p, ok := h.store.Get(uint32(ioa)); ok {
+			snapshots = append(snapshots, pointToSnapshot(p))
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"points":       snapshots,
+		"refreshed_at": time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
+	})
+}
+
 func (h *DetailHandler) setValue(w http.ResponseWriter, r *http.Request, ioa uint32) {
 	p, ok := h.store.Get(ioa)
 	if !ok {
@@ -1140,6 +1172,11 @@ func (h *DetailHandler) HandleAutoChangeConfig(w http.ResponseWriter, r *http.Re
 func (h *DetailHandler) HandleBatchSetValue(w http.ResponseWriter, r *http.Request) {
 	defer h.recoverPanic(w)
 	h.batchSetValue(w, r)
+}
+
+func (h *DetailHandler) HandleBatchRead(w http.ResponseWriter, r *http.Request) {
+	defer h.recoverPanic(w)
+	h.handleBatchRead(w, r)
 }
 
 func (h *DetailHandler) HandleListCSVFiles(w http.ResponseWriter, r *http.Request) {

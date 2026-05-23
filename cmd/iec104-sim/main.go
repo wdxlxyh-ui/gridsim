@@ -384,6 +384,8 @@ func (ws *webServer) handleInstancePoints(w http.ResponseWriter, r *http.Request
 		detailHandler.HandleAutoChangeConfig(w, r, parts)
 	case parts[0] == "batch" && r.Method == http.MethodPost:
 		detailHandler.HandleBatchSetValue(w, r)
+	case parts[0] == "batch" && r.Method == http.MethodGet:
+		detailHandler.HandleBatchRead(w, r)
 	default:
 		ioa, err := strconv.ParseUint(parts[0], 10, 32)
 		if err != nil {

@@ -430,6 +430,7 @@ curl -X POST http://localhost:8989/api/v1/upload \
 | 方法 | 端点 | 说明 |
 |------|------|------|
 | GET | `/api/v1/instances/{id}/points` | 获取所有测点 |
+| GET | `/api/v1/instances/{id}/points/batch?ioas=X,Y,Z` | 批量读取指定 IOA ⭐ (v2.5.3) |
 | GET | `/api/v1/instances/{id}/points/{ioa}` | 获取单个测点 |
 | PUT | `/api/v1/instances/{id}/points/{ioa}` | 置数 |
 | POST | `/api/v1/instances/{id}/points/batch` | 批量置数 ⭐ |
