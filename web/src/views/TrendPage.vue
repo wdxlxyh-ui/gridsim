@@ -237,7 +237,10 @@ async function fetchAllPoints() {
         const trace = traces.value.find(t => t.instId === instId && t.ioa === pt.ioa)
         if (!trace) continue
         const ts = pt.updated_at ? new Date(pt.updated_at).getTime() : Date.now()
-        trace.data.push([ts, pt.value])
+        let v = pt.value
+        if (pt.point_type === 'DI' || pt.point_type === 'DO') v = pt.bool_value ? 1 : 0
+        else if (pt.point_type === 'PI') v = pt.int_value
+        trace.data.push([ts, v])
       }
     } catch {
       // instance may have stopped
@@ -290,7 +293,7 @@ function downloadCSV() {
   const rows: string[][] = []
   timestamps.forEach(ts => {
     const d = new Date(ts)
-    const tStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}.${String(d.getMilliseconds()).padStart(3, '0')}`
+    const tStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}.${String(d.getMilliseconds()).padStart(3,'0')}`
     const row = [tStr]
     traces.value.forEach(t => {
       const pt = t.data.find(d => d[0] === ts)
@@ -377,9 +380,7 @@ async function onInstChange() {
   if (!formInst.value) return
   try {
     const res = await getPoints(formInst.value)
-    formPoints.value = res.points
-      .filter(p => p.point_type !== 'AO' && p.point_type !== 'DO')
-      .sort((a, b) => a.ioa - b.ioa)
+    formPoints.value = res.points.sort((a, b) => a.ioa - b.ioa)
   } catch {
     ElMessage.warning('加载测点失败，请确认实例已启动')
   }
