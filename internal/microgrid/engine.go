@@ -221,7 +221,7 @@ func (e *Engine) Dashboard() map[string]interface{} {
 		}
 	}
 
-	gridPower := e.readStoreValue("GRID_P")
+	gridPower := totalLoadKW + totalCharger + totalBat - totalPV
 	avgSOC := 0.0
 	if batCnt > 0 {
 		avgSOC = batSOCSum / float64(batCnt)
