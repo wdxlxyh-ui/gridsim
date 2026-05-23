@@ -99,7 +99,7 @@ func HandleMicrogridDevice(mgr ManagerBridge) http.HandlerFunc {
 				dev.Switch.Name = fmt.Sprintf("QF%d", len(topo.Devices)+1)
 			}
 			topo.Devices = append(topo.Devices, dev)
-			saveTopology(mgr, cfg, &topo)
+			saveTopology(mgr, id, cfg, &topo)
 			writeJSON(w, http.StatusCreated, dev)
 
 		case http.MethodPut:
@@ -120,7 +120,7 @@ func HandleMicrogridDevice(mgr ManagerBridge) http.HandlerFunc {
 				writeJSON(w, http.StatusNotFound, map[string]string{"error": "device not found"})
 				return
 			}
-			saveTopology(mgr, cfg, &topo)
+			saveTopology(mgr, id, cfg, &topo)
 			writeJSON(w, http.StatusOK, dev)
 
 		case http.MethodDelete:
@@ -137,7 +137,7 @@ func HandleMicrogridDevice(mgr ManagerBridge) http.HandlerFunc {
 				writeJSON(w, http.StatusNotFound, map[string]string{"error": "device not found"})
 				return
 			}
-			saveTopology(mgr, cfg, &topo)
+			saveTopology(mgr, id, cfg, &topo)
 			writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 
 		default:
@@ -184,7 +184,7 @@ func HandleMicrogridControl(mgr ManagerBridge) http.HandlerFunc {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
 			return
 		}
-		saveTopology(mgr, cfg, &topo)
+		saveTopology(mgr, id, cfg, &topo)
 		writeJSON(w, http.StatusOK, map[string]interface{}{"status": "ok", "closed": closed})
 	}
 }
@@ -313,7 +313,7 @@ func HandleMicrogridFormulas(mgr ManagerBridge) http.HandlerFunc {
 			uidCounter++
 			rule.ID = fmt.Sprintf("fml-%d", uidCounter)
 			topo.Formulas = append(topo.Formulas, rule)
-			saveTopology(mgr, cfg, &topo)
+			saveTopology(mgr, id, cfg, &topo)
 			writeJSON(w, http.StatusCreated, rule)
 
 		case http.MethodPut:
@@ -334,7 +334,7 @@ func HandleMicrogridFormulas(mgr ManagerBridge) http.HandlerFunc {
 				writeJSON(w, http.StatusNotFound, map[string]string{"error": "formula not found"})
 				return
 			}
-			saveTopology(mgr, cfg, &topo)
+			saveTopology(mgr, id, cfg, &topo)
 			writeJSON(w, http.StatusOK, rule)
 
 		case http.MethodDelete:
@@ -352,7 +352,7 @@ func HandleMicrogridFormulas(mgr ManagerBridge) http.HandlerFunc {
 				writeJSON(w, http.StatusNotFound, map[string]string{"error": "formula not found"})
 				return
 			}
-			saveTopology(mgr, cfg, &topo)
+			saveTopology(mgr, id, cfg, &topo)
 			writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 
 		default:
@@ -381,13 +381,18 @@ func defaultTopology() Topology {
 	}
 }
 
-func saveTopology(mgr ManagerBridge, cfg model.InstanceConfig, topo *Topology) {
+func saveTopology(mgr ManagerBridge, id string, cfg model.InstanceConfig, topo *Topology) {
 	b, _ := json.Marshal(topo)
 	if cfg.MicrogridConfig == nil {
 		cfg.MicrogridConfig = &model.MicrogridInstanceConfig{}
 	}
 	cfg.MicrogridConfig.TopologyJSON = string(b)
 	mgr.UpdateConfig(cfg)
+
+	// Push topology changes to running engine
+	if eng := mgr.GetMicrogridEngine(id); eng != nil {
+		eng.ReloadTopology(topo)
+	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {

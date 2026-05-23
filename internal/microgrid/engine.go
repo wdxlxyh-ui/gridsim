@@ -118,7 +118,12 @@ func (e *Engine) GetHistory() []SimSnapshot {
 	return e.history.Snapshots()
 }
 
-// SetSwitch 设置开关状态并更新 Store
+// ReloadTopology 从配置文件重新加载拓扑（线程安全）
+func (e *Engine) ReloadTopology(topo *Topology) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.topology = topo
+}
 func (e *Engine) SetSwitch(devID string, closed bool) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
