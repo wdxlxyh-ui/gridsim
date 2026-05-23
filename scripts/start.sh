@@ -1,5 +1,5 @@
 #!/bin/bash
-# IEC104 Simulator - 启动脚本
+# GridSim - 启动脚本
 set -e
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -25,7 +25,7 @@ fi
 cd "$DIR"
 
 # Start the simulator
-nohup "$DIR/bin/iec104-sim" serve \
+nohup "$DIR/bin/gridsim" serve \
     --http ":8989" \
     --config-dir "$CONFIG_DIR" \
     --log-dir "$LOG_DIR" \

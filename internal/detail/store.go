@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"iec104-sim/internal/model"
+	"gridsim/internal/model"
 )
 
 type AutoChangeStore struct {

@@ -284,7 +284,7 @@
 | `restart_instance` | 重启实例 | WRITE |
 | `get_server_status` | 模拟器整体健康度 | READ |
 
-**通信方式**: HTTP → IEC104 Simulator REST API
+**通信方式**: HTTP → GridSim REST API
 
 ### MCP Data Interface
 
@@ -306,7 +306,7 @@
 | `upload_csv` | 上传 CSV 回放文件，结合 StrategyCSV 实现时序数据自动播放 | WRITE CSV |
 | `export_points_csv` | 导出测点数据(CSV) | READ |
 
-**通信方式**: HTTP → IEC104 Simulator REST API
+**通信方式**: HTTP → GridSim REST API
 
 ### MCP 架构要点
 

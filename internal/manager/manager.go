@@ -12,14 +12,14 @@ import (
 	"strings"
 	"sync"
 
-	"iec104-sim/internal/detail"
-	"iec104-sim/internal/model"
-	"iec104-sim/internal/storage"
-	"iec104-sim/pkg/api"
-	"iec104-sim/pkg/config"
-	"iec104-sim/pkg/firewall"
-	"iec104-sim/pkg/library"
-	"iec104-sim/pkg/protocol"
+	"gridsim/internal/detail"
+	"gridsim/internal/model"
+	"gridsim/internal/storage"
+	"gridsim/pkg/api"
+	"gridsim/pkg/config"
+	"gridsim/pkg/firewall"
+	"gridsim/pkg/library"
+	"gridsim/pkg/protocol"
 )
 
 func generateID() string {

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==========================================================================
-# IEC104 Simulator - Automated Build Script
+# GridSim - Automated Build Script
 # ==========================================================================
 # Usage:
 #   ./build.sh                  Full build (all platforms + frontend)
@@ -13,7 +13,7 @@
 set -euo pipefail
 
 # ─── Config ───────────────────────────────────────────────────────────────
-PROJECT="iec104-sim"
+PROJECT="gridsim"
 VERSION="2.1.3"
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 DIST_DIR="$ROOT/dist"
@@ -119,7 +119,7 @@ for entry in "${PLATFORMS[@]}"; do
         GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 \
             $GO_CMD build "$LDFLAGS" \
             -o "$DIST_DIR/bin/$PROJECT-$suffix${bin_name#$PROJECT}" \
-            "$ROOT/cmd/iec104-sim/"
+            "$ROOT/cmd/gridsim/"
         echo "    ✔ $goos/$goarch  →  $(ls -lh "$DIST_DIR/bin/$PROJECT-$suffix${bin_name#$PROJECT}" | awk '{print $5}')"
     ) &
     GO_BUILD_PIDS+=($!)
@@ -235,11 +235,11 @@ with zipfile.ZipFile(dst, 'w', zipfile.ZIP_DEFLATED) as zf:
             zf.write(p, os.path.relpath(p, os.path.dirname(src)))
 "
         fi
-        echo "  ✔ iec104-sim-v$VERSION-$suffix.zip  ($(ls -lh "$DIST_DIR/$PROJECT-v$VERSION-$suffix.zip" | awk '{print $5}'))"
+        echo "  ✔ gridsim-v$VERSION-$suffix.zip  ($(ls -lh "$DIST_DIR/$PROJECT-v$VERSION-$suffix.zip" | awk '{print $5}'))"
     else
         tar czf "$DIST_DIR/$PROJECT-v$VERSION-$suffix.tar.gz" \
             "$PROJECT-v$VERSION-$suffix/"
-        echo "  ✔ iec104-sim-v$VERSION-$suffix.tar.gz  ($(ls -lh "$DIST_DIR/$PROJECT-v$VERSION-$suffix.tar.gz" | awk '{print $5}'))"
+        echo "  ✔ gridsim-v$VERSION-$suffix.tar.gz  ($(ls -lh "$DIST_DIR/$PROJECT-v$VERSION-$suffix.tar.gz" | awk '{print $5}'))"
     fi
     PACKAGES=$((PACKAGES + 1))
 done

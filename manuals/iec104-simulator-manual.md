@@ -84,8 +84,8 @@ IEC 104 从站模拟器用于变电站自动化测试，支持多实例并行运
 
 ```bash
 # Linux amd64
-tar xzf iec104-sim-v2.5.2-linux-amd64.tar.gz
-cd iec104-sim-v2.5.2-linux-amd64
+tar xzf gridsim-v2.5.2-linux-amd64.tar.gz
+cd gridsim-v2.5.2-linux-amd64
 
 # 启动服务
 ./bin/start.sh
@@ -109,24 +109,24 @@ cd iec104-sim-v2.5.2-linux-amd64
 ```bash
 # 克隆仓库
 git clone <repo-url>
-cd iec104-sim-master
+cd gridsim-master
 
 # 构建前端（需要 Node.js 18+）
 cd web && npm install && npm run build && cd ..
 
 # 构建后端
-go build -o bin/iec104-sim ./cmd/iec104-sim/
+go build -o bin/gridsim ./cmd/gridsim/
 
 # 启动
-./bin/iec104-sim serve --http :8989 --config-dir ./config --log-dir ./logs
+./bin/gridsim serve --http :8989 --config-dir ./config --log-dir ./logs
 ```
 
 ### 3.5 发行包目录结构
 
 ```
-iec104-sim-v2.5.2-linux-amd64/
+gridsim-v2.5.2-linux-amd64/
 ├── bin/
-│   ├── iec104-sim         ← 主程序
+│   ├── gridsim         ← 主程序
 │   ├── iec104-mcp         ← MCP 服务器（可选）
 │   ├── start.sh           ← 启动脚本
 │   ├── stop.sh            ← 停止脚本
@@ -150,7 +150,7 @@ iec104-sim-v2.5.2-linux-amd64/
 多实例管理模式，通过 Web UI 管理多个 IEC104 实例：
 
 ```bash
-./iec104-sim serve \
+./gridsim serve \
   --http :8989 \
   --config-dir ./config \
   --log-dir ./logs \
@@ -162,7 +162,7 @@ iec104-sim-v2.5.2-linux-amd64/
 单进程单端口模式，适用于简单场景：
 
 ```bash
-./iec104-sim -p 2404 -c samples/point.xlsx -H :8080 -l info
+./gridsim -p 2404 -c samples/point.xlsx -H :8080 -l info
 ```
 
 ### 4.3 命令行参数
@@ -186,7 +186,7 @@ iec104-sim-v2.5.2-linux-amd64/
 
 **传统模式启动 Modbus TCP：**
 ```bash
-./iec104-sim -p 502 -c samples/ModbusTCP-ESS.xlsx --protocol modbus_tcp -H :8989
+./gridsim -p 502 -c samples/ModbusTCP-ESS.xlsx --protocol modbus_tcp -H :8989
 ```
 
 **服务模式创建 Modbus 实例（API）：**
@@ -834,7 +834,7 @@ make dist                  # 三平台发行包
 cd web && npm install && npm run build && cd ..
 
 # 2. 构建二进制（当前平台）
-go build -ldflags="-s -w -X main.version=2.5.2" -o bin/iec104-sim ./cmd/iec104-sim/
+go build -ldflags="-s -w -X main.version=2.5.2" -o bin/gridsim ./cmd/gridsim/
 
 # 3. 全平台一键打包
 make dist
@@ -843,9 +843,9 @@ make dist
 ### 11.3 发行包
 
 构建产物在 `dist/` 目录：
-- `iec104-sim-v2.5.2-linux-amd64.tar.gz`
-- `iec104-sim-v2.5.2-linux-arm64.tar.gz`
-- `iec104-sim-v2.5.2-windows-amd64.zip`
+- `gridsim-v2.5.2-linux-amd64.tar.gz`
+- `gridsim-v2.5.2-linux-arm64.tar.gz`
+- `gridsim-v2.5.2-windows-amd64.zip`
 
 ---
 
@@ -855,7 +855,7 @@ make dist
 
 - 启动实例时自动放行对应 IEC104 和 HTTP 端口
 - 停止实例时自动移除规则
-- 规则注释：`iec104-sim-instance` / `iec104-sim-http`
+- 规则注释：`gridsim-instance` / `gridsim-http`
 
 > 需要 `iptables` 执行权限。如无法使用，启动日志会提示，不影响模拟器运行。
 

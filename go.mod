@@ -1,4 +1,4 @@
-module iec104-sim
+module gridsim
 
 go 1.25.5
 

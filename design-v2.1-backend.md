@@ -28,7 +28,7 @@ internal/
 pkg/api/
 └── handler.go                 ← 不变（legacy 点表 API）
 
-cmd/iec104-sim/
+cmd/gridsim/
 └── main.go                    ← 修改：注册 /api/v1/instances/{id}/points 路由
 ```
 

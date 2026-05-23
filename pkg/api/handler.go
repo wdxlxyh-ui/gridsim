@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"iec104-sim/pkg/config"
-	"iec104-sim/pkg/library"
+	"gridsim/pkg/config"
+	"gridsim/pkg/library"
 )
 
 type Publisher interface {

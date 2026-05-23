@@ -1,4 +1,4 @@
-PROJECT   := iec104-sim
+PROJECT   := gridsim
 VERSION   := $(shell \
   if git describe --tags --exact-match >/dev/null 2>&1; then \
     git describe --tags | sed 's/^v//'; \
@@ -28,30 +28,30 @@ all: build-linux-amd64
 # ── Linux amd64 ─────────────────────────────────────────
 build-linux-amd64:
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 \
-		go build $(LDFLAGS) -o $(BIN_DIR)/$(PROJECT) ./cmd/iec104-sim/
+		go build $(LDFLAGS) -o $(BIN_DIR)/$(PROJECT) ./cmd/gridsim/
 
 # ── Linux arm64 (aarch64) ──────────────────────────────
 build-linux-arm64:
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 \
-		go build $(LDFLAGS) -o $(BIN_DIR)/$(PROJECT)-arm64 ./cmd/iec104-sim/
+		go build $(LDFLAGS) -o $(BIN_DIR)/$(PROJECT)-arm64 ./cmd/gridsim/
 
 # ── Windows amd64 ─────────────────────────────────────
 build-windows:
 	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
-		go build $(LDFLAGS) -o $(BIN_DIR)/$(PROJECT).exe ./cmd/iec104-sim/
+		go build $(LDFLAGS) -o $(BIN_DIR)/$(PROJECT).exe ./cmd/gridsim/
 
 # ── MCP Server (stdio 协议, 供 AI Agent 调用) ───────────
 build-mcp-linux-amd64:
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 \
-		go build $(LDFLAGS) -o $(BIN_DIR)/iec104-mcp ./cmd/mcp-server/
+		go build $(LDFLAGS) -o $(BIN_DIR)/gridsim-mcp ./cmd/gridsim-mcp/
 
 build-mcp-linux-arm64:
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 \
-		go build $(LDFLAGS) -o $(BIN_DIR)/iec104-mcp-arm64 ./cmd/mcp-server/
+		go build $(LDFLAGS) -o $(BIN_DIR)/gridsim-mcp-arm64 ./cmd/gridsim-mcp/
 
 build-mcp-windows:
 	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
-		go build $(LDFLAGS) -o $(BIN_DIR)/iec104-mcp.exe ./cmd/mcp-server/
+		go build $(LDFLAGS) -o $(BIN_DIR)/gridsim-mcp.exe ./cmd/gridsim-mcp/
 
 # ── 版本号文件 ──────────────────────────────────────────
 version-file:
@@ -85,7 +85,7 @@ dist: web-build build-all
 	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-amd64/logs
 	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-amd64/resources
 	cp $(BIN_DIR)/$(PROJECT) $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-amd64/bin/$(PROJECT)
-	cp $(BIN_DIR)/iec104-mcp $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-amd64/bin/iec104-mcp
+	cp $(BIN_DIR)/gridsim-mcp $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-amd64/bin/gridsim-mcp
 	cp $(BIN_DIR)/VERSION $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-amd64/bin/VERSION
 	cp scripts/start.sh scripts/stop.sh scripts/restart.sh $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-amd64/bin/
 	chmod +x $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-amd64/bin/*.sh
@@ -106,7 +106,7 @@ dist: web-build build-all
 	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-arm64/logs
 	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-arm64/resources
 	cp $(BIN_DIR)/$(PROJECT)-arm64 $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-arm64/bin/$(PROJECT)
-	cp $(BIN_DIR)/iec104-mcp-arm64 $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-arm64/bin/iec104-mcp
+	cp $(BIN_DIR)/gridsim-mcp-arm64 $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-arm64/bin/gridsim-mcp
 	cp $(BIN_DIR)/VERSION $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-arm64/bin/VERSION
 	cp scripts/start.sh scripts/stop.sh scripts/restart.sh $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-arm64/bin/
 	chmod +x $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-arm64/bin/*.sh
@@ -128,7 +128,7 @@ dist: web-build build-all
 	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-windows-amd64/logs
 	mkdir -p $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-windows-amd64/resources
 	cp $(BIN_DIR)/$(PROJECT).exe $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-windows-amd64/bin/$(PROJECT).exe
-	cp $(BIN_DIR)/iec104-mcp.exe $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-windows-amd64/bin/iec104-mcp.exe
+	cp $(BIN_DIR)/gridsim-mcp.exe $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-windows-amd64/bin/gridsim-mcp.exe
 	cp $(BIN_DIR)/VERSION $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-windows-amd64/bin/VERSION
 	cp scripts/start.bat scripts/stop.bat scripts/restart.bat $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-windows-amd64/scripts/
 	echo '[]' > $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-windows-amd64/config/instances.json
@@ -154,7 +154,7 @@ deb-amd64: build-linux-amd64
 	@mkdir -p /tmp/deb-amd64/DEBIAN /tmp/deb-amd64/usr/local/bin
 	cp $(BIN_DIR)/$(PROJECT) /tmp/deb-amd64/usr/local/bin/$(PROJECT)
 	chmod 755 /tmp/deb-amd64/usr/local/bin/$(PROJECT)
-	printf 'Package: %s\nVersion: %s\nSection: utils\nPriority: optional\nArchitecture: amd64\nMaintainer: IEC104 Simulator <dev@example.com>\nDescription: IEC 60870-5-104 Simulator with Web Management\n Supports multi-instance IEC104 simulation with\n web-based configuration and monitoring.\nBuilt-Using: go1.22.5\n' $(PROJECT) $(DIST_VERSION) > /tmp/deb-amd64/DEBIAN/control
+	printf 'Package: %s\nVersion: %s\nSection: utils\nPriority: optional\nArchitecture: amd64\nMaintainer: GridSim <dev@example.com>\nDescription: IEC 60870-5-104 Simulator with Web Management\n Supports multi-instance IEC104 simulation with\n web-based configuration and monitoring.\nBuilt-Using: go1.22.5\n' $(PROJECT) $(DIST_VERSION) > /tmp/deb-amd64/DEBIAN/control
 	cd /tmp/deb-amd64 && find . -type f ! -path './DEBIAN/*' -exec md5sum {} \; > DEBIAN/md5sums
 	dpkg-deb --build /tmp/deb-amd64 $(BIN_DIR)/$(PROJECT)_$(DIST_VERSION)_amd64.deb
 	@rm -rf /tmp/deb-amd64
@@ -163,7 +163,7 @@ deb-arm64: build-linux-arm64
 	@mkdir -p /tmp/deb-arm64/DEBIAN /tmp/deb-arm64/usr/local/bin
 	cp $(BIN_DIR)/$(PROJECT)-linux-arm64 /tmp/deb-arm64/usr/local/bin/$(PROJECT)
 	chmod 755 /tmp/deb-arm64/usr/local/bin/$(PROJECT)
-	printf 'Package: %s\nVersion: %s\nSection: utils\nPriority: optional\nArchitecture: arm64\nMaintainer: IEC104 Simulator <dev@example.com>\nDescription: IEC 60870-5-104 Simulator with Web Management\n Supports multi-instance IEC104 simulation with\n web-based configuration and monitoring.\nBuilt-Using: go1.22.5\n' $(PROJECT) $(DIST_VERSION) > /tmp/deb-arm64/DEBIAN/control
+	printf 'Package: %s\nVersion: %s\nSection: utils\nPriority: optional\nArchitecture: arm64\nMaintainer: GridSim <dev@example.com>\nDescription: IEC 60870-5-104 Simulator with Web Management\n Supports multi-instance IEC104 simulation with\n web-based configuration and monitoring.\nBuilt-Using: go1.22.5\n' $(PROJECT) $(DIST_VERSION) > /tmp/deb-arm64/DEBIAN/control
 	cd /tmp/deb-arm64 && find . -type f ! -path './DEBIAN/*' -exec md5sum {} \; > DEBIAN/md5sums
 	dpkg-deb --build /tmp/deb-arm64 $(BIN_DIR)/$(PROJECT)_$(DIST_VERSION)_arm64.deb
 	@rm -rf /tmp/deb-arm64

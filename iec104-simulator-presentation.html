@@ -654,13 +654,13 @@
     </section>
 
     <!-- ==========================================
-         SLIDE 2: What is IEC104 Simulator
+         SLIDE 2: What is GridSim
          ========================================== -->
     <section class="slide">
         <div class="deco-circle deco-circle-1"></div>
         <div class="slide-content">
             <div class="accent-line reveal"></div>
-            <h2 class="reveal">What is IEC104 Simulator?</h2>
+            <h2 class="reveal">What is GridSim?</h2>
             <div class="two-col">
                 <div>
                     <p class="reveal" style="margin-bottom: 1rem;">
@@ -675,10 +675,10 @@
                 </div>
                 <div class="reveal">
                     <pre><code>// Traditional Mode (single instance)
-./iec104-sim -p 2404 -c point.xlsx
+./gridsim -p 2404 -c point.xlsx
 
 // Serve Mode (multi-instance)
-./iec104-sim serve \
+./gridsim serve \
   --http :8989 \
   --config-dir ./config \
   --log-dir ./logs</code></pre>
@@ -806,7 +806,7 @@
                         <li>Quick testing & debugging</li>
                         <li>HTTP API at <code>:8080</code></li>
                     </ul>
-                    <pre style="margin-top: 0.75rem;"><code>./iec104-sim -p 2404 \
+                    <pre style="margin-top: 0.75rem;"><code>./gridsim -p 2404 \
   -c samples/point.xlsx \
   -H :8080 -l info</code></pre>
                 </div>
@@ -818,7 +818,7 @@
                         <li>Instance lifecycle management</li>
                         <li>JSON config persistence</li>
                     </ul>
-                    <pre style="margin-top: 0.75rem;"><code>./iec104-sim serve \
+                    <pre style="margin-top: 0.75rem;"><code>./gridsim serve \
   --http :8989 \
   --config-dir ./config \
   --log-dir ./logs</code></pre>
@@ -1106,14 +1106,14 @@
                 <div class="arch-layer">
                     <div class="arch-block">
                         <div class="layer-label">Step 1 — Download & Extract</div>
-                        <div class="layer-content"><code>tar xzf iec104-sim-v2.2.0.tar.gz && cd iec104-sim-v2.2.0</code></div>
+                        <div class="layer-content"><code>tar xzf gridsim-v2.2.0.tar.gz && cd gridsim-v2.2.0</code></div>
                     </div>
                 </div>
                 <div class="arch-arrow">&#9660;</div>
                 <div class="arch-layer">
                     <div class="arch-block">
                         <div class="layer-label">Step 2 — Start Service</div>
-                        <div class="layer-content"><code>./start.sh</code> or <code>./bin/iec104-sim serve --http :8989</code></div>
+                        <div class="layer-content"><code>./start.sh</code> or <code>./bin/gridsim serve --http :8989</code></div>
                     </div>
                 </div>
                 <div class="arch-arrow">&#9660;</div>
@@ -1145,7 +1145,7 @@
                 <div class="reveal">
                     <h3>Build Commands</h3>
                     <pre style="margin-top: 0.5rem;"><code># Local dev
-go build -o bin/iec104-sim ./cmd/
+go build -o bin/gridsim ./cmd/
 
 # Cross-platform
 make build-all      # Linux + Windows
@@ -1177,7 +1177,7 @@ make compress       # UPX (~60% smaller)</code></pre>
         <div class="deco-circle deco-circle-1"></div>
         <div class="deco-circle deco-circle-2"></div>
         <div class="slide-content" style="align-items: center; text-align: center;">
-            <h1 class="reveal">IEC104 Simulator</h1>
+            <h1 class="reveal">GridSim</h1>
             <div class="accent-line reveal" style="margin: 1rem auto;"></div>
             <p class="reveal" style="font-size: var(--body-size); max-width: 50ch; margin-bottom: 1.5rem;">
                 变电站自动化测试的完整解决方案<br/>

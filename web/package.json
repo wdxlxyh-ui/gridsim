@@ -1,5 +1,5 @@
 {
-  "name": "iec104-sim-web",
+  "name": "gridsim-web",
   "version": "2.2.0",
   "private": true,
   "type": "module",

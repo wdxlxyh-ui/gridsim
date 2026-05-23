@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"iec104-sim/internal/model"
-	"iec104-sim/pkg/config"
-	"iec104-sim/pkg/library"
+	"gridsim/internal/model"
+	"gridsim/pkg/config"
+	"gridsim/pkg/library"
 )
 
 type mockPublisher struct {

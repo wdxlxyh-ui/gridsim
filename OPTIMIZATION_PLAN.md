@@ -30,15 +30,15 @@ HTTP Server 缺少超时配置，存在以下风险：
 
 ### 影响范围
 
-- `cmd/iec104-sim/main.go` 第 95 行（传统模式）
-- `cmd/iec104-sim/main.go` 第 158 行（服务模式）
+- `cmd/gridsim/main.go` 第 95 行（传统模式）
+- `cmd/gridsim/main.go` 第 158 行（服务模式）
 
 ### 修复方案
 
 #### 1. 新增 HTTP Server 工厂函数
 
 ```go
-// cmd/iec104-sim/main.go
+// cmd/gridsim/main.go
 
 // newHTTPServer 创建配置安全的 HTTP Server
 func newHTTPServer(addr string, handler http.Handler) *http.Server {
@@ -120,15 +120,15 @@ func (w *statusWriter) WriteHeader(statusCode int) {
 
 ### 影响范围
 
-- `cmd/iec104-sim/main.go` - `handleUpload` 函数
-- `cmd/iec104-sim/main.go` - `handleUploadCSV` 函数
+- `cmd/gridsim/main.go` - `handleUpload` 函数
+- `cmd/gridsim/main.go` - `handleUploadCSV` 函数
 
 ### 修复方案
 
 #### 1. 新增上传配置结构体
 
 ```go
-// cmd/iec104-sim/main.go
+// cmd/gridsim/main.go
 
 // UploadConfig 上传配置
 type UploadConfig struct {
@@ -382,7 +382,7 @@ Web UI 和 API 无任何认证机制，存在以下风险：
 
 ### 影响范围
 
-- `cmd/iec104-sim/main.go` - 所有 API 路由
+- `cmd/gridsim/main.go` - 所有 API 路由
 - Web 前端所有页面
 
 ### 修复方案
@@ -564,7 +564,7 @@ func GenerateToken(user *model.User) (string, error) {
 #### 5. 添加登录 API
 
 ```go
-// cmd/iec104-sim/main.go 新增
+// cmd/gridsim/main.go 新增
 
 func (ws *webServer) handleAuthLogin(w http.ResponseWriter, r *http.Request) {
     if r.Method != http.MethodPost {
@@ -1377,18 +1377,18 @@ jobs:
 
       - name: Build Linux AMD64
         run: |
-          GOOS=linux GOARCH=amd64 go build -o bin/iec104-sim-linux-amd64 ./cmd/iec104-sim/
-          tar -czf dist/iec104-sim-${GITHUB_REF_NAME}-linux-amd64.tar.gz -C .. iec104-sim-master/bin/iec104-sim-linux-amd64
+          GOOS=linux GOARCH=amd64 go build -o bin/gridsim-linux-amd64 ./cmd/gridsim/
+          tar -czf dist/gridsim-${GITHUB_REF_NAME}-linux-amd64.tar.gz -C .. gridsim-master/bin/gridsim-linux-amd64
 
       - name: Build Linux ARM64
         run: |
-          GOOS=linux GOARCH=arm64 go build -o bin/iec104-sim-linux-arm64 ./cmd/iec104-sim/
-          tar -czf dist/iec104-sim-${GITHUB_REF_NAME}-linux-arm64.tar.gz -C .. iec104-sim-master/bin/iec104-sim-linux-arm64
+          GOOS=linux GOARCH=arm64 go build -o bin/gridsim-linux-arm64 ./cmd/gridsim/
+          tar -czf dist/gridsim-${GITHUB_REF_NAME}-linux-arm64.tar.gz -C .. gridsim-master/bin/gridsim-linux-arm64
 
       - name: Build Windows AMD64
         run: |
-          GOOS=windows GOARCH=amd64 go build -o bin/iec104-sim-windows-amd64.exe ./cmd/iec104-sim/
-          cd dist && powershell -Command "Compress-Archive -Path ../bin/iec104-sim-windows-amd64.exe -DestinationPath iec104-sim-${GITHUB_REF_NAME}-windows-amd64.zip"
+          GOOS=windows GOARCH=amd64 go build -o bin/gridsim-windows-amd64.exe ./cmd/gridsim/
+          cd dist && powershell -Command "Compress-Archive -Path ../bin/gridsim-windows-amd64.exe -DestinationPath gridsim-${GITHUB_REF_NAME}-windows-amd64.zip"
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
@@ -1465,20 +1465,20 @@ test:
 build-all: build-linux-amd64 build-linux-arm64 build-windows
 
 build-linux-amd64:
-	GOOS=linux GOARCH=amd64 go build -o bin/iec104-sim-linux-amd64 ./cmd/iec104-sim/
+	GOOS=linux GOARCH=amd64 go build -o bin/gridsim-linux-amd64 ./cmd/gridsim/
 
 build-linux-arm64:
-	GOOS=linux GOARCH=arm64 go build -o bin/iec104-sim-linux-arm64 ./cmd/iec104-sim/
+	GOOS=linux GOARCH=arm64 go build -o bin/gridsim-linux-arm64 ./cmd/gridsim/
 
 build-windows:
-	GOOS=windows GOARCH=amd64 go build -o bin/iec104-sim-windows-amd64.exe ./cmd/iec104-sim/
+	GOOS=windows GOARCH=amd64 go build -o bin/gridsim-windows-amd64.exe ./cmd/gridsim/
 
 release: build-all
 	@echo "Creating release packages..."
 	@mkdir -p dist
-	cd bin && tar -czf ../dist/iec104-sim-$(VERSION)-linux-amd64.tar.gz iec104-sim-linux-amd64
-	cd bin && tar -czf ../dist/iec104-sim-$(VERSION)-linux-arm64.tar.gz iec104-sim-linux-arm64
-	cd bin && zip ../dist/iec104-sim-$(VERSION)-windows-amd64.zip iec104-sim-windows-amd64.exe
+	cd bin && tar -czf ../dist/gridsim-$(VERSION)-linux-amd64.tar.gz gridsim-linux-amd64
+	cd bin && tar -czf ../dist/gridsim-$(VERSION)-linux-arm64.tar.gz gridsim-linux-arm64
+	cd bin && zip ../dist/gridsim-$(VERSION)-windows-amd64.zip gridsim-windows-amd64.exe
 ```
 
 ### CI/CD 验收标准
