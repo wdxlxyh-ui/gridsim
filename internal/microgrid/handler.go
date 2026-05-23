@@ -7,7 +7,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/xuri/excelize/v2"
 	"gridsim/internal/model"
+	"gridsim/pkg/config"
 	"gridsim/pkg/library"
 )
 
@@ -371,25 +373,55 @@ func extractMicrogridID(path, prefix, suffix string) string {
 	return strings.TrimSuffix(s, suffix)
 }
 
-// HandleMicrogridExportCSV GET /api/v1/microgrid/{id}/export-csv
-func HandleMicrogridExportCSV(mgr ManagerBridge) http.HandlerFunc {
+// HandleMicrogridExportXLSX GET /api/v1/microgrid/{id}/export-xlsx
+func HandleMicrogridExportXLSX(mgr ManagerBridge) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id := extractMicrogridID(r.URL.Path, "/api/v1/microgrid/", "/export-csv")
+		id := extractMicrogridID(r.URL.Path, "/api/v1/microgrid/", "/export-xlsx")
 
 		if store := mgr.GetStore(id); store != nil {
 			pts := store.GetAll()
 			sort.Slice(pts, func(i, j int) bool { return pts[i].IOA < pts[j].IOA })
-			w.Header().Set("Content-Type", "text/csv; charset=utf-8")
-			w.Header().Set("Content-Disposition", `attachment; filename="`+id+`_points.csv"`)
-			w.Write([]byte("IOA,名称,类型,当前值,单位,描述\n"))
-			for _, p := range pts {
-				unit := ""
-				desc := p.Alias
-				if idx := strings.Index(p.Alias, "|"); idx >= 0 {
-					desc = p.Alias[:idx]
-					unit = p.Alias[idx+1:]
+
+			f := excelize.NewFile()
+			sheet := "point"
+			f.SetSheetName("Sheet1", sheet)
+
+			// Header row
+			headers := []string{"point-name", "point-number", "value-type", "point-type", "efficient", "base-value", "alias"}
+			for i, h := range headers {
+				cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+				f.SetCellValue(sheet, cell, h)
+			}
+
+			// Data rows
+			for i, p := range pts {
+				row := i + 2
+				vt := "DOUBLE"
+				switch p.ValueType {
+				case config.VTFloat:
+					vt = "DOUBLE"
+				case config.VTBit:
+					vt = "BIT"
+				case config.VTInt:
+					vt = "INT"
 				}
-				fmt.Fprintf(w, "%d,%s,%s,%.3f,%s,%s\n", p.IOA, p.Name, p.PointType, p.Value, unit, desc)
+				alias := p.Alias
+				if idx := strings.Index(alias, "|"); idx >= 0 {
+					alias = p.Alias[:idx]
+				}
+				f.SetCellValue(sheet, fmt.Sprintf("A%d", row), p.Name)
+				f.SetCellValue(sheet, fmt.Sprintf("B%d", row), p.IOA)
+				f.SetCellValue(sheet, fmt.Sprintf("C%d", row), vt)
+				f.SetCellValue(sheet, fmt.Sprintf("D%d", row), string(p.PointType))
+				f.SetCellValue(sheet, fmt.Sprintf("E%d", row), p.Efficient)
+				f.SetCellValue(sheet, fmt.Sprintf("F%d", row), p.BaseValue)
+				f.SetCellValue(sheet, fmt.Sprintf("G%d", row), alias)
+			}
+
+			w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+			w.Header().Set("Content-Disposition", `attachment; filename="`+id+`_points.xlsx"`)
+			if err := f.Write(w); err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			}
 			return
 		}

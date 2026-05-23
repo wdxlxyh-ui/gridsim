@@ -224,8 +224,8 @@ func (ws *webServer) registerMicrogridRoutes(mux *http.ServeMux) {
 			microgrid.HandleMicrogridDashboard(ws.mgr)(w, r)
 		case strings.Contains(path, "/formulas"):
 			microgrid.HandleMicrogridFormulas(ws.mgr)(w, r)
-		case strings.Contains(path, "/export-csv"):
-			microgrid.HandleMicrogridExportCSV(ws.mgr)(w, r)
+		case strings.Contains(path, "/export-xlsx"):
+			microgrid.HandleMicrogridExportXLSX(ws.mgr)(w, r)
 		case strings.Contains(path, "/points"):
 			microgrid.HandleMicrogridPoints(ws.mgr)(w, r)
 		default:

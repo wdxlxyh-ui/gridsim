@@ -20,7 +20,7 @@
             type="primary"
             @click="handleSaveTopology"
           >保存拓扑</el-button>
-          <el-button @click="handleExportCSV">导出CSV</el-button>
+          <el-button @click="handleExportXLSX">导出点表</el-button>
         </div>
       </div>
     </el-card>
@@ -740,8 +740,8 @@ async function handleSaveTopology() {
   }
 }
 
-function handleExportCSV() {
-  window.open(`/api/v1/microgrid/${instanceId}/export-csv`, '_blank')
+function handleExportXLSX() {
+  window.open(`/api/v1/microgrid/${instanceId}/export-xlsx`, '_blank')
 }
 
 async function handleAddDevice() {
