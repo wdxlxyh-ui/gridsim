@@ -82,8 +82,9 @@ const chartRef = ref<HTMLElement | null>(null)
 let chartInstance: echarts.ECharts | null = null
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
-// Reconcile traces when props.traces changes (template switch)
+// Reconcile traces when props.traces changes (template switch / add trace from parent)
 watch(() => props.traces, (newConfigs) => {
+  const wasEmpty = panelTraces.value.length === 0
   const newTraces: Trace[] = []
   for (const cfg of newConfigs) {
     const existing = panelTraces.value.find(t => t.instId === cfg.instId && t.ioa === cfg.ioa)
@@ -94,7 +95,18 @@ watch(() => props.traces, (newConfigs) => {
     }
   }
   panelTraces.value = newTraces
-  nextTick(updateChart)
+  if (wasEmpty && newTraces.length > 0) {
+    // Panel went from empty to having traces — init chart + start polling
+    nextTick(() => {
+      initChart()
+      startPolling()
+    })
+  } else if (newTraces.length === 0) {
+    if (chartInstance) { chartInstance.dispose(); chartInstance = null }
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+  } else {
+    nextTick(updateChart)
+  }
 }, { deep: true })
 
 watch(() => props.timeRange, () => {
