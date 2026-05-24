@@ -847,7 +847,12 @@ async function handleAddDevice() {
 function editDevice(dev: MicrogridDevice) {
   editingDevice.value = { ...dev }
   editingDeviceName.value = dev.name
-  editingDeviceParams.value = { ...dev.params }
+  editingDeviceParams.value = {
+    ...dev.params,
+    soc_min: dev.params.soc_min ?? 10,
+    soc_max: dev.params.soc_max ?? 90,
+    efficiency: dev.params.efficiency ?? 0.85,
+  }
   editingControlMode.value = dev.control_mode || 'remote'
   editingCustomPoints.value = (dev.custom_points || []).map(p => ({ ...p }))
   showEditDevice.value = true
