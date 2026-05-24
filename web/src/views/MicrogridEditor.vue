@@ -497,15 +497,14 @@ function devPower(id: string): number {
 const svgTopology = computed(() => {
   const N = devices.value.length
   if (N === 0) return ''
-  const BUS_Y = 260, MIN_GAP = 120, ROW_H = 126
-  const W = Math.max(680, N * MIN_GAP + 80)
-  const H = BUS_Y + N * ROW_H + 60
-  const cx = W / 2
-  const sp = (W - 80) / Math.max(N, 1)
+  const svgW = 680, svgH = 450
+  const BUS_Y = 220, MIN_GAP = 120
+  const cx = svgW / 2
+  const sp = (svgW - 80) / Math.max(N, 1)
   const sx = cx - (sp * (N - 1)) / 2
   const minX = sx - 20
   const maxX = sx + (N - 1) * sp + 20
-  const swY = BUS_Y + 50, swR = 12, boxT = BUS_Y + 90
+  const swY = BUS_Y + 38, swR = 10, boxT = BUS_Y + 65
 
   // Compute per-device power from dashboard
   const powerMap = new Map<string, number>()
@@ -559,7 +558,6 @@ const svgTopology = computed(() => {
   const BAT = (dash.value.battery || []).filter((d: any) => d.closed).reduce((s: number, d: any) => s + (d.power_kw ?? 0), 0)
   const GRID = LD + CH + BAT - PV
   const tFlow = GRID > 0.1 ? 'fl-dn' : (GRID < -0.1 ? 'fl-up' : 'fz')
-  const svgW = W.toString(), svgH = H.toString()
   return `<svg viewBox="0 0 ${svgW} ${svgH}" width="100%" xmlns="http://www.w3.org/2000/svg">
 <rect x="0" y="0" width="${svgW}" height="${svgH}" fill="#f5f7fa"/>
 <rect x="${cx - 56}" y="12" width="112" height="38" rx="6" fill="#fef0f0" stroke="#f89898" stroke-width="1.5"/>
