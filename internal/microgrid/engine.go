@@ -42,40 +42,41 @@ type Engine struct {
 }
 
 // buildPointIndex 扫描 store 所有点，建立 name→IOA 索引
+// 同时为每个设备创建 dev.ID 别名字段（内部引擎用dev.ID, 外部展示用EGC中文名）
 func (e *Engine) buildPointIndex() {
 	e.pointIOA = make(map[string]uint32)
 	if e.store == nil { return }
 
-	// Try loading from persisted point table first
+	// Always scan store for all point names
+	for _, p := range e.store.GetAll() {
+		e.pointIOA[p.Name] = p.IOA
+	}
+
+	// Try loading from persisted point table for additional entries
 	if e.cfg.PointsJSON != "" {
-		var entries []struct {
-			IOA  uint32 `json:"ioa"`
-			Name string `json:"name"`
-		}
+		var entries []struct{ IOA uint32 `json:"ioa"`; Name string `json:"name"` }
 		if json.Unmarshal([]byte(e.cfg.PointsJSON), &entries) == nil {
 			for _, ent := range entries {
 				e.pointIOA[ent.Name] = ent.IOA
 			}
-			// Add dev.ID aliases for engine internal use
-			for _, dev := range e.topology.Devices {
-				for _, s := range []string{"_Power", "_SOC", "_Setpoint", "_SwStatus", "_SwCtrl", "_Status"} {
-					if ioa, ok := e.pointIOA[dev.Name+s]; ok {
-						e.pointIOA[dev.ID+s] = ioa
-					}
-				}
-			}
-			return
 		}
 	}
 
-	// Fallback: scan store
-	for _, p := range e.store.GetAll() {
-		e.pointIOA[p.Name] = p.IOA
-	}
-	for _, dev := range e.topology.Devices {
+	// Add dev.ID aliases so engine can use internal names
+	for idx, dev := range e.topology.Devices {
+		prefix := typeChinese[dev.Type] + itoa(idx+1)
+		suffixMap := internalSuffixes
+		for cnSuffix, engSuffix := range suffixMap {
+			cnName := prefix + cnSuffix
+			if ioa, ok := e.pointIOA[cnName]; ok {
+				e.pointIOA[dev.ID+engSuffix] = ioa
+			}
+		}
+		// Also map old-style name+internal_suffix aliases (backward compat)
 		for _, s := range []string{"_Power", "_SOC", "_Setpoint", "_SwStatus", "_SwCtrl", "_Status"} {
-			if ioa, ok := e.pointIOA[dev.Name+s]; ok {
+			if ioa, ok := e.pointIOA[prefix+s]; ok {
 				e.pointIOA[dev.ID+s] = ioa
+				e.pointIOA[dev.Name+s] = ioa
 			}
 		}
 	}
@@ -162,14 +163,17 @@ func (e *Engine) ensureGridFormula() {
 	if e.store == nil { return }
 	// Build formula: GRID_P = (load + charger + battery(charge)) - (pv + battery(discharge))
 	var loadTerms, genTerms []string
-	for _, dev := range e.topology.Devices {
+	for idx, dev := range e.topology.Devices {
+		prefix := typeChinese[dev.Type] + itoa(idx+1)
 		switch dev.Type {
 		case CompPV:
-			genTerms = append(genTerms, "{"+dev.Name+"_Power}")
-		case CompLoad, CompCharger:
-			loadTerms = append(loadTerms, "{"+dev.Name+"_Power}")
+			genTerms = append(genTerms, "{"+prefix+"_有功功率}")
+		case CompLoad:
+			loadTerms = append(loadTerms, "{"+prefix+"_有功功率}")
+		case CompCharger:
+			loadTerms = append(loadTerms, "{"+prefix+"_充电功率}")
 		case CompBattery:
-			loadTerms = append(loadTerms, "{"+dev.Name+"_Power}") // Battery included in load (charge=+, discharge=-)
+			loadTerms = append(loadTerms, "{"+prefix+"_充放电功率}")
 		}
 	}
 	if len(loadTerms) == 0 && len(genTerms) == 0 { return }
@@ -238,17 +242,10 @@ func (e *Engine) SetSwitch(devID string, closed bool) error {
 			e.topology.Devices[i].Switch.Closed = closed
 			swVal := 0.0
 			if closed { swVal = 1.0 }
-			// Write DI/DO points by iterating store (fallback if IOA index missing)
-			for _, p := range e.store.GetAll() {
-				if p.Name == e.topology.Devices[i].Name+"_SwStatus" ||
-					p.Name == e.topology.Devices[i].Name+"_SwCtrl" ||
-					p.Name == e.topology.Devices[i].Name+"_Status" {
-					e.store.SetValue(p.IOA, swVal)
-				}
-				if p.Name == e.topology.Devices[i].Name+"_Power" && !closed {
-					e.store.SetValue(p.IOA, 0)
-				}
-			}
+			e.writePt(devID+"_SwStatus", swVal)
+			e.writePt(devID+"_SwCtrl", swVal)
+			e.writePt(devID+"_Status", swVal)
+			if !closed { e.writePt(devID+"_Power", 0) }
 			return nil
 		}
 	}
@@ -790,13 +787,3 @@ func (e *Engine) calcPowerBalanceLocked() *PowerBalanceResult {
 
 // ─── Store helpers ───
 
-func (e *Engine) updateSwitchPoints(devID string, closed bool) {
-	swVal := 0.0
-	if closed { swVal = 1.0 }
-	e.writePt(devID+"_SwStatus", swVal)
-	e.writePt(devID+"_SwCtrl", swVal)
-	e.writePt(devID+"_Status", swVal)
-	if !closed {
-		e.writePt(devID+"_Power", 0)
-	}
-}

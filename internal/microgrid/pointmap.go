@@ -9,88 +9,92 @@ import (
 	"gridsim/pkg/library"
 )
 
-// ExpandPoints 将微电网拓扑展开为 IEC104 标准测点列表
-// 测点 IOA 按设备索引固定分配，不因设备增删而变动。
-// 分配方案：
-//
-//	关口表:        AI 1~3, DI 1001~1002
-//	设备 i (从0):  AI 101+i*50+0..4, DI 1001+i*50+0..4, AO 3001+i*50, DO 4001+i*50
+// typeChinese maps ComponentType to Chinese prefix used in point names
+var typeChinese = map[ComponentType]string{
+	CompPV:      "光伏",
+	CompBattery: "储能",
+	CompLoad:    "负荷",
+	CompCharger: "充电桩",
+}
+
+// ExpandPoints 将微电网拓扑展开为 IEC104 标准测点列表（EGC 兼容命名）
 func (t *Topology) ExpandPoints() []*config.Point {
 	var points []*config.Point
 
-	// ── Grid meter fixed points ──
-	gridPoints := []struct {
+	// ── Grid meter (关口表) → METER.* ──
+	gridDefs := []struct {
 		name  string
 		ptype config.PointType
 		ioa   int
 		alias string
 	}{
-		{"GRID_P", config.TypeAI, 1, "并网有功|kW"},
-		{"GRID_Q", config.TypeAI, 2, "并网无功|kvar"},
-		{"GRID_V", config.TypeAI, 3, "电压|kV"},
-		{"GRID_F", config.TypeAI, 4, "频率|Hz"},
-		{"GRID_Connected", config.TypeDI, 1001, "并网状态"},
-		{"GRID_Island", config.TypeDI, 1002, "孤岛状态"},
+		{"关口表_有功功率", config.TypeAI, 1, "METER.ActivePW|kW"},
+		{"关口表_无功功率", config.TypeAI, 2, "METER.ReactivePW|kvar"},
+		{"关口表_电压", config.TypeAI, 3, "METER.Voltage|kV"},
+		{"关口表_频率", config.TypeAI, 4, "METER.Frequency|Hz"},
+		{"关口表_运行状态", config.TypeDI, 1001, "METER.OemState"},
+		{"关口表_孤岛状态", config.TypeDI, 1002, "METER.Island"},
 	}
-	for _, gp := range gridPoints {
+	for _, gd := range gridDefs {
 		points = append(points, &config.Point{
-			IOA:       uint32(gp.ioa),
-			Name:      gp.name,
-			ValueType: config.VTFloat,
-			PointType: gp.ptype,
-			Efficient: 1.0,
-			BaseValue: 0,
-			Alias:     gp.alias,
+			IOA: uint32(gd.ioa), Name: gd.name, ValueType: config.VTFloat,
+			PointType: gd.ptype, Efficient: 1.0, BaseValue: 0, Alias: gd.alias,
 		})
 	}
 
-	// ── Per-device points with index-based IOA ──
+	// ── Per-device points ──
 	for idx, dev := range t.Devices {
+		n := idx + 1
+		prefix := typeChinese[dev.Type] + itoa(n)
 		baseAI := 101 + idx*50
 		baseDI := 1101 + idx*50
 		baseAO := 3001 + idx*50
 		baseDO := 4001 + idx*50
 
-		swClosed := dev.Switch.Closed
 		swVal := 0.0
-		if swClosed {
-			swVal = 1.0
+		if dev.Switch.Closed { swVal = 1.0 }
+		initSOC := dev.Params.InitSOC
+		if initSOC <= 0 { initSOC = 50 }
+
+		mk := func(ioa int, name, alias string, pt config.PointType, vt config.ValueType, bv float64) *config.Point {
+			return &config.Point{IOA: uint32(ioa), Name: prefix + name, ValueType: vt, PointType: pt, Efficient: 1.0, BaseValue: bv, Alias: alias}
 		}
+		mkAI := func(ioa int, name, alias string, bv float64) *config.Point { return mk(ioa, name, alias, config.TypeAI, config.VTFloat, bv) }
+		mkDI := func(ioa int, name, alias string, bv float64) *config.Point { return mk(ioa, name, alias, config.TypeDI, config.VTBit, bv) }
+		mkDO := func(ioa int, name, alias string, bv float64) *config.Point { return mk(ioa, name, alias, config.TypeDO, config.VTBit, bv) }
+		mkAO := func(ioa int, name, alias string, bv float64) *config.Point { return mk(ioa, name, alias, config.TypeAO, config.VTFloat, bv) }
 
 		switch dev.Type {
-		case CompPV:
+		case CompPV: // INV.*
 			points = append(points,
-				&config.Point{IOA: uint32(baseAI), Name: dev.Name + "_Power", ValueType: config.VTFloat, PointType: config.TypeAI, Efficient: 1.0, BaseValue: 0, Alias: "发电功率|kW"},
-				&config.Point{IOA: uint32(baseAI + 1), Name: dev.Name + "_DailyEnergy", ValueType: config.VTFloat, PointType: config.TypeAI, Efficient: 1.0, BaseValue: 0, Alias: "日发电量|kWh"},
-				&config.Point{IOA: uint32(baseDI), Name: dev.Name + "_Status", ValueType: config.VTBit, PointType: config.TypeDI, Efficient: 1.0, BaseValue: swVal, Alias: "运行状态"},
-				&config.Point{IOA: uint32(baseDI + 1), Name: dev.Name + "_SwStatus", ValueType: config.VTBit, PointType: config.TypeDI, Efficient: 1.0, BaseValue: swVal, Alias: "开关状态"},
-				&config.Point{IOA: uint32(baseDO), Name: dev.Name + "_SwCtrl", ValueType: config.VTBit, PointType: config.TypeDO, Efficient: 1.0, BaseValue: swVal, Alias: "遥控分合"},
+				mkAI(baseAI, "_有功功率", "INV.GenActivePW|kW", 0),
+				mkAI(baseAI+1, "_日发电量", "INV.APProductionKWH|kWh", 0),
+				mkDI(baseDI, "_运行状态", "INV.State", 1),
+				mkDI(baseDI+1, "_开关状态", "INV.CtrlState", swVal),
+				mkDO(baseDO, "_远程启机", "INV.Start", swVal),
 			)
-
-		case CompBattery:
+		case CompBattery: // BS.*
 			points = append(points,
-				&config.Point{IOA: uint32(baseAI), Name: dev.Name + "_SOC", ValueType: config.VTFloat, PointType: config.TypeAI, Efficient: 1.0, BaseValue: dev.Params.InitSOC, Alias: "荷电状态|%"},
-				&config.Point{IOA: uint32(baseAI + 1), Name: dev.Name + "_Power", ValueType: config.VTFloat, PointType: config.TypeAI, Efficient: 1.0, BaseValue: 0, Alias: "充放电功率|kW"},
-				&config.Point{IOA: uint32(baseDI), Name: dev.Name + "_Status", ValueType: config.VTBit, PointType: config.TypeDI, Efficient: 1.0, BaseValue: 1, Alias: "运行状态"},
-				&config.Point{IOA: uint32(baseDI + 1), Name: dev.Name + "_SwStatus", ValueType: config.VTBit, PointType: config.TypeDI, Efficient: 1.0, BaseValue: swVal, Alias: "开关状态"},
-				&config.Point{IOA: uint32(baseAO), Name: dev.Name + "_Setpoint", ValueType: config.VTFloat, PointType: config.TypeAO, Efficient: 1.0, BaseValue: 0, Alias: "功率设定值|kW"},
-				&config.Point{IOA: uint32(baseDO), Name: dev.Name + "_SwCtrl", ValueType: config.VTBit, PointType: config.TypeDO, Efficient: 1.0, BaseValue: swVal, Alias: "遥控分合"},
+				mkAI(baseAI, "_电池SOC", "BS.Soc|%", initSOC),
+				mkAI(baseAI+1, "_充放电功率", "BS.ActivePW|kW", 0),
+				mkDI(baseDI, "_运行状态", "BS.Status", 1),
+				mkDI(baseDI+1, "_开关状态", "BS.CtrlState", swVal),
+				mkAO(baseAO, "_功率设定", "BS.SysAPSetPoint|kW", 0),
+				mkDO(baseDO, "_远程启机", "BS.Start", swVal),
 			)
-
-		case CompLoad:
+		case CompLoad: // LOAD.*
 			points = append(points,
-				&config.Point{IOA: uint32(baseAI), Name: dev.Name + "_Power", ValueType: config.VTFloat, PointType: config.TypeAI, Efficient: 1.0, BaseValue: 0, Alias: "有功功率|kW"},
-				&config.Point{IOA: uint32(baseDI), Name: dev.Name + "_Status", ValueType: config.VTBit, PointType: config.TypeDI, Efficient: 1.0, BaseValue: 1, Alias: "运行状态"},
-				&config.Point{IOA: uint32(baseDI + 1), Name: dev.Name + "_SwStatus", ValueType: config.VTBit, PointType: config.TypeDI, Efficient: 1.0, BaseValue: swVal, Alias: "开关状态"},
-				&config.Point{IOA: uint32(baseDO), Name: dev.Name + "_SwCtrl", ValueType: config.VTBit, PointType: config.TypeDO, Efficient: 1.0, BaseValue: swVal, Alias: "遥控分合"},
+				mkAI(baseAI, "_有功功率", "LOAD.ActivePW|kW", 0),
+				mkDI(baseDI, "_运行状态", "LOAD.State", 1),
+				mkDI(baseDI+1, "_开关状态", "LOAD.CtrlState", swVal),
+				mkDO(baseDO, "_遥控分合", "LOAD.SwCtrl", swVal),
 			)
-
-		case CompCharger:
+		case CompCharger: // PUB_CONN.*
 			points = append(points,
-				&config.Point{IOA: uint32(baseAI), Name: dev.Name + "_Power", ValueType: config.VTFloat, PointType: config.TypeAI, Efficient: 1.0, BaseValue: 0, Alias: "充电功率|kW"},
-				&config.Point{IOA: uint32(baseDI), Name: dev.Name + "_Status", ValueType: config.VTBit, PointType: config.TypeDI, Efficient: 1.0, BaseValue: 1, Alias: "运行状态"},
-				&config.Point{IOA: uint32(baseDI + 1), Name: dev.Name + "_SwStatus", ValueType: config.VTBit, PointType: config.TypeDI, Efficient: 1.0, BaseValue: swVal, Alias: "开关状态"},
-				&config.Point{IOA: uint32(baseDO), Name: dev.Name + "_SwCtrl", ValueType: config.VTBit, PointType: config.TypeDO, Efficient: 1.0, BaseValue: swVal, Alias: "遥控分合"},
+				mkAI(baseAI, "_充电功率", "PUB_CONN.ChargePW|kW", 0),
+				mkDI(baseDI, "_运行状态", "PUB_CONN.State", 1),
+				mkDI(baseDI+1, "_开关状态", "PUB_CONN.CtrlState", swVal),
+				mkDO(baseDO, "_遥控分合", "PUB_CONN.SwCtrl", swVal),
 			)
 		}
 
@@ -98,77 +102,73 @@ func (t *Topology) ExpandPoints() []*config.Point {
 		for ci, cp := range dev.CustomPoints {
 			var ptype config.PointType
 			switch cp.Type {
-			case "AI":
-				ptype = config.TypeAI
-			case "DI":
-				ptype = config.TypeDI
-			case "DO":
-				ptype = config.TypeDO
-			case "AO":
-				ptype = config.TypeAO
-			default:
-				continue
+			case "AI": ptype = config.TypeAI
+			case "DI": ptype = config.TypeDI
+			case "DO": ptype = config.TypeDO
+			case "AO": ptype = config.TypeAO
+			default: continue
 			}
 			vt := config.VTFloat
-			if ptype == config.TypeDI || ptype == config.TypeDO {
-				vt = config.VTBit
-			}
+			if ptype == config.TypeDI || ptype == config.TypeDO { vt = config.VTBit }
 			var ioa int
 			switch ptype {
-			case config.TypeAI:
-				ioa = baseAI + 5 + ci*2
-			case config.TypeDI:
-				ioa = baseDI + 5 + ci*2
-			case config.TypeAO:
-				ioa = baseAO + 5 + ci*2
-			case config.TypeDO:
-				ioa = baseDO + 5 + ci*2
+			case config.TypeAI: ioa = baseAI + 5 + ci*2
+			case config.TypeDI: ioa = baseDI + 5 + ci*2
+			case config.TypeAO: ioa = baseAO + 5 + ci*2
+			case config.TypeDO: ioa = baseDO + 5 + ci*2
 			}
 			points = append(points, &config.Point{
-				IOA:       uint32(ioa),
-				Name:      dev.Name + "_" + cp.Name,
-				ValueType: vt,
-				PointType: ptype,
-				Efficient: 1.0,
-				BaseValue: 0,
-				Alias:     "自定义:" + cp.Name,
+				IOA: uint32(ioa), Name: prefix + "_" + cp.Name, ValueType: vt,
+				PointType: ptype, Efficient: 1.0, BaseValue: 0, Alias: "自定义:" + cp.Name,
 			})
 		}
 	}
 
-	sort.Slice(points, func(i, j int) bool {
-		return points[i].IOA < points[j].IOA
-	})
+	sort.Slice(points, func(i, j int) bool { return points[i].IOA < points[j].IOA })
 	return points
 }
 
-// StoreFromTopology 从拓扑创建 Store
-func (t *Topology) StoreFromTopology() *library.Store {
-	points := t.ExpandPoints()
-	return library.NewStore(points)
+// internalSuffix maps EGC Chinese name suffixes back to internal engine suffixes
+var internalSuffixes = map[string]string{
+	"_有功功率":   "_Power",
+	"_日发电量":   "_DailyEnergy",
+	"_电池SOC":  "_SOC",
+	"_充放电功率": "_Power",
+	"_充电功率":   "_Power",
+	"_运行状态":   "_Status",
+	"_开关状态":   "_SwStatus",
+	"_远程启机":   "_SwCtrl",
+	"_遥控分合":   "_SwCtrl",
+	"_功率设定":   "_Setpoint",
 }
 
-// FormatPointTable 格式化点表为便于展示的结构
+// itoa converts int to string without importing strconv in hot path
+func itoa(n int) string { return fmt.Sprintf("%d", n) }
+
+// StoreFromTopology 从拓扑创建 Store
+func (t *Topology) StoreFromTopology() *library.Store {
+	return library.NewStore(t.ExpandPoints())
+}
+
+// FormatPointTable 格式化点表
 func (t *Topology) FormatPointTable() []map[string]interface{} {
 	points := t.ExpandPoints()
 	var result []map[string]interface{}
 	for _, p := range points {
 		unit := ""
+		desc := p.Alias
 		if idx := strings.Index(p.Alias, "|"); idx >= 0 {
+			desc = p.Alias[:idx]
 			unit = p.Alias[idx+1:]
 		}
 		result = append(result, map[string]interface{}{
-			"ioa":  p.IOA,
-			"name": p.Name,
-			"type": string(p.PointType),
-			"unit": unit,
-			"desc": p.Alias,
+			"ioa": p.IOA, "name": p.Name, "type": string(p.PointType), "unit": unit, "desc": desc,
 		})
 	}
 	return result
 }
 
-// ToggleSwitch 根据设备 ID 切换开关状态
+// ToggleSwitch 切换开关状态
 func (t *Topology) ToggleSwitch(devID string) (bool, error) {
 	for i := range t.Devices {
 		if t.Devices[i].ID == devID {
@@ -179,29 +179,19 @@ func (t *Topology) ToggleSwitch(devID string) (bool, error) {
 	return false, fmt.Errorf("device %s not found", devID)
 }
 
-// Validate 检查拓扑是否可启动
+// Validate 检查拓扑
 func (t *Topology) Validate() error {
-	if len(t.Devices) == 0 {
-		return fmt.Errorf("至少需要一个设备")
-	}
+	if len(t.Devices) == 0 { return fmt.Errorf("至少需要一个设备") }
 	for _, d := range t.Devices {
 		switch d.Type {
 		case CompPV:
-			if d.Params.RatedPowerKW <= 0 {
-				return fmt.Errorf("设备 %s 额定功率未设置", d.Name)
-			}
+			if d.Params.RatedPowerKW <= 0 { return fmt.Errorf("设备 %s 额定功率未设置", d.Name) }
 		case CompBattery:
-			if d.Params.CapacityKWH <= 0 {
-				return fmt.Errorf("设备 %s 额定容量未设置", d.Name)
-			}
+			if d.Params.CapacityKWH <= 0 { return fmt.Errorf("设备 %s 额定容量未设置", d.Name) }
 		case CompLoad:
-			if d.Params.LoadRatedKW <= 0 {
-				return fmt.Errorf("设备 %s 额定功率未设置", d.Name)
-			}
+			if d.Params.LoadRatedKW <= 0 { return fmt.Errorf("设备 %s 额定功率未设置", d.Name) }
 		case CompCharger:
-			if d.Params.ChargerRatedKW <= 0 {
-				return fmt.Errorf("设备 %s 额定功率未设置", d.Name)
-			}
+			if d.Params.ChargerRatedKW <= 0 { return fmt.Errorf("设备 %s 额定功率未设置", d.Name) }
 		}
 	}
 	return nil

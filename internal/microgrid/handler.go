@@ -240,16 +240,18 @@ func HandleMicrogridPoints(mgr ManagerBridge) http.HandlerFunc {
 			if cfg, ok := mgr.GetConfig(id); ok && cfg.MicrogridConfig != nil && cfg.MicrogridConfig.TopologyJSON != "" {
 				var topo Topology
 				json.Unmarshal([]byte(cfg.MicrogridConfig.TopologyJSON), &topo)
-				for _, dev := range topo.Devices {
-					for _, s := range []string{"_Power", "_SOC", "_SwStatus", "_SwCtrl", "_Setpoint", "_Status"} {
-						managed[dev.Name+s] = true
+				for idx, dev := range topo.Devices {
+					prefix := typeChinese[dev.Type] + itoa(idx+1)
+					for cnSuf := range internalSuffixes {
+						managed[prefix+cnSuf] = true
 					}
 				}
-				managed["GRID_P"] = true
-				managed["GRID_Q"] = true
-				managed["GRID_V"] = true
-				managed["GRID_F"] = true
-				managed["GRID_Connected"] = true
+				managed["关口表_有功功率"] = true
+				managed["关口表_无功功率"] = true
+				managed["关口表_电压"] = true
+				managed["关口表_频率"] = true
+				managed["关口表_运行状态"] = true
+				managed["关口表_孤岛状态"] = true
 			}
 
 			for i, p := range pts {

@@ -1,0 +1,82 @@
+- generic [ref=e290]:
+  - generic [ref=e291]:
+    - generic [ref=e292]:
+      - button [ref=e293] [cursor=pointer]:
+        - img [ref=e296]
+      - heading "IEC104 模拟器管理系统 v2.5.2-dev+41.91c34f0" [level=2] [ref=e298]:
+        - text: IEC104 模拟器管理系统
+        - generic [ref=e299]: v2.5.2-dev+41.91c34f0
+    - generic [ref=e300]:
+      - generic [ref=e302]: 运行 0 / 总计 1
+      - button "admin" [ref=e304] [cursor=pointer]:
+        - generic [ref=e305]:
+          - text: admin
+          - img [ref=e307]
+  - generic [ref=e309]:
+    - complementary [ref=e310]:
+      - menubar [ref=e311]:
+        - menuitem [ref=e312] [cursor=pointer]:
+          - img [ref=e314]
+        - menuitem [ref=e316] [cursor=pointer]:
+          - img [ref=e318]
+        - menuitem [ref=e320] [cursor=pointer]:
+          - img [ref=e322]
+    - main [ref=e324]:
+      - generic [ref=e325]:
+        - generic [ref=e328]:
+          - generic [ref=e329]:
+            - generic [ref=e330]: 实例配置
+            - generic [ref=e331]: 已配置 1 / 1000 | 运行中 1 | 已停止 0
+          - generic [ref=e332]:
+            - button "刷新数据" [ref=e333] [cursor=pointer]:
+              - img [ref=e335]
+            - button "添加实例" [ref=e337] [cursor=pointer]:
+              - generic [ref=e338]: 添加实例
+        - generic [ref=e342]:
+          - table [ref=e344]:
+            - rowgroup [ref=e354]:
+              - row "ID 名称 规约 端口 点表文件 状态 统计 操作" [ref=e355]:
+                - columnheader "ID" [ref=e356]:
+                  - generic [ref=e357]: ID
+                - columnheader "名称" [ref=e358]:
+                  - generic [ref=e359]: 名称
+                - columnheader "规约" [ref=e360]:
+                  - generic [ref=e361]: 规约
+                - columnheader "端口" [ref=e362]:
+                  - generic [ref=e363]: 端口
+                - columnheader "点表文件" [ref=e364]:
+                  - generic [ref=e365]: 点表文件
+                - columnheader "状态" [ref=e366]:
+                  - generic [ref=e367]: 状态
+                - columnheader "统计" [ref=e368]:
+                  - generic [ref=e369]: 统计
+                - columnheader "操作" [ref=e370]:
+                  - generic [ref=e371]: 操作
+          - table [ref=e376]:
+            - rowgroup [ref=e386]:
+              - 'row "514b3671c5a2 JP-FCR 微电网 5777 运行中 离线 | 测点: 32 | 运行: 3m 停止 微电网 编辑 删除" [ref=e387]':
+                - cell "514b3671c5a2" [ref=e388]:
+                  - generic [ref=e389]: 514b3671c5a2
+                - cell "JP-FCR" [ref=e390]:
+                  - generic [ref=e391]: JP-FCR
+                - cell "微电网" [ref=e392]:
+                  - generic [ref=e395]: 微电网
+                - cell "5777" [ref=e396]:
+                  - generic [ref=e399]: "5777"
+                - cell [ref=e400]
+                - cell "运行中" [ref=e401]:
+                  - generic [ref=e404]: 运行中
+                - 'cell "离线 | 测点: 32 | 运行: 3m" [ref=e405]':
+                  - generic [ref=e407]:
+                    - img [ref=e409]
+                    - text: "离线 | 测点: 32 | 运行: 3m"
+                - cell "停止 微电网 编辑 删除" [ref=e411]:
+                  - generic [ref=e413]:
+                    - button "停止" [ref=e414] [cursor=pointer]:
+                      - generic [ref=e415]: 停止
+                    - button "微电网" [ref=e416] [cursor=pointer]:
+                      - generic [ref=e417]: 微电网
+                    - button "编辑" [disabled] [ref=e418]:
+                      - generic [ref=e419]: 编辑
+                    - button "删除" [disabled] [ref=e420]:
+                      - generic [ref=e421]: 删除

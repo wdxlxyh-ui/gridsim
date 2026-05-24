@@ -1,0 +1,10 @@
+[  331220ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8989/api/v1/instances/514b3671c5a2/points/1:0
+[  331223ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8989/api/v1/instances/514b3671c5a2/points/101:0
+[  331226ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8989/api/v1/instances/514b3671c5a2/points/151:0
+[  331229ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8989/api/v1/instances/514b3671c5a2/points/152:0
+[  331233ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8989/api/v1/instances/514b3671c5a2/points/201:0
+[  391051ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8989/api/v1/instances/514b3671c5a2/points/1:0
+[  391055ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8989/api/v1/instances/514b3671c5a2/points/101:0
+[  391063ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8989/api/v1/instances/514b3671c5a2/points/151:0
+[  391066ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8989/api/v1/instances/514b3671c5a2/points/152:0
+[  391070ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8989/api/v1/instances/514b3671c5a2/points/201:0

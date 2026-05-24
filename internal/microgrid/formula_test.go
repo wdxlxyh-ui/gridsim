@@ -182,19 +182,19 @@ func TestSwitchDI(t *testing.T) {
 	eng.buildPointIndex()
 
 	// Check initial
-	v := eng.readPt("PV-1_SwStatus")
-	t.Logf("Initial PV-1_SwStatus via readPt: %f", v)
+	v := eng.readPt("pv1_SwStatus") // EGC names use dev.ID alias from buildPointIndex
+	t.Logf("Initial pv1_SwStatus via readPt: %f", v)
 
 	// Toggle OFF
 	eng.SetSwitch("pv1", false)
-	v2 := eng.readPt("PV-1_SwStatus")
-	t.Logf("After OFF PV-1_SwStatus: %f", v2)
+	v2 := eng.readPt("pv1_SwStatus")
+	t.Logf("After OFF pv1_SwStatus: %f", v2)
 	if v2 != 0 { t.Errorf("expected 0, got %f", v2) }
 
 	// Toggle ON
 	eng.SetSwitch("pv1", true)
-	v3 := eng.readPt("PV-1_SwStatus")
-	t.Logf("After ON PV-1_SwStatus: %f", v3)
+	v3 := eng.readPt("pv1_SwStatus")
+	t.Logf("After ON pv1_SwStatus: %f", v3)
 	if v3 != 1 { t.Errorf("expected 1, got %f", v3) }
 }
 
