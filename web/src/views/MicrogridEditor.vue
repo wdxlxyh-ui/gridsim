@@ -920,8 +920,21 @@ onUnmounted(() => {
 <style scoped>
 .microgrid-editor {
   padding: 16px;
-  max-width: 1200px;
+  max-width: 100%;
   margin: 0 auto;
+}
+
+/* Topology tab 2-column layout */
+.topology-grid {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .topology-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .header-card {
