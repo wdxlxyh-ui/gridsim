@@ -561,10 +561,10 @@ const svgTopology = computed(() => {
   return `<svg viewBox="0 0 ${svgW} ${svgH}" width="100%" xmlns="http://www.w3.org/2000/svg">
 <rect x="0" y="0" width="${svgW}" height="${svgH}" fill="#f5f7fa"/>
 <rect x="${cx - 56}" y="12" width="112" height="38" rx="6" fill="#fef0f0" stroke="#f89898" stroke-width="1.5"/>
-<text x="${cx}" y="36" text-anchor="middle" font-size="14" font-weight="700" fill="#e63946">⚡ 电网</text>
+<text x="${cx}" y="36" text-anchor="middle" font-size="14" font-weight="700" fill="#e63946">电网</text>
 <line x1="${cx}" y1="50" x2="${cx}" y2="78" stroke="#bbb" stroke-width="3.5" stroke-linecap="round" class="${tFlow}"/>
 <rect x="${cx - 56}" y="80" width="112" height="38" rx="6" fill="#fef7e0" stroke="#e8c560" stroke-width="1.5"/>
-<text x="${cx}" y="104" text-anchor="middle" font-size="14" font-weight="700" fill="#b8860b">🔌 关口表</text>
+<text x="${cx}" y="104" text-anchor="middle" font-size="14" font-weight="700" fill="#b8860b">关口表</text>
 <line x1="${cx}" y1="118" x2="${cx}" y2="${BUS_Y}" stroke="#bbb" stroke-width="3.5" stroke-linecap="round" class="${tFlow}"/>
 <text x="${cx + 20}" y="${BUS_Y - 45}" font-size="13" font-weight="700" fill="#303133">10kV 母线</text>
 <text x="${cx + 20}" y="${BUS_Y - 30}" font-size="11" fill="#909399">0.4 ~ 220 kV</text>
