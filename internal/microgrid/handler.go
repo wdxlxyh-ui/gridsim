@@ -411,17 +411,13 @@ func HandleMicrogridExportXLSX(mgr ManagerBridge) http.HandlerFunc {
 			return
 		}
 
-		// Group by device type using Chinese name prefixes
-		groups := map[string][]*config.Point{
-			"关口表": {}, "光伏": {}, "储能": {}, "负荷": {}, "充电桩": {}, "其他": {},
-		}
+		// Group by device: extract prefix before last "_"
+		groups := make(map[string][]*config.Point)
 		for _, p := range pts {
-			matched := false
-			for prefix := range groups {
-				if prefix == "其他" { continue }
-				if strings.Contains(p.Name, prefix) { groups[prefix] = append(groups[prefix], p); matched = true; break }
-			}
-			if !matched { groups["其他"] = append(groups["其他"], p) }
+			lastIdx := strings.LastIndex(p.Name, "_")
+			prefix := p.Name
+			if lastIdx > 0 { prefix = p.Name[:lastIdx] }
+			groups[prefix] = append(groups[prefix], p)
 		}
 
 		w.Header().Set("Content-Type", "application/zip")
