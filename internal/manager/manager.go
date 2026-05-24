@@ -222,6 +222,16 @@ func (m *Manager) StartInstance(id string) error {
 }
 
 // UpdateConfig updates an instance configuration, stopping it if running.
+// GetAutoChangeActiveIOAs returns IOAs with active auto-change strategies
+func (m *Manager) GetAutoChangeActiveIOAs(id string) []uint32 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if inst, ok := m.instances[id]; ok && inst.AutoEngine != nil {
+		return inst.AutoEngine.GetActiveIOAs()
+	}
+	return nil
+}
+
 func (m *Manager) SaveConfigOnly(cfg model.InstanceConfig) error {
 	return m.store.Update(cfg)
 }

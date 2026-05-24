@@ -422,6 +422,7 @@ import {
   startInstance,
   stopInstance,
   setAutoChange,
+  deleteAutoChange,
   type MicrogridTopology,
   type MicrogridDevice,
   type MicrogridDashboard,
@@ -842,7 +843,21 @@ async function handleSwitchToggle(devId: string, closed: boolean) {
 }
 
 // ── Strategy handlers ──
-function togglePointMode(row: any, local: boolean) { row.local_mode = local }
+async function togglePointMode(row: any, local: boolean) {
+  if (local) {
+    // Switched to local: open strategy dialog
+    configPointStrategy(row)
+  } else {
+    // Switched to remote: delete auto-change strategy
+    try {
+      await deleteAutoChange(instanceId, row.ioa)
+      ElMessage.success('已切换为远方控制')
+      await fetchPoints()
+    } catch (e: any) {
+      ElMessage.error('切换失败: ' + (e?.response?.data?.error || e.message))
+    }
+  }
+}
 
 function configPointStrategy(row: any) {
   strategyPointIOA.value = row.ioa

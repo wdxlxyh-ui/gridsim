@@ -23,6 +23,7 @@ type ManagerBridge interface {
 	SaveConfigOnly(cfg model.InstanceConfig) error
 	GetMicrogridEngine(id string) *Engine
 	GetStore(id string) *library.Store
+	GetAutoChangeActiveIOAs(id string) []uint32
 }
 
 // HandleMicrogridTopology GET/PUT /api/v1/microgrid/{id}/topology
@@ -235,6 +236,14 @@ func HandleMicrogridPoints(mgr ManagerBridge) http.HandlerFunc {
 			sort.Slice(pts, func(i, j int) bool { return pts[i].IOA < pts[j].IOA })
 			result := make([]map[string]interface{}, len(pts))
 
+			// Get IOAs with active auto-change strategies (local mode)
+			localIOAs := make(map[uint32]bool)
+			if activeIOAs := mgr.GetAutoChangeActiveIOAs(id); activeIOAs != nil {
+				for _, ioa := range activeIOAs {
+					localIOAs[ioa] = true
+				}
+			}
+
 			// Build toggle-able points: AI power measurement points can switch remote/local
 			canToggle := make(map[string]bool)
 			if cfg, ok := mgr.GetConfig(id); ok && cfg.MicrogridConfig != nil && cfg.MicrogridConfig.TopologyJSON != "" {
@@ -258,17 +267,12 @@ func HandleMicrogridPoints(mgr ManagerBridge) http.HandlerFunc {
 
 			for i, p := range pts {
 				unit := ""
-				if idx := strings.Index(p.Alias, "|"); idx >= 0 {
-					unit = p.Alias[idx+1:]
-				}
+				if idx := strings.Index(p.Alias, "|"); idx >= 0 { unit = p.Alias[idx+1:] }
 				result[i] = map[string]interface{}{
-					"ioa":        p.IOA,
-					"name":       p.Name,
-					"point_type": string(p.PointType),
-					"value":      p.Value,
-					"unit":       unit,
+					"ioa": p.IOA, "name": p.Name, "point_type": string(p.PointType),
+					"value": p.Value, "unit": unit,
 					"can_toggle": canToggle[p.Name],
-					"local_mode": false, // default remote
+					"local_mode": localIOAs[p.IOA],
 				}
 			}
 			writeJSON(w, http.StatusOK, map[string]interface{}{"points": result})
