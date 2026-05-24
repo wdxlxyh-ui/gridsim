@@ -797,7 +797,7 @@ async function handleAddDevice() {
 }
 
 function editDevice(dev: MicrogridDevice) {
-  editingDevice.value = dev
+  editingDevice.value = { ...dev }
   editingDeviceName.value = dev.name
   editingDeviceParams.value = { ...dev.params }
   editingControlMode.value = dev.control_mode || 'remote'
@@ -808,8 +808,11 @@ async function handleUpdateDevice() {
   if (!editingDevice.value) return
   updatingDevice.value = true
   try {
+    const id = editingDevice.value.id
     await updateMicrogridDevice(instanceId, {
-      ...editingDevice.value,
+      id,
+      type: editingDevice.value.type,
+      switch: editingDevice.value.switch,
       name: editingDeviceName.value,
       params: { ...editingDeviceParams.value },
       control_mode: editingControlMode.value,
