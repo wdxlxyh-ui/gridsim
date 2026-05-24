@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"sync/atomic"
 
 	"github.com/xuri/excelize/v2"
 	"gridsim/internal/model"
@@ -61,9 +62,13 @@ func HandleMicrogridTopology(mgr ManagerBridge) http.HandlerFunc {
 				cfg.MicrogridConfig = &model.MicrogridInstanceConfig{}
 			}
 			cfg.MicrogridConfig.TopologyJSON = string(b)
-			if err := mgr.UpdateConfig(cfg); err != nil {
+			if err := mgr.SaveConfigOnly(cfg); err != nil {
 				writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 				return
+			}
+			// Hot-reload topology into running engine
+			if eng := mgr.GetMicrogridEngine(id); eng != nil {
+				eng.ReloadTopology(&topo)
 			}
 			writeJSON(w, http.StatusOK, map[string]string{"status": "saved"})
 
@@ -97,7 +102,7 @@ func HandleMicrogridDevice(mgr ManagerBridge) http.HandlerFunc {
 				writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 				return
 			}
-			dev.ID = fmt.Sprintf("dev-%d", len(topo.Devices)+1)
+			dev.ID = fmt.Sprintf("dev-%d", atomic.AddInt64(&uidCounter, 1))
 			if dev.Switch.Name == "" {
 				dev.Switch.Name = fmt.Sprintf("QF%d", len(topo.Devices)+1)
 			}
@@ -319,8 +324,7 @@ func HandleMicrogridFormulas(mgr ManagerBridge) http.HandlerFunc {
 				writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 				return
 			}
-			uidCounter++
-			rule.ID = fmt.Sprintf("fml-%d", uidCounter)
+			rule.ID = fmt.Sprintf("fml-%d", atomic.AddInt64(&uidCounter, 1))
 			topo.Formulas = append(topo.Formulas, rule)
 			saveTopology(mgr, id, cfg, &topo)
 			writeJSON(w, http.StatusCreated, rule)

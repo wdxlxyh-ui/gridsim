@@ -164,7 +164,9 @@ func (e *Engine) ensureGridFormula() {
 	// Build formula: GRID_P = (load + charger + battery(charge)) - (pv + battery(discharge))
 	var loadTerms, genTerms []string
 	for idx, dev := range e.topology.Devices {
-		prefix := typeChinese[dev.Type] + itoa(idx+1)
+		tc := typeChinese[dev.Type]
+		if tc == "" { continue }
+		prefix := tc + itoa(idx+1)
 		switch dev.Type {
 		case CompPV:
 			genTerms = append(genTerms, "{"+prefix+"_有功功率}")
@@ -507,10 +509,6 @@ func (e *Engine) calcBatteryPowerLocked(dev Device) float64 {
 		// Evening peak - discharge (- = discharge)
 		dischargeP := ratedP * 0.4
 		return -dischargeP
-	}
-	// Off-peak: charge at low rate
-	if ratedP < 1 {
-		ratedP = 50
 	}
 	return 0
 }

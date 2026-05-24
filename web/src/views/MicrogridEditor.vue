@@ -497,7 +497,7 @@ function devPower(id: string): number {
 const svgTopology = computed(() => {
   const N = devices.value.length
   if (N === 0) return ''
-  const svgW = 680, svgH = 450
+  const svgW = 680, svgH = Math.max(450, 220 + N * 95 + 30)
   const BUS_Y = 220, MIN_GAP = 120
   const cx = svgW / 2
   const sp = (svgW - 80) / Math.max(N, 1)
