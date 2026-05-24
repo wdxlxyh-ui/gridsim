@@ -822,6 +822,7 @@ type configCSVReplayReq struct {
 	TimeFormat string             `json:"time_format"`
 	TimeUnit   string             `json:"time_unit"`
 	CSVLoop    *bool              `json:"csv_loop"`
+	Loop       *bool              `json:"loop"`
 	Mappings   []csvReplayMapping `json:"mappings"`
 }
 
@@ -876,6 +877,8 @@ func (h *DetailHandler) handleConfigCSVReplay(w http.ResponseWriter, r *http.Req
 		colMap := map[int]uint32{m.Column: m.IOA}
 		colMapJSON, _ := json.Marshal(colMap)
 
+		loop := req.CSVLoop
+		if loop == nil { loop = req.Loop }
 		cfg := &model.AutoChangeConfig{
 			PointIOA: m.IOA,
 			Strategy: model.StrategyCSV,
@@ -885,7 +888,7 @@ func (h *DetailHandler) handleConfigCSVReplay(w http.ResponseWriter, r *http.Req
 				TimeFormat:   timeFmt,
 				TimeUnit:     timeUnit,
 				CSVColumnMap: string(colMapJSON),
-				CSVLoop:      req.CSVLoop,
+				CSVLoop:      loop,
 			},
 			UpdatedAt: time.Now(),
 		}
@@ -1343,6 +1346,7 @@ func (h *DetailHandler) runBatchReplay(bs *batchState) {
 		} else {
 			bs.Completed++
 			bs.FileResults[csvFile].Status = "done"
+			bs.FileResults[csvFile].Metrics = h.collectMetrics()
 		}
 		bs.mu.Unlock()
 
@@ -1375,4 +1379,38 @@ func (h *DetailHandler) playOneCSVFile(fileName string, mappings []csvReplayMapp
 		}
 	}
 	return nil
+}
+
+// ─── Metrics ───
+
+func (h *DetailHandler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
+	defer h.recoverPanic(w)
+
+	pEDC := 0.0
+	count := 0
+	cmd := 0.0
+	pulseStatus := "INACTIVE"
+
+	if h.store != nil {
+		if p, ok := h.store.Get(16385); ok { pEDC = p.Value }
+		if p, ok := h.store.Get(16386); ok { count = int(p.Value) }
+		if p, ok := h.store.Get(16387); ok { cmd = p.Value }
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"p_edc":        pEDC,
+		"count":        count,
+		"cmd":          cmd,
+		"pulse_status": pulseStatus,
+	})
+}
+
+func (h *DetailHandler) collectMetrics() map[string]interface{} {
+	pEDC := 0.0; count := 0; cmd := 0.0; pulseStatus := "IDLE_PERIOD"
+	if h.store != nil {
+		if p, ok := h.store.Get(16385); ok { pEDC = p.Value }
+		if p, ok := h.store.Get(16386); ok { count = int(p.Value) }
+		if p, ok := h.store.Get(16387); ok { cmd = p.Value }
+	}
+	return map[string]interface{}{"p_edc": pEDC, "count": count, "cmd": cmd, "pulse_status": pulseStatus}
 }

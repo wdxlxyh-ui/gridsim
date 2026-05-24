@@ -302,6 +302,8 @@ func (ws *webServer) handleInstanceByID(w http.ResponseWriter, r *http.Request) 
 			ws.withDetailHandler(w, r, id, func(dh *detail.DetailHandler) { dh.HandleConfigCSVReplay(w, r) })
 		case "batch-replay":
 			ws.withDetailHandler(w, r, id, func(dh *detail.DetailHandler) { dh.HandleBatchReplay(w, r) })
+		case "metrics":
+			ws.withDetailHandler(w, r, id, func(dh *detail.DetailHandler) { dh.HandleMetrics(w, r) })
 		default:
 			writeError(w, http.StatusBadRequest, "unknown action: "+parts[1])
 		}
