@@ -505,11 +505,19 @@ func (m *Manager) startMicrogrid(id string) error {
 		return fmt.Errorf("start microgrid engine: %w", err)
 	}
 
+	// Start auto-change detail engine for strategy evaluation
+	acStore := detail.NewAutoChangeStore(m.cfgDir)
+	autoEng := detail.NewEngine(id, store, proto, acStore, m.cfgDir, m)
+	if err := autoEng.LoadAndStart(); err != nil {
+		slog.Warn("auto-change engine start failed", "id", id, "error", err)
+	}
+
 	inst := &Instance{
-		Config:    cfg,
-		Protocol:  proto,
-		Store:     store,
-		Microgrid: eng,
+		Config:     cfg,
+		Protocol:   proto,
+		Store:      store,
+		Microgrid:  eng,
+		AutoEngine: autoEng,
 	}
 
 	if cfg.HttpEnabled && cfg.HttpPort > 0 {
@@ -521,7 +529,7 @@ func (m *Manager) startMicrogrid(id string) error {
 		}
 		ln.Close()
 		apiHandler := api.NewHandler(store, proto, proto)
-		detailHandler := detail.NewDetailHandler(cfg.ID, store, nil, m.cfgDir)
+		detailHandler := detail.NewDetailHandler(cfg.ID, store, autoEng, m.cfgDir)
 		httpMux := http.NewServeMux()
 		apiHandler.Register(httpMux)
 		detailHandler.Register(httpMux)

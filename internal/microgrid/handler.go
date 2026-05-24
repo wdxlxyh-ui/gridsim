@@ -242,8 +242,10 @@ func HandleMicrogridPoints(mgr ManagerBridge) http.HandlerFunc {
 				json.Unmarshal([]byte(cfg.MicrogridConfig.TopologyJSON), &topo)
 				for idx, dev := range topo.Devices {
 					prefix := typeChinese[dev.Type] + itoa(idx+1)
-					for cnSuf := range internalSuffixes {
-						managed[prefix+cnSuf] = true
+					// Managed: engine controls these. Exclude _功率设定(AO) which is user-configurable
+					managedSuffixes := []string{"_有功功率", "_充放电功率", "_充电功率", "_电池SOC", "_运行状态", "_开关状态", "_远程启机", "_遥控分合", "_日发电量"}
+					for _, s := range managedSuffixes {
+						managed[prefix+s] = true
 					}
 				}
 				managed["关口表_有功功率"] = true
