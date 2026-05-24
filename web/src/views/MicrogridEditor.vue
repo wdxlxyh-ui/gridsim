@@ -1072,8 +1072,7 @@ onUnmounted(() => {
 
 /* ═══ SVG Topology ═══ */
 .topology-wrap {
-  overflow: auto;
-  max-height: 560px;
+  max-height: 65vh;
   background: var(--el-bg-color-page);
   border: 1px solid var(--el-border-color-light);
   border-radius: 6px;
@@ -1086,6 +1085,7 @@ onUnmounted(() => {
   display: block;
   width: 100%;
   height: auto;
+  max-height: 65vh;
 }
 .topology-html :deep(text) {
   font-family: system-ui, -apple-system, sans-serif;
