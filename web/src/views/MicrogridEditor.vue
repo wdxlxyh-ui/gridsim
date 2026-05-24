@@ -169,7 +169,7 @@
           <template #header>
             <div style="display:flex;justify-content:space-between;align-items:center">
               <span style="font-weight:600">IEC104 测点列表</span>
-              <el-button size="small" @click="fetchPoints" :loading="loadingPoints" type="primary" plain>
+              <el-button size="small" @click="fetchPoints(true)" :loading="loadingPoints" type="primary" plain>
                 刷新
               </el-button>
             </div>
@@ -670,23 +670,31 @@ async function fetchInstance() {
 }
 
 async function fetchDashboard() {
-  try {
-    dash.value = await getMicrogridDashboard(instanceId)
-  } catch {}
+  try { Object.assign(dash.value, await getMicrogridDashboard(instanceId)) } catch {}
 }
 
-async function fetchPoints() {
-  loadingPoints.value = true
+async function fetchPoints(reloading = false) {
+  if (reloading) loadingPoints.value = true
   try {
     const data = await getMicrogridPoints(instanceId)
-    points.value = data.points || []
+    const newPts = data.points || []
+    if (points.value.length === 0 || reloading) {
+      points.value = newPts
+    } else {
+      // In-place update: only update value/local_mode fields to avoid full re-render
+      const byIOA = new Map(newPts.map((p: any) => [p.ioa, p]))
+      for (const p of points.value) {
+        const np = byIOA.get(p.ioa)
+        if (np) { p.value = np.value; p.local_mode = np.local_mode }
+      }
+    }
   } catch {} finally {
-    loadingPoints.value = false
+    if (reloading) loadingPoints.value = false
   }
 }
 
 async function loadAll() {
-  await Promise.all([fetchTopology(), fetchInstance(), fetchPoints()])
+  await Promise.all([fetchTopology(), fetchInstance(), fetchPoints(true)])
   if (running.value) {
     await fetchDashboard()
   }
@@ -891,7 +899,7 @@ function resetNewDevice() {
 function startPolling() {
   stopPolling()
   pollTimer = setInterval(async () => { await fetchDashboard() }, 3000)
-  pointsTimer = setInterval(async () => { await fetchPoints() }, 1000)
+  pointsTimer = setInterval(async () => { await fetchPoints() }, 2000)
 }
 
 function stopPolling() {

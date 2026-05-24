@@ -225,18 +225,3 @@ func TestSetValue_DI_Points(t *testing.T) {
 	if pts[0].Value != 1.0 { t.Errorf("SetValue on DI point failed: %f", pts[0].Value) }
 }
 
-func TestEGC_DebugNames(t *testing.T) {
-	devs := []Device{
-		{ID: "pv1", Type: CompPV, Name: "PV-1", Switch: DeviceSwitch{ID: "s1", Name: "QF1", Closed: true}},
-		{ID: "bat1", Type: CompBattery, Name: "ESS-1", Switch: DeviceSwitch{ID: "s2", Name: "QF2", Closed: true}, Params: DeviceParams{InitSOC: 60}},
-		{ID: "load1", Type: CompLoad, Name: "L1", Switch: DeviceSwitch{ID: "s3", Name: "QF3", Closed: true}},
-		{ID: "ch1", Type: CompCharger, Name: "CH1", Switch: DeviceSwitch{ID: "s4", Name: "QF4", Closed: true}},
-	}
-	topo := &Topology{BusName: "10kV", BusVoltageKV: 10, Devices: devs, GridMeter: GridMeterConfig{RatedCapacityKW: 500}}
-	pts := topo.ExpandPoints()
-	for _, p := range pts {
-		if strings.Contains(p.Name, "功率") || strings.Contains(p.Name, "SOC") || strings.Contains(p.Name, "开关") || strings.Contains(p.Name, "有功") {
-			t.Logf("%s (%s)", p.Name, p.PointType)
-		}
-	}
-}
