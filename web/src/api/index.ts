@@ -321,6 +321,7 @@ export interface MicrogridDeviceParams {
 export interface MicrogridCustomPoint {
   name: string
   type: 'AI' | 'DI' | 'DO' | 'AO'
+  alias?: string
 }
 
 export interface MicrogridStrategyConfig {

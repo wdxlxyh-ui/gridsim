@@ -60,8 +60,9 @@ type StrategyConfig struct {
 
 // CustomPoint 自定义测点
 type CustomPoint struct {
-	Name string `json:"name"`
-	Type string `json:"type"` // AI/DI/DO/AO
+	Name  string `json:"name"`
+	Type  string `json:"type"`  // AI/DI/DO/AO
+	Alias string `json:"alias,omitempty"`
 }
 
 // Device 微电网设备

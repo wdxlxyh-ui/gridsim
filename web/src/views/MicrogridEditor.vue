@@ -267,6 +267,26 @@
           </el-form-item>
         </template>
       </el-form>
+      <el-divider style="margin:8px 0;font-size:12px;color:#909399">自定义测点</el-divider>
+      <el-table :data="newCustomPoints" size="small" max-height="180" empty-text="暂无">
+        <el-table-column label="名称" min-width="100">
+          <template #default="{ row }"><el-input v-model="row.name" size="small" placeholder="如: 电芯1电压" /></template>
+        </el-table-column>
+        <el-table-column label="标识" min-width="100">
+          <template #default="{ row }"><el-input v-model="row.alias" size="small" placeholder="如: BMS.CellVol" /></template>
+        </el-table-column>
+        <el-table-column label="类型" width="80">
+          <template #default="{ row }">
+            <el-select v-model="row.type" size="small">
+              <el-option value="AI" label="AI" /><el-option value="DI" label="DI" /><el-option value="AO" label="AO" /><el-option value="DO" label="DO" />
+            </el-select>
+          </template>
+        </el-table-column>
+        <el-table-column label="" width="50">
+          <template #default="{ $index }"><el-button size="small" type="danger" text @click="newCustomPoints.splice($index,1)">✕</el-button></template>
+        </el-table-column>
+      </el-table>
+      <el-button size="small" style="margin-top:4px" @click="newCustomPoints.push({name:'',type:'AI',alias:''})">+ 添加</el-button>
       <template #footer>
         <el-button @click="showAddDevice = false">取消</el-button>
         <el-button type="primary" @click="handleAddDevice" :loading="addingDevice">添加</el-button>
@@ -329,12 +349,13 @@
       <el-divider style="margin:8px 0;font-size:12px;color:#909399">自定义测点</el-divider>
       <div style="font-size:11px;color:#909399;margin-bottom:4px">名称自动加设备前缀(如储能1_电芯电压), IOA系统分配</div>
       <el-table :data="editingCustomPoints" size="small" max-height="200" empty-text="暂无">
-        <el-table-column label="名称" min-width="140">
-          <template #default="{ row }">
-            <el-input v-model="row.name" size="small" placeholder="如: 电芯1电压" />
-          </template>
+        <el-table-column label="名称" min-width="100">
+          <template #default="{ row }"><el-input v-model="row.name" size="small" placeholder="如: 电芯1电压" /></template>
         </el-table-column>
-        <el-table-column label="类型" width="90">
+        <el-table-column label="标识" min-width="100">
+          <template #default="{ row }"><el-input v-model="row.alias" size="small" placeholder="如: BMS.CellVol" /></template>
+        </el-table-column>
+        <el-table-column label="类型" width="80">
           <template #default="{ row }">
             <el-select v-model="row.type" size="small">
               <el-option value="AI" label="AI" /><el-option value="DI" label="DI" />
@@ -478,6 +499,7 @@ const addingDevice = ref(false)
 const newDeviceType = ref<'pv' | 'battery' | 'load' | 'charger'>('pv')
 const newDeviceName = ref('')
 const newDeviceParams = ref<MicrogridDeviceParams>({})
+const newCustomPoints = ref<MicrogridCustomPoint[]>([])
 
 // Edit device
 const showEditDevice = ref(false)
@@ -808,6 +830,7 @@ async function handleAddDevice() {
       type: newDeviceType.value,
       name: newDeviceName.value,
       params: { ...newDeviceParams.value },
+      custom_points: newCustomPoints.value.filter(p => p.name.trim()),
     })
     ElMessage.success('设备已添加')
     showAddDevice.value = false
@@ -831,7 +854,7 @@ function editDevice(dev: MicrogridDevice) {
 }
 
 function addEditCustomPoint() {
-  editingCustomPoints.value.push({ name: '', type: 'AI' })
+  editingCustomPoints.value.push({ name: '', type: 'AI', alias: '' })
 }
 
 async function handleUpdateDevice() {
@@ -926,6 +949,7 @@ function resetNewDevice() {
   newDeviceType.value = 'pv'
   newDeviceName.value = ''
   newDeviceParams.value = {}
+  newCustomPoints.value = []
 }
 
 function startPolling() {

@@ -120,9 +120,11 @@ func (t *Topology) ExpandPoints() []*config.Point {
 			case config.TypeAO: ioa = baseAO + 5 + ci*2
 			case config.TypeDO: ioa = baseDO + 5 + ci*2
 			}
-			points = append(points, &config.Point{
-				IOA: uint32(ioa), Name: prefix + "_" + cp.Name, ValueType: vt,
-				PointType: ptype, Efficient: 1.0, BaseValue: 0, Alias: "自定义:" + cp.Name,
+				alias := cp.Name
+				if cp.Alias != "" { alias = cp.Alias }
+				points = append(points, &config.Point{
+					IOA: uint32(ioa), Name: prefix + "_" + cp.Name, ValueType: vt,
+					PointType: ptype, Efficient: 1.0, BaseValue: 0, Alias: alias,
 			})
 		}
 	}
