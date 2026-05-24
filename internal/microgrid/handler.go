@@ -17,10 +17,10 @@ import (
 var uidCounter int64
 
 // ManagerBridge is the subset of manager.Manager needed by microgrid handlers.
-// Defined here to avoid an import cycle (manager → microgrid → manager).
 type ManagerBridge interface {
 	GetConfig(id string) (model.InstanceConfig, bool)
 	UpdateConfig(cfg model.InstanceConfig) error
+	SaveConfigOnly(cfg model.InstanceConfig) error
 	GetMicrogridEngine(id string) *Engine
 	GetStore(id string) *library.Store
 }
@@ -460,7 +460,7 @@ func saveTopology(mgr ManagerBridge, id string, cfg model.InstanceConfig, topo *
 	ptJSON, _ := json.Marshal(entries)
 	cfg.MicrogridConfig.PointsJSON = string(ptJSON)
 
-	mgr.UpdateConfig(cfg)
+	mgr.SaveConfigOnly(cfg)
 
 	if eng := mgr.GetMicrogridEngine(id); eng != nil {
 		eng.ReloadTopology(topo)

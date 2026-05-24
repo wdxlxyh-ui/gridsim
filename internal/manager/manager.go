@@ -222,6 +222,10 @@ func (m *Manager) StartInstance(id string) error {
 }
 
 // UpdateConfig updates an instance configuration, stopping it if running.
+func (m *Manager) SaveConfigOnly(cfg model.InstanceConfig) error {
+	return m.store.Update(cfg)
+}
+
 func (m *Manager) UpdateConfig(cfg model.InstanceConfig) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

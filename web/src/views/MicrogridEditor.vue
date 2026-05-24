@@ -422,6 +422,7 @@ import {
   getInstance,
   startInstance,
   stopInstance,
+  setAutoChange,
   type MicrogridTopology,
   type MicrogridDevice,
   type MicrogridDashboard,
@@ -468,6 +469,7 @@ const showStrategyDialog = ref(false)
 const savingStrategy = ref(false)
 const strategyTab = ref('increment')
 const strategyDevice = ref<MicrogridDevice | null>(null)
+const strategyPointIOA = ref(0)
 const strategyTargetName = ref('')
 const strategyTargetPoint = ref('')
 const csvFileList = ref<any[]>([])
@@ -816,6 +818,7 @@ async function handleUpdateDevice() {
     showEditDevice.value = false
     topologyChanged.value = true
     await fetchTopology()
+    await fetchInstance()
   } catch (e: any) {
     ElMessage.error('更新失败: ' + (e?.response?.data?.error || e.message))
   } finally {
@@ -858,16 +861,29 @@ function openDeviceStrategy(dev: MicrogridDevice) {
 }
 
 async function confirmStrategy() {
-  if (!strategyDevice.value) return
   savingStrategy.value = true
   try {
+    // Point-level strategy: call auto-change API
+    if (!strategyDevice.value && strategyPointIOA.value > 0) {
+      await setAutoChange(instanceId, strategyPointIOA.value, {
+        strategy: strategyTab.value,
+        enabled: true,
+        params: { ...strategyForm.value },
+      })
+      ElMessage.success('测点策略已保存')
+      showStrategyDialog.value = false
+      await fetchPoints()
+      return
+    }
+    // Device-level strategy: save to topology
+    if (!strategyDevice.value) return
     const updated: any = {
       ...strategyDevice.value,
       control_mode: 'local',
       strategy: { type: strategyTab.value, enabled: true, params: { ...strategyForm.value } }
     }
     await updateMicrogridDevice(instanceId, updated)
-    ElMessage.success('策略已保存')
+    ElMessage.success('设备策略已保存')
     showStrategyDialog.value = false
     await fetchTopology()
   } catch (e: any) {
@@ -879,6 +895,7 @@ async function confirmStrategy() {
 
 function configPointStrategy(row: any) {
   strategyDevice.value = null
+  strategyPointIOA.value = row.ioa
   strategyTargetName.value = row.name
   strategyTargetPoint.value = row.name
   strategyTab.value = 'increment'
