@@ -71,6 +71,7 @@ func (t *Topology) ExpandPoints() []*config.Point {
 				mkAI(baseAI+1, "_日发电量", "INV.APProductionKWH|kWh", 0),
 				mkDI(baseDI, "_运行状态", "INV.State", 1),
 				mkDI(baseDI+1, "_开关状态", "INV.CtrlState", swVal),
+				mkAO(baseAO, "_功率设定", "INV.SysAPSetPoint|kW", 0),
 				mkDO(baseDO, "_远程启机", "INV.Start", swVal),
 			)
 		case CompBattery: // BS.*
@@ -87,6 +88,7 @@ func (t *Topology) ExpandPoints() []*config.Point {
 				mkAI(baseAI, "_有功功率", "LOAD.ActivePW|kW", 0),
 				mkDI(baseDI, "_运行状态", "LOAD.State", 1),
 				mkDI(baseDI+1, "_开关状态", "LOAD.CtrlState", swVal),
+				mkAO(baseAO, "_功率设定", "LOAD.SysAPSetPoint|kW", 0),
 				mkDO(baseDO, "_遥控分合", "LOAD.SwCtrl", swVal),
 			)
 		case CompCharger: // PUB_CONN.*
@@ -94,6 +96,7 @@ func (t *Topology) ExpandPoints() []*config.Point {
 				mkAI(baseAI, "_充电功率", "PUB_CONN.ChargePW|kW", 0),
 				mkDI(baseDI, "_运行状态", "PUB_CONN.State", 1),
 				mkDI(baseDI+1, "_开关状态", "PUB_CONN.CtrlState", swVal),
+				mkAO(baseAO, "_功率设定", "PUB_CONN.ChargePWSet|kW", 0),
 				mkDO(baseDO, "_遥控分合", "PUB_CONN.SwCtrl", swVal),
 			)
 		}
