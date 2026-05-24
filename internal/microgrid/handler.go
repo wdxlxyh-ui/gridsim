@@ -235,25 +235,25 @@ func HandleMicrogridPoints(mgr ManagerBridge) http.HandlerFunc {
 			sort.Slice(pts, func(i, j int) bool { return pts[i].IOA < pts[j].IOA })
 			result := make([]map[string]interface{}, len(pts))
 
-			// Build set of engine-managed point names
-			managed := make(map[string]bool)
+			// Build toggle-able points: AI power measurement points can switch remote/local
+			canToggle := make(map[string]bool)
 			if cfg, ok := mgr.GetConfig(id); ok && cfg.MicrogridConfig != nil && cfg.MicrogridConfig.TopologyJSON != "" {
 				var topo Topology
 				json.Unmarshal([]byte(cfg.MicrogridConfig.TopologyJSON), &topo)
 				for idx, dev := range topo.Devices {
 					prefix := typeChinese[dev.Type] + itoa(idx+1)
-					// Managed: engine controls these. Exclude _功率设定(AO) which is user-configurable
-					managedSuffixes := []string{"_有功功率", "_充放电功率", "_充电功率", "_电池SOC", "_运行状态", "_开关状态", "_远程启机", "_遥控分合", "_日发电量"}
-					for _, s := range managedSuffixes {
-						managed[prefix+s] = true
+					switch dev.Type {
+					case CompPV:
+						canToggle[prefix+"_有功功率"] = true
+					case CompBattery:
+						canToggle[prefix+"_充放电功率"] = true
+					case CompLoad:
+						canToggle[prefix+"_有功功率"] = true
+					case CompCharger:
+						canToggle[prefix+"_充电功率"] = true
 					}
 				}
-				managed["关口表_有功功率"] = true
-				managed["关口表_无功功率"] = true
-				managed["关口表_电压"] = true
-				managed["关口表_频率"] = true
-				managed["关口表_运行状态"] = true
-				managed["关口表_孤岛状态"] = true
+				canToggle["关口表_有功功率"] = false // grid meter is always remote
 			}
 
 			for i, p := range pts {
@@ -267,7 +267,8 @@ func HandleMicrogridPoints(mgr ManagerBridge) http.HandlerFunc {
 					"point_type": string(p.PointType),
 					"value":      p.Value,
 					"unit":       unit,
-					"managed":    managed[p.Name],
+					"can_toggle": canToggle[p.Name],
+					"local_mode": false, // default remote
 				}
 			}
 			writeJSON(w, http.StatusOK, map[string]interface{}{"points": result})

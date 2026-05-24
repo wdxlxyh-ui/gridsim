@@ -100,7 +100,6 @@
                     @change="(val: boolean) => handleSwitchToggle(dev.id, val)"
                   />
                   <el-button text size="small" @click="editDevice(dev)">参数</el-button>
-                  <el-button text size="small" @click="openDeviceStrategy(dev)">策略</el-button>
                   <el-button text size="small" type="danger" :disabled="running" @click="handleDeleteDevice(dev.id)">删除</el-button>
                 </div>
               </div>
@@ -175,30 +174,33 @@
               </el-button>
             </div>
           </template>
-          <el-table :data="points" stripe size="small" max-height="520" v-loading="loadingPoints" empty-text="暂无测点数据"
-            :row-class-name="rowClass">
+          <el-table :data="points" stripe size="small" max-height="520" v-loading="loadingPoints" empty-text="暂无测点数据">
             <el-table-column prop="ioa" label="IOA" width="90" />
-            <el-table-column label="类型" width="90">
+            <el-table-column label="类型" width="80">
               <template #default="{ row }">
-                <el-tag size="small" :type="row.point_type === 'AI' ? 'primary' : row.point_type === 'DI' ? 'warning' : 'info'" effect="plain">
-                  {{ row.point_type || row.type }}
-                </el-tag>
+                <el-tag size="small" :type="row.point_type === 'AI' ? 'primary' : 'warning'" effect="plain">{{ row.point_type }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="名称" min-width="200">
-              <template #default="{ row }">
-                <span :class="row.managed ? 'managed-text' : ''">{{ row.name }}</span>
-                <el-tag v-if="row.managed" size="small" type="info" effect="plain" style="margin-left:4px;font-size:10px;height:20px">⚡引擎</el-tag>
-              </template>
+            <el-table-column label="名称" min-width="160">
+              <template #default="{ row }">{{ row.name }}</template>
             </el-table-column>
-            <el-table-column label="当前值" width="120">
+            <el-table-column label="当前值" width="100">
               <template #default="{ row }">{{ row.value ?? '-' }}</template>
             </el-table-column>
-            <el-table-column prop="unit" label="单位" width="80" />
-            <el-table-column label="操作" width="120" fixed="right">
+            <el-table-column label="控制模式" width="120">
               <template #default="{ row }">
-                <span v-if="row.managed" style="color:#c0c4cc;font-size:11px">引擎管理</span>
-                <el-button v-else size="small" text @click="configPointStrategy(row)">配置策略</el-button>
+                <span v-if="!row.can_toggle" style="font-size:11px;color:#c0c4cc">—</span>
+                <el-switch v-else v-model="row.local_mode" size="small"
+                  active-text="本地" inactive-text="远方"
+                  @change="(val: boolean) => togglePointMode(row, val)" />
+              </template>
+            </el-table-column>
+            <el-table-column label="策略" width="100" fixed="right">
+              <template #default="{ row }">
+                <el-button v-if="row.can_toggle && row.local_mode" size="small" text type="warning"
+                  @click="configPointStrategy(row)">配置策略</el-button>
+                <span v-else-if="row.can_toggle" style="font-size:11px;color:#909399">引擎控制</span>
+                <span v-else style="font-size:11px;color:#c0c4cc">—</span>
               </template>
             </el-table-column>
           </el-table>
@@ -333,10 +335,7 @@
     <!-- Strategy Config Dialog -->
     <el-dialog v-model="showStrategyDialog" :title="'策略配置 — ' + strategyTargetName" width="700px" :close-on-click-modal="false">
       <div style="margin-bottom:12px;font-size:12px;color:#909399">
-        当前模式: <el-tag size="small" :type="strategyDevice?.control_mode === 'remote' ? 'primary' : 'warning'">
-          {{ strategyDevice?.control_mode === 'remote' ? '远方(AO跟随)' : '本地(策略)' }}
-        </el-tag>
-        <span style="margin-left:12px">目标: {{ strategyTargetName }} ({{ strategyTargetPoint }})</span>
+        目标: {{ strategyTargetName }} (IOA: {{ strategyPointIOA }})
       </div>
       <el-tabs v-model="strategyTab" type="card">
         <el-tab-pane label="递增" name="increment">
@@ -468,10 +467,8 @@ const editingControlMode = ref<'remote' | 'local'>('remote')
 const showStrategyDialog = ref(false)
 const savingStrategy = ref(false)
 const strategyTab = ref('increment')
-const strategyDevice = ref<MicrogridDevice | null>(null)
 const strategyPointIOA = ref(0)
 const strategyTargetName = ref('')
-const strategyTargetPoint = ref('')
 const csvFileList = ref<any[]>([])
 const strategyForm = ref<any>({
   start_value: 0, step: 1, period_ms: 1000, max_value: 100,
@@ -638,10 +635,6 @@ function devTypeColor(type: string): string {
     charger: '#909399',
   }
   return map[type] || '#909399'
-}
-
-function rowClass({ row }: { row: any }): string {
-  return row.managed ? 'managed-row' : ''
 }
 
 function devTypeTag(type: string): 'success' | 'primary' | 'warning' | 'info' {
@@ -849,57 +842,29 @@ async function handleSwitchToggle(devId: string, closed: boolean) {
 }
 
 // ── Strategy handlers ──
-function openDeviceStrategy(dev: MicrogridDevice) {
-  strategyDevice.value = dev
-  strategyTargetName.value = dev.name
-  strategyTargetPoint.value = dev.id + '_Power'
-  // Reset form from existing strategy or defaults
-  if (dev.control_mode === 'remote') {
-    strategyTab.value = 'increment'
-  }
+function togglePointMode(row: any, local: boolean) { row.local_mode = local }
+
+function configPointStrategy(row: any) {
+  strategyPointIOA.value = row.ioa
+  strategyTargetName.value = row.name
+  strategyTab.value = 'increment'
   showStrategyDialog.value = true
 }
 
 async function confirmStrategy() {
   savingStrategy.value = true
   try {
-    // Point-level strategy: call auto-change API
-    if (!strategyDevice.value && strategyPointIOA.value > 0) {
+    if (strategyPointIOA.value > 0) {
       await setAutoChange(instanceId, strategyPointIOA.value, {
-        strategy: strategyTab.value,
-        enabled: true,
-        params: { ...strategyForm.value },
+        strategy: strategyTab.value, enabled: true, params: { ...strategyForm.value },
       })
-      ElMessage.success('测点策略已保存')
+      ElMessage.success('策略已保存')
       showStrategyDialog.value = false
       await fetchPoints()
-      return
     }
-    // Device-level strategy: save to topology
-    if (!strategyDevice.value) return
-    const updated: any = {
-      ...strategyDevice.value,
-      control_mode: 'local',
-      strategy: { type: strategyTab.value, enabled: true, params: { ...strategyForm.value } }
-    }
-    await updateMicrogridDevice(instanceId, updated)
-    ElMessage.success('设备策略已保存')
-    showStrategyDialog.value = false
-    await fetchTopology()
   } catch (e: any) {
     ElMessage.error('策略保存失败: ' + (e?.response?.data?.error || e.message))
-  } finally {
-    savingStrategy.value = false
-  }
-}
-
-function configPointStrategy(row: any) {
-  strategyDevice.value = null
-  strategyPointIOA.value = row.ioa
-  strategyTargetName.value = row.name
-  strategyTargetPoint.value = row.name
-  strategyTab.value = 'increment'
-  showStrategyDialog.value = true
+  } finally { savingStrategy.value = false }
 }
 
 function resetNewDevice() {
@@ -1110,7 +1075,4 @@ onUnmounted(() => {
 }
 
 /* Managed row in points table */
-:deep(.managed-row) { color: #c0c4cc; }
-:deep(.managed-row .el-tag) { opacity: 0.6; }
-.managed-text { color: #606266; }
 </style>
