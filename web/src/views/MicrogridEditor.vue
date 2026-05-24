@@ -497,8 +497,8 @@ function devPower(id: string): number {
 const svgTopology = computed(() => {
   const N = devices.value.length
   if (N === 0) return ''
-  const BUS_Y = 260, MIN_GAP = 120, ROW_H = 126
-  const W = Math.max(680, N * MIN_GAP + 80)
+  const BUS_Y = 260, MIN_GAP = 140, ROW_H = 126
+  const W = Math.max(680, N * MIN_GAP + 60)
   const H = BUS_Y + N * ROW_H + 60
   const cx = W / 2
   const sp = (W - 80) / Math.max(N, 1)
@@ -1072,20 +1072,21 @@ onUnmounted(() => {
 
 /* ═══ SVG Topology ═══ */
 .topology-wrap {
-  max-height: 65vh;
-  background: var(--el-bg-color-page);
+  max-height: 55vh;
+  background: var(--el-fill-color);
   border: 1px solid var(--el-border-color-light);
   border-radius: 6px;
+  overflow: hidden;
 }
 .topology-html {
   display: block;
   font-family: system-ui, -apple-system, sans-serif;
+  background: var(--el-fill-color);
 }
 .topology-html :deep(svg) {
   display: block;
   width: 100%;
-  height: auto;
-  max-height: 65vh;
+  max-height: 55vh;
 }
 .topology-html :deep(text) {
   font-family: system-ui, -apple-system, sans-serif;
