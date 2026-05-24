@@ -274,7 +274,7 @@
     </el-dialog>
 
     <!-- Edit Device Params Dialog -->
-    <el-dialog v-model="showEditDevice" title="编辑设备参数" width="520px" destroy-on-close>
+    <el-dialog v-model="showEditDevice" title="编辑设备参数" width="620px" destroy-on-close>
       <el-form label-width="110px" size="small">
         <el-form-item label="设备名称">
           <el-input v-model="editingDeviceName" />
@@ -326,6 +326,29 @@
           </el-form-item>
         </template>
       </el-form>
+      <el-divider style="margin:8px 0;font-size:12px;color:#909399">自定义测点</el-divider>
+      <div style="font-size:11px;color:#909399;margin-bottom:4px">名称自动加设备前缀(如储能1_电芯电压), IOA系统分配</div>
+      <el-table :data="editingCustomPoints" size="small" max-height="200" empty-text="暂无">
+        <el-table-column label="名称" min-width="140">
+          <template #default="{ row }">
+            <el-input v-model="row.name" size="small" placeholder="如: 电芯1电压" />
+          </template>
+        </el-table-column>
+        <el-table-column label="类型" width="90">
+          <template #default="{ row }">
+            <el-select v-model="row.type" size="small">
+              <el-option value="AI" label="AI" /><el-option value="DI" label="DI" />
+              <el-option value="AO" label="AO" /><el-option value="DO" label="DO" />
+            </el-select>
+          </template>
+        </el-table-column>
+        <el-table-column label="" width="50">
+          <template #default="{ $index }">
+            <el-button size="small" type="danger" text @click="editingCustomPoints.splice($index,1)">✕</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-button size="small" style="margin-top:6px" @click="addEditCustomPoint">+ 添加</el-button>
       <template #footer>
         <el-button @click="showEditDevice = false">取消</el-button>
         <el-button type="primary" @click="handleUpdateDevice" :loading="updatingDevice">保存</el-button>
@@ -427,6 +450,7 @@ import {
   type MicrogridDevice,
   type MicrogridDashboard,
   type MicrogridDeviceParams,
+  type MicrogridCustomPoint,
 } from '../api'
 
 const route = useRoute()
@@ -463,6 +487,7 @@ const editingDevice = ref<MicrogridDevice | null>(null)
 const editingDeviceName = ref('')
 const editingDeviceParams = ref<MicrogridDeviceParams>({})
 const editingControlMode = ref<'remote' | 'local'>('remote')
+const editingCustomPoints = ref<MicrogridCustomPoint[]>([])
 
 // Strategy dialog
 const showStrategyDialog = ref(false)
@@ -801,7 +826,12 @@ function editDevice(dev: MicrogridDevice) {
   editingDeviceName.value = dev.name
   editingDeviceParams.value = { ...dev.params }
   editingControlMode.value = dev.control_mode || 'remote'
+  editingCustomPoints.value = (dev.custom_points || []).map(p => ({ ...p }))
   showEditDevice.value = true
+}
+
+function addEditCustomPoint() {
+  editingCustomPoints.value.push({ name: '', type: 'AI' })
 }
 
 async function handleUpdateDevice() {
@@ -816,6 +846,7 @@ async function handleUpdateDevice() {
       name: editingDeviceName.value,
       params: { ...editingDeviceParams.value },
       control_mode: editingControlMode.value,
+      custom_points: editingCustomPoints.value.filter(p => p.name.trim()),
     })
     ElMessage.success('参数已更新')
     showEditDevice.value = false
