@@ -386,79 +386,80 @@ func extractMicrogridID(path, prefix, suffix string) string {
 }
 
 // HandleMicrogridExportXLSX GET /api/v1/microgrid/{id}/export-xlsx
-// 导出 zip 压缩包，内含按设备类型拆分的 xlsx 文件
 func HandleMicrogridExportXLSX(mgr ManagerBridge) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := extractMicrogridID(r.URL.Path, "/api/v1/microgrid/", "/export-xlsx")
 
+		var pts []*config.Point
 		if store := mgr.GetStore(id); store != nil {
-			pts := store.GetAll()
+			pts = store.GetAll()
 			sort.Slice(pts, func(i, j int) bool { return pts[i].IOA < pts[j].IOA })
-
-			// Group by device type using Chinese name prefixes
-			groups := map[string][]*config.Point{
-				"关口表": {},
-				"光伏":  {},
-				"储能":  {},
-				"负荷":  {},
-				"充电桩": {},
-				"其他":  {},
+		} else {
+			// Fallback: read from topology config
+			cfg, ok := mgr.GetConfig(id)
+			if !ok || cfg.MicrogridConfig == nil || cfg.MicrogridConfig.TopologyJSON == "" {
+				writeJSON(w, http.StatusNotFound, map[string]string{"error": "topology not configured"})
+				return
 			}
-			for _, p := range pts {
-				matched := false
-				for prefix := range groups {
-					if prefix == "其他" { continue }
-					if strings.Contains(p.Name, prefix) {
-						groups[prefix] = append(groups[prefix], p)
-						matched = true
-						break
-					}
-				}
-				if !matched { groups["其他"] = append(groups["其他"], p) }
-			}
+			var topo Topology
+			json.Unmarshal([]byte(cfg.MicrogridConfig.TopologyJSON), &topo)
+			pts = topo.ExpandPoints()
+		}
 
-			// Create zip archive
-			w.Header().Set("Content-Type", "application/zip")
-			w.Header().Set("Content-Disposition", `attachment; filename="`+id+`_points.zip"`)
-			zw := zip.NewWriter(w)
-			defer zw.Close()
-
-			for prefix, groupPts := range groups {
-				if len(groupPts) == 0 { continue }
-				f := excelize.NewFile()
-				sheet := "point"
-				f.SetSheetName("Sheet1", sheet)
-				headers := []string{"point-name", "point-number", "value-type", "point-type", "efficient", "base-value", "alias"}
-				for i, h := range headers {
-					cell, _ := excelize.CoordinatesToCellName(i+1, 1)
-					f.SetCellValue(sheet, cell, h)
-				}
-				for i, p := range groupPts {
-					row := i + 2
-					vt := "DOUBLE"
-					switch p.ValueType {
-					case config.VTFloat: vt = "DOUBLE"
-					case config.VTBit: vt = "BIT"
-					case config.VTInt: vt = "INT"
-					}
-					alias := p.Alias
-					if idx := strings.Index(alias, "|"); idx >= 0 { alias = p.Alias[:idx] }
-					f.SetCellValue(sheet, fmt.Sprintf("A%d", row), p.Name)
-					f.SetCellValue(sheet, fmt.Sprintf("B%d", row), p.IOA)
-					f.SetCellValue(sheet, fmt.Sprintf("C%d", row), vt)
-					f.SetCellValue(sheet, fmt.Sprintf("D%d", row), string(p.PointType))
-					f.SetCellValue(sheet, fmt.Sprintf("E%d", row), p.Efficient)
-					f.SetCellValue(sheet, fmt.Sprintf("F%d", row), p.BaseValue)
-					f.SetCellValue(sheet, fmt.Sprintf("G%d", row), alias)
-				}
-
-				// Write xlsx into zip
-				entry, _ := zw.Create(prefix + ".xlsx")
-				f.Write(entry)
-			}
+		if len(pts) == 0 {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "no points"})
 			return
 		}
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "store not found"})
+
+		// Group by device type using Chinese name prefixes
+		groups := map[string][]*config.Point{
+			"关口表": {}, "光伏": {}, "储能": {}, "负荷": {}, "充电桩": {}, "其他": {},
+		}
+		for _, p := range pts {
+			matched := false
+			for prefix := range groups {
+				if prefix == "其他" { continue }
+				if strings.Contains(p.Name, prefix) { groups[prefix] = append(groups[prefix], p); matched = true; break }
+			}
+			if !matched { groups["其他"] = append(groups["其他"], p) }
+		}
+
+		w.Header().Set("Content-Type", "application/zip")
+		w.Header().Set("Content-Disposition", `attachment; filename="`+id+`_points.zip"`)
+		zw := zip.NewWriter(w)
+		defer zw.Close()
+
+		for prefix, groupPts := range groups {
+			if len(groupPts) == 0 { continue }
+			f := excelize.NewFile()
+			sheet := "point"
+			f.SetSheetName("Sheet1", sheet)
+			headers := []string{"point-name", "point-number", "value-type", "point-type", "efficient", "base-value", "alias"}
+			for i, h := range headers {
+				cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+				f.SetCellValue(sheet, cell, h)
+			}
+			for i, p := range groupPts {
+				row := i + 2
+				vt := "DOUBLE"
+				switch p.ValueType {
+				case config.VTFloat: vt = "DOUBLE"
+				case config.VTBit: vt = "BIT"
+				case config.VTInt: vt = "INT"
+				}
+				alias := p.Alias
+				if idx := strings.Index(alias, "|"); idx >= 0 { alias = p.Alias[:idx] }
+				f.SetCellValue(sheet, fmt.Sprintf("A%d", row), p.Name)
+				f.SetCellValue(sheet, fmt.Sprintf("B%d", row), p.IOA)
+				f.SetCellValue(sheet, fmt.Sprintf("C%d", row), vt)
+				f.SetCellValue(sheet, fmt.Sprintf("D%d", row), string(p.PointType))
+				f.SetCellValue(sheet, fmt.Sprintf("E%d", row), p.Efficient)
+				f.SetCellValue(sheet, fmt.Sprintf("F%d", row), p.BaseValue)
+				f.SetCellValue(sheet, fmt.Sprintf("G%d", row), alias)
+			}
+			entry, _ := zw.Create(prefix + ".xlsx")
+			f.Write(entry)
+		}
 	}
 }
 
