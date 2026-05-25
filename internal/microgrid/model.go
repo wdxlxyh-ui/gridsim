@@ -70,6 +70,7 @@ type Device struct {
 	ID           string          `json:"id"`
 	Type         ComponentType   `json:"type"`
 	Name         string          `json:"name"`
+	IOABase      uint32          `json:"ioa_base,omitempty"` // IOA 起始地址，由系统自动分配
 	Switch       DeviceSwitch    `json:"switch"`
 	Params       DeviceParams    `json:"params"`
 	ControlMode  ControlMode     `json:"control_mode,omitempty"`
@@ -81,7 +82,7 @@ type Device struct {
 type FormulaRule struct {
 	ID         string `json:"id"`
 	Name       string `json:"name"`
-	Target     string `json:"target"`     // 目标测点名，如 "GRID_P"
+	Target     string `json:"target"`     // 目标测点名，如 "关口表_有功功率"
 	Expression string `json:"expression"` // 表达式，如 "{Battery_Power} + {Load_Power}"
 	Enabled    bool   `json:"enabled"`
 }

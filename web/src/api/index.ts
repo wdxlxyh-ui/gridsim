@@ -336,6 +336,7 @@ export interface MicrogridDevice {
   name: string
   switch: MicrogridDeviceSwitch
   params: MicrogridDeviceParams
+  ioa_base?: number
   power?: number
   soc?: number
   control_mode?: 'remote' | 'local'

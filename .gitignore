@@ -16,6 +16,7 @@ Thumbs.db
 
 # 编译产物
 bin/
+/gridsim
 
 # 压缩包
 *.zip

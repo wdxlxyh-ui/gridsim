@@ -219,7 +219,6 @@ func (ws *webServer) registerMicrogridRoutes(mux *http.ServeMux) {
 			microgrid.HandleMicrogridControl(ws.mgr)(w, r)
 		case strings.Contains(path, "/device"):
 			microgrid.HandleMicrogridDevice(ws.mgr)(w, r)
-			microgrid.HandleMicrogridControl(ws.mgr)(w, r)
 		case strings.Contains(path, "/dashboard"):
 			microgrid.HandleMicrogridDashboard(ws.mgr)(w, r)
 		case strings.Contains(path, "/formulas"):

@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strings"
@@ -58,19 +59,7 @@ func HandleMicrogridTopology(mgr ManagerBridge) http.HandlerFunc {
 				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON: " + err.Error()})
 				return
 			}
-			b, _ := json.Marshal(topo)
-			if cfg.MicrogridConfig == nil {
-				cfg.MicrogridConfig = &model.MicrogridInstanceConfig{}
-			}
-			cfg.MicrogridConfig.TopologyJSON = string(b)
-			if err := mgr.SaveConfigOnly(cfg); err != nil {
-				writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
-				return
-			}
-			// Hot-reload topology into running engine
-			if eng := mgr.GetMicrogridEngine(id); eng != nil {
-				eng.ReloadTopology(&topo)
-			}
+			saveTopology(mgr, id, cfg, &topo)
 			writeJSON(w, http.StatusOK, map[string]string{"status": "saved"})
 
 		default:
@@ -106,6 +95,12 @@ func HandleMicrogridDevice(mgr ManagerBridge) http.HandlerFunc {
 			dev.ID = fmt.Sprintf("dev-%d", atomic.AddInt64(&uidCounter, 1))
 			if dev.Switch.Name == "" {
 				dev.Switch.Name = fmt.Sprintf("QF%d", len(topo.Devices)+1)
+			}
+			// 系统自动分配 IOABase
+			dev.IOABase = nextAvailableIOABase(topo.Devices)
+			if dev.IOABase == 0 {
+				writeJSON(w, http.StatusConflict, map[string]string{"error": "IOA 地址空间已满"})
+				return
 			}
 			topo.Devices = append(topo.Devices, dev)
 			saveTopology(mgr, id, cfg, &topo)
@@ -176,6 +171,25 @@ func HandleMicrogridControl(mgr ManagerBridge) http.HandlerFunc {
 
 		if eng := mgr.GetMicrogridEngine(id); eng != nil {
 			eng.SetSwitch(devID, closed)
+			// Persist switch state to config so state survives restart
+			if cfg, ok := mgr.GetConfig(id); ok {
+				topo := defaultTopology()
+				if cfg.MicrogridConfig != nil && cfg.MicrogridConfig.TopologyJSON != "" {
+					json.Unmarshal([]byte(cfg.MicrogridConfig.TopologyJSON), &topo)
+				}
+				for i := range topo.Devices {
+					if topo.Devices[i].ID == devID {
+						topo.Devices[i].Switch.Closed = closed
+						break
+					}
+				}
+				b, _ := json.Marshal(topo)
+				if cfg.MicrogridConfig == nil {
+					cfg.MicrogridConfig = &model.MicrogridInstanceConfig{}
+				}
+				cfg.MicrogridConfig.TopologyJSON = string(b)
+				mgr.SaveConfigOnly(cfg)
+			}
 			writeJSON(w, http.StatusOK, map[string]interface{}{"status": "ok", "closed": closed})
 			return
 		}
@@ -476,7 +490,6 @@ func saveTopology(mgr ManagerBridge, id string, cfg model.InstanceConfig, topo *
 	}
 	cfg.MicrogridConfig.TopologyJSON = string(b)
 
-	// Persist point table (name/IOA/type mapping)
 	pts := topo.ExpandPoints()
 	type ptEntry struct {
 		IOA  uint32 `json:"ioa"`
@@ -491,6 +504,12 @@ func saveTopology(mgr ManagerBridge, id string, cfg model.InstanceConfig, topo *
 	cfg.MicrogridConfig.PointsJSON = string(ptJSON)
 
 	mgr.SaveConfigOnly(cfg)
+
+	// IOA 冲突检查：仅阻止引擎热加载，配置仍然保存
+	if err := validateIOAUnique(topo); err != nil {
+		slog.Warn("Topology has IOA conflicts, engine not hot-reloaded", "id", id, "error", err)
+		return
+	}
 
 	if eng := mgr.GetMicrogridEngine(id); eng != nil {
 		eng.ReloadTopology(topo)

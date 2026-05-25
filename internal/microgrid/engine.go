@@ -72,20 +72,17 @@ func (e *Engine) buildPointIndex() {
 				e.pointIOA[dev.ID+engSuffix] = ioa
 			}
 		}
-		// Also map old-style name+internal_suffix aliases (backward compat)
-		for _, s := range []string{"_Power", "_SOC", "_Setpoint", "_SwStatus", "_SwCtrl", "_Status"} {
-			if ioa, ok := e.pointIOA[prefix+s]; ok {
-				e.pointIOA[dev.ID+s] = ioa
-				e.pointIOA[dev.Name+s] = ioa
-			}
-		}
 	}
 }
 
 // readPt 通过 IOA 精确读取测点值（O(1)）
 func (e *Engine) readPt(name string) float64 {
 	ioa, ok := e.pointIOA[name]
-	if !ok || e.store == nil {
+	if !ok {
+		slog.Warn("readPt: name not found in pointIOA", "name", name)
+		return 0
+	}
+	if e.store == nil {
 		return 0
 	}
 	if p, found := e.store.Get(ioa); found {
@@ -97,7 +94,11 @@ func (e *Engine) readPt(name string) float64 {
 // writePt 通过 IOA 精确写入测点值（O(1)）
 func (e *Engine) writePt(name string, value float64) {
 	ioa, ok := e.pointIOA[name]
-	if !ok || e.store == nil {
+	if !ok {
+		slog.Warn("writePt: name not found in pointIOA", "name", name)
+		return
+	}
+	if e.store == nil {
 		return
 	}
 	e.store.SetValue(ioa, value)
@@ -193,7 +194,7 @@ func (e *Engine) ensureGridFormula() {
 		filtered = append(filtered, f)
 	}
 	e.topology.Formulas = append(filtered, FormulaRule{
-		ID: "auto-grid", Name: "关口功率", Target: "GRID_P", Expression: expr, Enabled: true,
+		ID: "auto-grid", Name: "关口功率", Target: "关口表_有功功率", Expression: expr, Enabled: true,
 	})
 }
 
@@ -232,9 +233,57 @@ func (e *Engine) GetHistory() []SimSnapshot {
 func (e *Engine) ReloadTopology(topo *Topology) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+
+	// Preserve existing SOC values before reload (device IDs may change)
+	oldSOC := make(map[string]float64, len(e.soc))
+	for k, v := range e.soc {
+		oldSOC[k] = v
+	}
+
 	e.topology = topo
-	e.buildPointIndex()
+	e.syncStoreWithTopology() // 先补充 store 中缺失的测点
+	e.buildPointIndex()       // 再重建索引（此时 store 已有所有点）
 	e.ensureGridFormula()
+
+	// 重建 SOC 映射：尽量保留既有值
+	// 优先级：旧 ID 映射 > store 当前值（按中文名）> InitSOC
+	newSOC := make(map[string]float64)
+	for idx, dev := range topo.Devices {
+		if dev.Type != CompBattery {
+			continue
+		}
+		var socVal float64
+		var found bool
+
+		// 1) Same dev ID → preserve old value
+		if s, ok := oldSOC[dev.ID]; ok {
+			socVal = s
+			found = true
+		}
+
+		// 2) Try reading current SOC from store by Chinese point name
+		if !found && e.store != nil {
+			prefix := typeChinese[dev.Type] + itoa(idx+1)
+			for _, p := range e.store.GetAll() {
+				if p.Name == prefix+"_电池SOC" {
+					socVal = p.Value
+					found = true
+					break
+				}
+			}
+		}
+
+		// 3) Fall back to InitSOC
+		if !found {
+			socVal = dev.Params.InitSOC
+			if socVal <= 0 {
+				socVal = 50
+			}
+		}
+
+		newSOC[dev.ID] = socVal
+	}
+	e.soc = newSOC
 }
 func (e *Engine) SetSwitch(devID string, closed bool) error {
 	e.mu.Lock()
@@ -429,15 +478,18 @@ func (e *Engine) tick() {
 			}
 			if dev.ControlMode != ModeLocal {
 				setpoint := e.readPt(dev.ID + "_Setpoint")
+				slog.Debug("battery setpoint", "dev", dev.ID, "setpoint", setpoint)
 				if setpoint != 0 {
 					ratedP := dev.Params.RatedPowerKW_B
 					if ratedP <= 0 { ratedP = 50 }
 					if setpoint > ratedP { setpoint = ratedP } else if setpoint < -ratedP { setpoint = -ratedP }
 					e.batPower[dev.ID] = setpoint
+					slog.Debug("battery power from setpoint", "dev", dev.ID, "power", setpoint)
 					continue
 				}
 			}
 			e.batPower[dev.ID] = e.readPt(dev.ID + "_Power")
+			slog.Debug("battery power fallback", "dev", dev.ID, "power", e.batPower[dev.ID])
 		}
 	}
 
@@ -548,6 +600,7 @@ func (e *Engine) syncStoreLocked() {
 			e.writePt(dev.ID+"_Power", e.pvPower[dev.ID])
 		case CompBattery:
 			e.writePt(dev.ID+"_Power", e.batPower[dev.ID])
+			slog.Debug("syncStore battery power", "dev", dev.ID, "power", e.batPower[dev.ID])
 		case CompLoad:
 			e.writePt(dev.ID+"_Power", e.loadPower[dev.ID])
 		case CompCharger:
@@ -564,11 +617,12 @@ func (e *Engine) syncStoreLocked() {
 		e.writePt(dev.ID+"_Status", swVal)
 	}
 	// Grid values from latest power balance
-	e.writePt("GRID_P", e.gridPower)
-	e.writePt("GRID_Q", e.gridPower*0.15)
-	e.writePt("GRID_Connected", 1)
+	// Write to the actual IEC104 point names (关口表_*), not "GRID_P"
+	e.writePt("关口表_有功功率", e.gridPower)
+	e.writePt("关口表_无功功率", e.gridPower*0.15)
+	e.writePt("关口表_运行状态", 1)
 	if e.topology.GridMeter.IslandMode {
-		e.writePt("GRID_Connected", 0)
+		e.writePt("关口表_运行状态", 0)
 	}
 }
 
@@ -780,6 +834,24 @@ func (e *Engine) calcPowerBalanceLocked() *PowerBalanceResult {
 		ImbalanceKW:       math.Round((grossLoad - grossGen)*10) / 10,
 		Frequency:         math.Round(freq*100) / 100,
 		Island:            island,
+	}
+}
+
+// syncStoreWithTopology 确保 store 中有所有拓扑展开的测点
+// 新增设备/自定义测点后补充缺失的 IOA 到 store，保证写入不会静默失败
+func (e *Engine) syncStoreWithTopology() {
+	if e.store == nil || e.topology == nil {
+		return
+	}
+	expanded := e.topology.ExpandPoints()
+	for _, p := range expanded {
+		if _, found := e.store.Get(p.IOA); !found {
+			if err := e.store.AddPoint(p); err != nil {
+				slog.Warn("syncStoreWithTopology: AddPoint failed", "ioa", p.IOA, "name", p.Name, "error", err)
+			} else {
+				slog.Debug("syncStoreWithTopology: added missing point", "ioa", p.IOA, "name", p.Name)
+			}
+		}
 	}
 }
 

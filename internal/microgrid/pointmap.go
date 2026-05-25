@@ -43,13 +43,20 @@ func (t *Topology) ExpandPoints() []*config.Point {
 	}
 
 	// ── Per-device points ──
+	// IOA 分配基于设备自声明的 IOABase，与设备在数组中的位置无关
 	for idx, dev := range t.Devices {
 		n := idx + 1
 		prefix := typeChinese[dev.Type] + itoa(n)
-		baseAI := 101 + idx*50
-		baseDI := 1101 + idx*50
-		baseAO := 3001 + idx*50
-		baseDO := 4001 + idx*50
+
+		// 使用设备声明的 IOABase，而非位置推导
+		base := int(dev.IOABase)
+		if base < 101 {
+			base = 101 + idx*50 // fallback: 旧格式兼容
+		}
+		baseAI := base
+		baseDI := base + 10
+		baseAO := base + 20
+		baseDO := base + 30
 
 		swVal := 0.0
 		if dev.Switch.Closed { swVal = 1.0 }
@@ -101,7 +108,7 @@ func (t *Topology) ExpandPoints() []*config.Point {
 			)
 		}
 
-		// Custom points
+		// Custom points: IOA 由系统在自定义区间自动分配
 		for ci, cp := range dev.CustomPoints {
 			var ptype config.PointType
 			switch cp.Type {
@@ -113,18 +120,12 @@ func (t *Topology) ExpandPoints() []*config.Point {
 			}
 			vt := config.VTFloat
 			if ptype == config.TypeDI || ptype == config.TypeDO { vt = config.VTBit }
-			var ioa int
-			switch ptype {
-			case config.TypeAI: ioa = baseAI + 5 + ci*2
-			case config.TypeDI: ioa = baseDI + 5 + ci*2
-			case config.TypeAO: ioa = baseAO + 5 + ci*2
-			case config.TypeDO: ioa = baseDO + 5 + ci*2
-			}
-				alias := cp.Name
-				if cp.Alias != "" { alias = cp.Alias }
-				points = append(points, &config.Point{
-					IOA: uint32(ioa), Name: prefix + "_" + cp.Name, ValueType: vt,
-					PointType: ptype, Efficient: 1.0, BaseValue: 0, Alias: alias,
+			ioa := base + 40 + ci*2
+			alias := cp.Name
+			if cp.Alias != "" { alias = cp.Alias }
+			points = append(points, &config.Point{
+				IOA: uint32(ioa), Name: prefix + "_" + cp.Name, ValueType: vt,
+				PointType: ptype, Efficient: 1.0, BaseValue: 0, Alias: alias,
 			})
 		}
 	}
@@ -149,6 +150,63 @@ var internalSuffixes = map[string]string{
 
 // itoa converts int to string without importing strconv in hot path
 func itoa(n int) string { return fmt.Sprintf("%d", n) }
+
+// nextAvailableIOABase 查找下一个可用的 50-IOA 空闲块
+// 从 101 开始步进 50，返回第一个完全空闲的起始地址
+func nextAvailableIOABase(devices []Device) uint32 {
+	occupied := make(map[uint32]bool)
+	// 关口表保留区 1-100
+	for ioa := uint32(1); ioa <= 100; ioa++ {
+		occupied[ioa] = true
+	}
+	// 已有设备占用的 IOA 范围
+	for _, d := range devices {
+		for off := uint32(0); off < 50; off++ {
+			occupied[d.IOABase+off] = true
+		}
+	}
+	// 查找第一个连续 50 个空闲 IOA 的块
+	for base := uint32(101); base <= 65000; base += 50 {
+		free := true
+		for off := uint32(0); off < 50; off++ {
+			if occupied[base+off] {
+				free = false
+				break
+			}
+		}
+		if free {
+			return base
+		}
+	}
+	return 0 // 地址空间已满
+}
+
+// validateIOAUnique 检查拓扑中所有设备的 IOA 分配是否唯一且不与关口表冲突
+func validateIOAUnique(topo *Topology) error {
+	seen := make(map[uint32]string) // IOA → device name
+	// 关口表保留区
+	for ioa := uint32(1); ioa <= 100; ioa++ {
+		seen[ioa] = "(关口表保留区)"
+	}
+	for _, d := range topo.Devices {
+		base := d.IOABase
+		if base == 0 {
+			return fmt.Errorf("设备 %q IOABase 未分配", d.Name)
+		}
+		if base < 101 {
+			return fmt.Errorf("设备 %q IOABase %d 与关口表保留区 (1-100) 冲突", d.Name, base)
+		}
+		// 检查该设备 50 个 IOA 是否与其他设备重叠
+		for off := uint32(0); off < 50; off++ {
+			ioa := base + off
+			if existing, ok := seen[ioa]; ok {
+				return fmt.Errorf("IOA %d 冲突: 设备 %q 与 %s", ioa, d.Name, existing)
+			}
+			seen[ioa] = d.Name
+		}
+	}
+	return nil
+}
 
 // StoreFromTopology 从拓扑创建 Store
 func (t *Topology) StoreFromTopology() *library.Store {

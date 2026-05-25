@@ -28,6 +28,19 @@
       </div>
     </el-card>
 
+    <!-- IOA Conflict Banner -->
+    <div v-if="ioaConflicts.length > 0" class="ioa-conflict-banner">
+      <div class="ioa-conflict-icon">⚠️</div>
+      <div class="ioa-conflict-body">
+        <strong>IOA 冲突检测</strong><br>
+        <span v-for="(err, i) in ioaConflicts" :key="i" class="ioa-conflict-line">{{ err }}</span>
+      </div>
+      <el-button size="small" type="danger" plain @click="autoResolveConflicts">自动修复</el-button>
+    </div>
+    <div v-else-if="devices.length > 0 && !running" class="ioa-ok-banner">
+      <span>✓ IOA 分配正常，无冲突</span>
+    </div>
+
     <!-- Tabs -->
     <el-tabs v-model="activeTab" type="border-card">
       <!-- Tab 1: 拓扑配置 -->
@@ -72,7 +85,7 @@
               <div v-if="devices.length === 0" style="text-align:center;color:var(--el-text-color-secondary);padding:20px">
                 暂无设备，点击上方按钮添加
               </div>
-              <div v-for="dev in devices" :key="dev.id" class="device-card">
+              <div v-for="dev in devices" :key="dev.id" class="device-card" :class="{ 'device-conflict': deviceHasConflict(dev) }">
                 <div class="device-header">
                   <el-tag :type="devTypeTag(dev.type)" size="small">{{ devTypeLabel(dev.type) }}</el-tag>
                   <span style="font-weight:500;margin-left:8px">{{ dev.name }}</span>
@@ -82,13 +95,23 @@
                     style="margin-left:auto"
                   >{{ dev.switch.closed ? '合闸' : '分闸' }}</el-tag>
                 </div>
-                <div class="device-params">
+                <div class="device-params" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                   <template v-if="dev.type === 'pv'">{{ dev.params.rated_power_kw || '-' }} kW</template>
                   <template v-else-if="dev.type === 'battery'">
                     {{ dev.params.capacity_kwh || '-' }} kWh / {{ dev.params.rated_power_kw_b || '-' }} kW
                   </template>
                   <template v-else-if="dev.type === 'load'">{{ dev.params.load_rated_kw || '-' }} kW</template>
                   <template v-else-if="dev.type === 'charger'">{{ dev.params.charger_rated_kw || '-' }} kW</template>
+                  <!-- IOA Range Badge -->
+                  <el-tag
+                    v-if="dev.ioa_base"
+                    :type="deviceHasConflict(dev) ? 'danger' : 'primary'"
+                    size="small"
+                    effect="plain"
+                    style="margin-left:auto;font-family:monospace;font-size:11px"
+                  >
+                    IOA {{ dev.ioa_base }}~{{ dev.ioa_base + 49 }}
+                  </el-tag>
                 </div>
                 <div class="device-actions">
                   <el-switch
@@ -209,10 +232,10 @@
     </el-tabs>
 
     <!-- Add Device Dialog -->
-    <el-dialog v-model="showAddDevice" title="添加设备" width="520px" destroy-on-close>
+    <el-dialog v-model="showAddDevice" title="添加设备" width="520px" destroy-on-close @open="updateAddPreview">
       <el-form label-width="110px" size="small">
         <el-form-item label="设备类型">
-          <el-radio-group v-model="newDeviceType">
+          <el-radio-group v-model="newDeviceType" @change="updateAddPreview">
             <el-radio-button value="pv">光伏</el-radio-button>
             <el-radio-button value="battery">储能</el-radio-button>
             <el-radio-button value="load">负荷</el-radio-button>
@@ -222,6 +245,20 @@
         <el-form-item label="设备名称">
           <el-input v-model="newDeviceName" placeholder="例如: PV-1" />
         </el-form-item>
+
+        <!-- IOA Auto-Allocation Preview -->
+        <el-form-item label="IOA 分配">
+          <div class="ioa-preview-box">
+            <div class="ioa-preview-header">
+              <span class="ioa-preview-badge">{{ addIOAPreview.base }}~{{ addIOAPreview.base + 49 }}</span>
+              <span class="ioa-preview-note">（系统自动分配）</span>
+            </div>
+            <div class="ioa-preview-ranges">
+              <span v-for="r in addIOAPreview.ranges" :key="r" class="ioa-preview-range">{{ r }}</span>
+            </div>
+          </div>
+        </el-form-item>
+
         <!-- PV params -->
         <template v-if="newDeviceType === 'pv'">
           <el-form-item label="额定功率">
@@ -346,6 +383,28 @@
           </el-form-item>
         </template>
       </el-form>
+
+      <!-- IOA Grid Display -->
+      <el-divider style="margin:8px 0;font-size:12px;color:#909399">IOA 分配（系统自动 · 不可修改）</el-divider>
+      <div v-if="editingDevice?.ioa_base" style="margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+          <span style="font-family:monospace;font-size:14px;font-weight:600;color:var(--el-color-primary)">{{ editingDevice.ioa_base }}</span>
+          <span style="font-size:11px;color:#909399">{{ editingDevice.ioa_base && editingIOARange }}</span>
+        </div>
+        <div class="ioa-grid">
+          <div
+            v-for="cell in editingIOAGrid"
+            :key="cell.ioa"
+            class="ioa-cell"
+            :class="cell.cls"
+            :title="cell.title"
+          >
+            {{ cell.ioa }}<span class="ioa-cell-lbl">{{ cell.lbl }}</span>
+          </div>
+        </div>
+      </div>
+      <div v-else style="font-size:11px;color:#909399;margin-bottom:8px">IOA 将在保存后由系统自动分配</div>
+
       <el-divider style="margin:8px 0;font-size:12px;color:#909399">自定义测点</el-divider>
       <div style="font-size:11px;color:#909399;margin-bottom:4px">名称自动加设备前缀(如储能1_电芯电压), IOA系统分配</div>
       <el-table :data="editingCustomPoints" size="small" max-height="200" empty-text="暂无">
@@ -500,6 +559,23 @@ const newDeviceType = ref<'pv' | 'battery' | 'load' | 'charger'>('pv')
 const newDeviceName = ref('')
 const newDeviceParams = ref<MicrogridDeviceParams>({})
 const newCustomPoints = ref<MicrogridCustomPoint[]>([])
+const addIOAPreview = ref<{ base: number; ranges: string[] }>({ base: 101, ranges: [] })
+
+function updateAddPreview() {
+  const base = nextAvailableIOABase()
+  const offsets = STDOFF[newDeviceType.value] || []
+  const ai = offsets.filter(o => o.type === 'AI')
+  const di = offsets.filter(o => o.type === 'DI')
+  const ranges: string[] = []
+  if (ai.length) ranges.push(`AI ${base}~${base + ai.length - 1}`)
+  if (di.length) ranges.push(`DI ${base + di[0].off}~${base + di[di.length - 1].off}`)
+  const ao = offsets.find(o => o.type === 'AO')
+  if (ao) ranges.push(`AO ${base + ao.off}`)
+  const do_ = offsets.find(o => o.type === 'DO')
+  if (do_) ranges.push(`DO ${base + do_.off}`)
+  ranges.push(`自定义 ${base + 40}~${base + 49}`)
+  addIOAPreview.value = { base, ranges }
+}
 
 // Edit device
 const showEditDevice = ref(false)
@@ -510,6 +586,100 @@ const editingDeviceName = ref('')
 const editingDeviceParams = ref<MicrogridDeviceParams>({})
 const editingControlMode = ref<'remote' | 'local'>('remote')
 const editingCustomPoints = ref<MicrogridCustomPoint[]>([])
+
+// ── IOA Standard Point Offsets ──
+const STDOFF: Record<string, { off: number; name: string; type: string }[]> = {
+  pv: [
+    { off: 0, name: '有功功率', type: 'AI' }, { off: 1, name: '日发电量', type: 'AI' },
+    { off: 10, name: '运行状态', type: 'DI' }, { off: 11, name: '开关状态', type: 'DI' },
+    { off: 20, name: '功率设定', type: 'AO' }, { off: 30, name: '远程启机', type: 'DO' },
+  ],
+  battery: [
+    { off: 0, name: '电池SOC', type: 'AI' }, { off: 1, name: '充放电功率', type: 'AI' },
+    { off: 10, name: '运行状态', type: 'DI' }, { off: 11, name: '开关状态', type: 'DI' },
+    { off: 20, name: '功率设定', type: 'AO' }, { off: 30, name: '远程启机', type: 'DO' },
+  ],
+  load: [
+    { off: 0, name: '有功功率', type: 'AI' },
+    { off: 10, name: '运行状态', type: 'DI' }, { off: 11, name: '开关状态', type: 'DI' },
+    { off: 20, name: '功率设定', type: 'AO' }, { off: 30, name: '遥控分合', type: 'DO' },
+  ],
+  charger: [
+    { off: 0, name: '充电功率', type: 'AI' },
+    { off: 10, name: '运行状态', type: 'DI' }, { off: 11, name: '开关状态', type: 'DI' },
+    { off: 20, name: '功率设定', type: 'AO' }, { off: 30, name: '遥控分合', type: 'DO' },
+  ],
+}
+
+// ── IOA Validation & Allocation ──
+const ioaConflicts = ref<string[]>([])
+
+function validateIOA(): string[] {
+  const errors: string[] = []
+  const seen = new Map<number, string>()
+  // Grid meter reserved 1-100
+  for (let i = 1; i <= 100; i++) seen.set(i, '(关口表保留区)')
+  for (const d of devices.value) {
+    const base = d.ioa_base || 0
+    if (base === 0) { errors.push(`设备 "${d.name}" 未分配 IOABase`); continue }
+    if (base < 101) { errors.push(`设备 "${d.name}" IOA ${base} 与关口表保留区 (1-100) 冲突`) }
+    for (let off = 0; off < 50; off++) {
+      const ioa = base + off
+      if (seen.has(ioa) && seen.get(ioa) !== d.id) {
+        errors.push(`IOA ${ioa} 冲突: 设备 "${d.name}" 与 ${seen.get(ioa)}`)
+      }
+      seen.set(ioa, d.name)
+    }
+  }
+  // Also detect gaps where ioa_base == 0
+  return errors
+}
+
+function nextAvailableIOABase(): number {
+  const occupied = new Set<number>()
+  for (let i = 1; i <= 100; i++) occupied.add(i)
+  for (const d of devices.value) {
+    const base = d.ioa_base || 0
+    if (base === 0) continue
+    for (let off = 0; off < 50; off++) occupied.add(base + off)
+  }
+  for (let base = 101; base <= 65000; base += 50) {
+    let free = true
+    for (let off = 0; off < 50; off++) {
+      if (occupied.has(base + off)) { free = false; break }
+    }
+    if (free) return base
+  }
+  return 0
+}
+
+function deviceHasConflict(dev: MicrogridDevice): boolean {
+  if (!dev.ioa_base || dev.ioa_base < 101) return true
+  for (const d of devices.value) {
+    if (d.id === dev.id) continue
+    if (!d.ioa_base) continue
+    // Check if 50-IOA blocks overlap
+    if (dev.ioa_base < d.ioa_base + 50 && dev.ioa_base + 50 > d.ioa_base) return true
+  }
+  return false
+}
+
+function runIOAValidation() {
+  ioaConflicts.value = validateIOA()
+}
+
+function autoResolveConflicts() {
+  // Reassign all devices IOA in order of current ioa_base (or position)
+  const sorted = [...devices.value].sort((a, b) => (a.ioa_base || 0) - (b.ioa_base || 0) || a.id.localeCompare(b.id))
+  let base = 101
+  for (const d of sorted) {
+    while (base <= 100) base += 50
+    d.ioa_base = base
+    base += 50
+  }
+  runIOAValidation()
+  topologyChanged.value = true
+}
 
 // Strategy dialog
 const showStrategyDialog = ref(false)
@@ -581,7 +751,7 @@ const svgTopology = computed(() => {
 
     rows += `<line x1="${dx}" y1="${BUS_Y}" x2="${dx}" y2="${swY - swR}" stroke="${cl ? lc : '#c0c4cc'}" stroke-width="3.5" stroke-linecap="round" class="${fc}"/>`
     const sf = cl ? (t === 'pv' ? '#e8f5e9' : t === 'battery' ? '#e3f2fd' : '#fff3e0') : '#fef0f0'
-    rows += `<circle cx="${dx}" cy="${swY}" r="${swR}" fill="${sf}" stroke="${cl ? '#67c23a' : '#f56c6c'}" stroke-width="2" style="cursor:pointer"/>`
+    rows += `<circle cx="${dx}" cy="${swY}" r="${swR}" fill="${sf}" stroke="${cl ? '#67c23a' : '#f56c6c'}" stroke-width="2" style="cursor:pointer" data-dev-id="${dev.id}" data-action="toggle-switch"/>`
     rows += cl
       ? `<line x1="${dx - 7}" y1="${swY}" x2="${dx + 7}" y2="${swY}" stroke="#67c23a" stroke-width="2" stroke-linecap="round"/>`
       : `<line x1="${dx - 6}" y1="${swY - 6}" x2="${dx + 6}" y2="${swY + 6}" stroke="#f56c6c" stroke-width="2" stroke-linecap="round"/>`
@@ -622,6 +792,44 @@ ${rows}
 
 const LB: Record<string, string> = { pv: '光伏', battery: '储能', load: '负荷', charger: '充电桩' }
 const FC: Record<string, string> = { pv: '#67c23a', battery: '#409eff', load: '#e6a23c', charger: '#909399' }
+
+const editingIOARange = computed(() => {
+  const dev = editingDevice.value
+  if (!dev?.ioa_base) return ''
+  const offsets = STDOFF[dev.type] || []
+  const parts: string[] = []
+  const ai = offsets.filter(o => o.type === 'AI')
+  const di = offsets.filter(o => o.type === 'DI')
+  if (ai.length) parts.push(`AI ${dev.ioa_base + ai[0].off}~${dev.ioa_base + ai[ai.length - 1].off}`)
+  if (di.length) parts.push(`DI ${dev.ioa_base + di[0].off}~${dev.ioa_base + di[di.length - 1].off}`)
+  const ao = offsets.find(o => o.type === 'AO')
+  if (ao) parts.push(`AO ${dev.ioa_base + ao.off}`)
+  const do_ = offsets.find(o => o.type === 'DO')
+  if (do_) parts.push(`DO ${dev.ioa_base + do_.off}`)
+  return `占用 ${parts.join(' · ')}`
+})
+
+const editingIOAGrid = computed(() => {
+  const dev = editingDevice.value
+  if (!dev?.ioa_base) return []
+  const base = dev.ioa_base
+  const offsets = STDOFF[dev.type] || []
+  const cells: { ioa: number; title: string; lbl: string; cls: string }[] = []
+  const hasConflict = deviceHasConflict(dev)
+  for (let off = 0; off < 50; off++) {
+    const ioa = base + off
+    const std = offsets.find(o => o.off === off)
+    if (std) {
+      cells.push({ ioa, title: `${std.name} (${std.type})`, lbl: std.type, cls: `${std.type.toLowerCase()}${hasConflict ? ' conflict' : ''}` })
+    } else if (off >= 40) {
+      const ci = off - 40
+      cells.push({ ioa, title: `自定义测点 ${ci + 1}`, lbl: `C${ci + 1}`, cls: `custom${hasConflict ? ' conflict' : ''}` })
+    } else {
+      cells.push({ ioa, title: '', lbl: '·', cls: 'free' })
+    }
+  }
+  return cells
+})
 
 const autoFormulas = computed(() => {
   const result: { label: string; expr: string }[] = []
@@ -701,6 +909,7 @@ async function fetchTopology() {
     gridMeter.value = { ...topo.grid_meter }
     devices.value = topo.devices || []
     topologyChanged.value = false
+    runIOAValidation()
   } catch (e: any) {
     ElMessage.error('获取拓扑失败: ' + (e?.response?.data?.error || e.message))
   }
@@ -811,6 +1020,7 @@ async function onTopoFile(e: Event) {
     gridMeter.value = topo.grid_meter || { rated_capacity_kw: 500, island_mode: false }
     devices.value = topo.devices || []
     topologyChanged.value = true
+    runIOAValidation()
     ElMessage.success('拓扑已加载，请点击保存拓扑')
   } catch (e: any) { ElMessage.error('导入失败: ' + (e?.message || '格式错误')) }
 }
@@ -836,6 +1046,7 @@ async function handleAddDevice() {
     showAddDevice.value = false
     topologyChanged.value = true
     await fetchTopology()
+    runIOAValidation()
     resetNewDevice()
   } catch (e: any) {
     ElMessage.error('添加失败: ' + (e?.response?.data?.error || e.message))
@@ -845,7 +1056,7 @@ async function handleAddDevice() {
 }
 
 function editDevice(dev: MicrogridDevice) {
-  editingDevice.value = { ...dev }
+  editingDevice.value = { ...dev, ioa_base: dev.ioa_base }
   editingDeviceName.value = dev.name
   editingDeviceParams.value = {
     ...dev.params,
@@ -881,6 +1092,7 @@ async function handleUpdateDevice() {
     topologyChanged.value = true
     await fetchTopology()
     await fetchInstance()
+    runIOAValidation()
   } catch (e: any) {
     ElMessage.error('更新失败: ' + (e?.response?.data?.error || e.message))
   } finally {
@@ -895,6 +1107,7 @@ async function handleDeleteDevice(devId: string) {
     ElMessage.success('设备已删除')
     topologyChanged.value = true
     await fetchTopology()
+    runIOAValidation()
   } catch (e: any) {
     if (e !== 'cancel') {
       ElMessage.error('删除失败: ' + (e?.response?.data?.error || e.message))
@@ -968,13 +1181,27 @@ function stopPolling() {
   if (pointsTimer) { clearInterval(pointsTimer); pointsTimer = null }
 }
 
+function onSvgClick(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  const circle = target.closest('[data-action="toggle-switch"]') as HTMLElement
+  if (!circle) return
+  const devId = circle.getAttribute('data-dev-id')
+  if (!devId) return
+  const dev = devices.value.find(d => d.id === devId)
+  if (!dev || !running.value) return
+  handleSwitchToggle(devId, !dev.switch.closed)
+}
+
 onMounted(async () => {
   await loadAll()
   if (running.value) startPolling()
+  // SVG switch click delegation
+  document.addEventListener('click', onSvgClick)
 })
 
 onUnmounted(() => {
   stopPolling()
+  document.removeEventListener('click', onSvgClick)
 })
 </script>
 
@@ -1172,4 +1399,152 @@ onUnmounted(() => {
 }
 
 /* Managed row in points table */
+
+/* ═══ IOA Conflict Banner ═══ */
+.ioa-conflict-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  background: #fef0f0;
+  border: 1px solid #f56c6c;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #f56c6c;
+}
+.ioa-conflict-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+  line-height: 1.4;
+}
+.ioa-conflict-body {
+  flex: 1;
+  line-height: 1.6;
+}
+.ioa-conflict-line {
+  display: block;
+  font-size: 11px;
+}
+.ioa-ok-banner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  margin-bottom: 12px;
+  background: #f0f9eb;
+  border: 1px solid #67c23a;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #67c23a;
+}
+
+/* Device card conflict state */
+.device-card.device-conflict {
+  border-color: #f56c6c;
+  background: #fef0f0;
+}
+
+/* ═══ IOA Preview Box (Add Dialog) ═══ */
+.ioa-preview-box {
+  width: 100%;
+  background: #ecf5ff;
+  border: 1px solid #b3d8ff;
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+.ioa-preview-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.ioa-preview-badge {
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: #409eff;
+  padding: 1px 8px;
+  background: rgba(64, 158, 255, 0.1);
+  border-radius: 3px;
+}
+.ioa-preview-note {
+  font-size: 10px;
+  color: #909399;
+}
+.ioa-preview-ranges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  font-size: 10px;
+  color: #909399;
+}
+.ioa-preview-range {
+  white-space: nowrap;
+}
+
+/* ═══ IOA Grid (Edit Dialog) ═══ */
+.ioa-grid {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 3px;
+}
+.ioa-cell {
+  padding: 4px 3px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-family: 'SF Mono', 'Menlo', monospace;
+  text-align: center;
+  cursor: default;
+  transition: all 0.1s;
+  background: var(--el-fill-color);
+  border: 1px solid var(--el-border-color-light);
+  color: var(--el-text-color-secondary);
+  line-height: 1.2;
+}
+.ioa-cell-lbl {
+  display: block;
+  font-size: 7px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-weight: 500;
+  opacity: 0.6;
+}
+.ioa-cell.ai {
+  border-color: rgba(64, 158, 255, 0.3);
+  color: #409eff;
+  background: #ecf5ff;
+}
+.ioa-cell.di {
+  border-color: rgba(230, 162, 60, 0.3);
+  color: #e6a23c;
+  background: #fdf6ec;
+}
+.ioa-cell.ao {
+  border-color: rgba(156, 39, 176, 0.3);
+  color: #9c27b0;
+  background: #f3e5f5;
+}
+.ioa-cell.do {
+  border-color: rgba(76, 175, 80, 0.3);
+  color: #67c23a;
+  background: #f0f9eb;
+}
+.ioa-cell.custom {
+  border-color: rgba(64, 158, 255, 0.15);
+  color: var(--el-text-color-secondary);
+  background: transparent;
+  border-style: dashed;
+}
+.ioa-cell.free {
+  color: var(--el-border-color-light);
+  border-color: transparent;
+  background: transparent;
+}
+.ioa-cell.conflict {
+  background: #fef0f0;
+  border-color: #f56c6c;
+  color: #f56c6c;
+}
 </style>
