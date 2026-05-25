@@ -510,6 +510,7 @@ func (m *Manager) startMicrogrid(id string) error {
 		ConfigDir:   m.cfgDir,
 		PointsJSON:  cfg.MicrogridConfig.PointsJSON,
 	})
+	eng.SetPublisher(proto)
 	if err := eng.Start(); err != nil {
 		proto.Stop()
 		return fmt.Errorf("start microgrid engine: %w", err)

@@ -11,8 +11,14 @@ import (
 	"sync"
 	"time"
 
+	"gridsim/pkg/config"
 	"gridsim/pkg/library"
 )
+
+// publisher 用于写值后触发 IEC104 变化上送
+type publisher interface {
+	Publish(point *config.Point)
+}
 
 var formulaRefRE = regexp.MustCompile(`\{([^}]+)\}`)
 
@@ -39,6 +45,9 @@ type Engine struct {
 
 	// 历史
 	history *HistoryBuffer
+
+	// publisher 写值后触发 IEC104 变化上送
+	pub publisher
 }
 
 // buildPointIndex 扫描 store 所有点，建立 name→IOA 索引
@@ -91,7 +100,7 @@ func (e *Engine) readPt(name string) float64 {
 	return 0
 }
 
-// writePt 通过 IOA 精确写入测点值（O(1)）
+// writePt 通过 IOA 精确写入测点值（O(1)），写入后触发 IEC104 变化上送
 func (e *Engine) writePt(name string, value float64) {
 	ioa, ok := e.pointIOA[name]
 	if !ok {
@@ -101,7 +110,9 @@ func (e *Engine) writePt(name string, value float64) {
 	if e.store == nil {
 		return
 	}
-	e.store.SetValue(ioa, value)
+	if pt, err := e.store.SetValue(ioa, value); err == nil && e.pub != nil {
+		e.pub.Publish(pt)
+	}
 }
 
 // NewEngine 创建微电网仿真引擎
@@ -124,6 +135,11 @@ func NewEngine(topology *Topology, store *library.Store, cfg InstanceConfig) *En
 	}
 	eng.buildPointIndex()
 	return eng
+}
+
+// SetPublisher 设置 publisher，用于写值后触发 IEC104 变化上送
+func (e *Engine) SetPublisher(pub publisher) {
+	e.pub = pub
 }
 
 // Start 启动仿真引擎
