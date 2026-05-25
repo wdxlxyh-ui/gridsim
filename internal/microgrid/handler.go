@@ -464,7 +464,7 @@ func HandleMicrogridExportXLSX(mgr ManagerBridge) http.HandlerFunc {
 				f.SetCellValue(sheet, fmt.Sprintf("C%d", row), vt)
 				f.SetCellValue(sheet, fmt.Sprintf("D%d", row), string(p.PointType))
 				f.SetCellValue(sheet, fmt.Sprintf("E%d", row), p.Efficient)
-				f.SetCellValue(sheet, fmt.Sprintf("F%d", row), p.BaseValue)
+				f.SetCellValue(sheet, fmt.Sprintf("F%d", row), 0) // 导出的点表 base-value 统一为 0，实际基值由 ExpandPoints 定义
 				f.SetCellValue(sheet, fmt.Sprintf("G%d", row), alias)
 			}
 			entry, _ := zw.Create(prefix + ".xlsx")
