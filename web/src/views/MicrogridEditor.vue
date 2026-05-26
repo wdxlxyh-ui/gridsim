@@ -509,7 +509,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -547,6 +547,9 @@ const topologyChanged = ref(false)
 const busName = ref('10kV 母线')
 const busVoltage = ref(10)
 const gridMeter = ref({ rated_capacity_kw: 500, island_mode: false })
+// 关口表参数或母线电压/名称变化时标记拓扑已修改
+// flush:'sync' 确保在 fetchTopology 赋值时同步触发，最终 topologyChanged=false 获胜
+watch([gridMeter, busVoltage, busName], () => { topologyChanged.value = true }, { deep: true, flush: 'sync' })
 const devices = ref<MicrogridDevice[]>([])
 const dash = ref<MicrogridDashboard>({ grid_power_kw: 0, total_pv_kw: 0, total_bat_kw: 0, total_load_kw: 0, total_charger_kw: 0 })
 const points = ref<any[]>([])
