@@ -212,6 +212,7 @@ func (ws *webServer) registerRoutes(mux *http.ServeMux, configDir string) {
 	mux.HandleFunc("/api/v1/proxy/collections/", ws.handleCollectionByID)
 	mux.HandleFunc("/api/v1/proxy/environments", ws.handleEnvironments)
 	mux.HandleFunc("/api/v1/proxy/environments/", ws.handleEnvironmentByID)
+	mux.HandleFunc("/api/v1/proxy/export", ws.handleExport)
 
 	// Microgrid management routes
 	ws.registerMicrogridRoutes(mux)
@@ -907,4 +908,19 @@ func sanitizeFilename(name string) string {
 	}, name)
 	name = strings.ReplaceAll(name, "..", "")
 	return name
+}
+
+func (ws *webServer) handleExport(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"version":  "gridsim-proxy-export-v1",
+		"exported_at": time.Now().UTC().Format(time.RFC3339),
+		"collections": ws.proxyStore.GetCollections(),
+		"environments": ws.proxyStore.GetEnvironments(),
+		"active_env_id": ws.proxyStore.ActiveEnvID,
+	})
 }

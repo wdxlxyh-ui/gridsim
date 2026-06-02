@@ -44,6 +44,7 @@
           <el-input v-model="request.url" placeholder="输入 URL，支持 {{variable}}" class="url-input" />
           <el-button type="warning" @click="send" :loading="sending">▶ 发送</el-button>
           <el-button @click="saveCurrentRequest">💾 保存</el-button>
+          <el-button @click="exportConfig" size="small">📤 导出</el-button>
         </div>
 
         <div class="tabs-area">
@@ -130,13 +131,20 @@
       </div>
     </div>
 
-    <el-drawer v-model="showHistory" title="请求历史" size="380px">
+    <el-drawer v-model="showHistory" title="请求历史" size="520px">
       <div v-for="(h, i) in history" :key="i" class="history-item" @click="loadHistory(h)">
-        <span class="history-method" :class="h.method">{{ h.method }}</span>
-        <span class="history-url">{{ h.url }}</span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="history-method" :class="h.method">{{ h.method }}</span>
+          <span class="history-url">{{ h.url }}</span>
+        </div>
         <div class="history-meta">
-          <span :style="{ color: h.status < 400 ? '#22c55e' : '#ef4444' }">● {{ h.status }}</span>
-          <span>{{ h.time_ms }}ms</span>
+          <span :style="{ color: h.status < 400 ? '#22c55e' : '#ef4444' }">● {{ h.status }} {{ h.status_text || '' }}</span>
+          <span>⏱ {{ h.time_ms }}ms</span>
+          <span>📦 {{ h.size }}B</span>
+          <span>🕐 {{ h.timestamp }}</span>
+        </div>
+        <div v-if="h.body" class="history-body" @click.stop>
+          <pre>{{ h.body }}</pre>
         </div>
       </div>
     </el-drawer>
@@ -186,7 +194,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   proxyRequest, getCollections, saveCollection, deleteCollection,
-  getEnvironments, saveEnvironment, activateEnvironment,
+  getEnvironments, saveEnvironment, activateEnvironment, exportProxyConfig,
   type CollectionItem, type ProxyEnvironment, type ProxyResponse
 } from '../api'
 
@@ -274,10 +282,12 @@ async function send() {
       body: bodyType.value === 'none' ? '' : resolve(request.body), timeout: 30,
     })
     response.value = res
-    const entry = { method: request.method, url: request.url, status: res.status, time_ms: res.time_ms, timestamp: new Date().toLocaleTimeString() }
+    const entry = { method: request.method, url: request.url, status: res.status, status_text: res.status_text, time_ms: res.time_ms, size: res.size, body: res.body, timestamp: new Date().toLocaleTimeString() }
     history.value.unshift(entry)
     if (history.value.length > 50) history.value.pop()
     localStorage.setItem('proxy_history', JSON.stringify(history.value))
+    // 自动保存请求（包括脚本）
+    await autoSaveRequest()
   } catch (e: any) {
     response.value = { status: 0, status_text: 'Error', headers: {}, body: '', time_ms: 0, size: 0, error: e.message }
   } finally { sending.value = false }
@@ -361,11 +371,36 @@ function deleteFolder(id: string) {
 
 async function saveCurrentRequest() {
   if (!activeRequestId.value) { addRequest(); return }
+  await doSaveCurrentRequest()
+  ElMessage.success('已保存')
+}
+
+async function autoSaveRequest() {
+  if (!activeRequestId.value) return
+  await doSaveCurrentRequest()
+}
+
+async function doSaveCurrentRequest() {
   const headers: Record<string, string> = {}
   headerList.value.filter(h => h.enabled && h.key).forEach(h => { headers[h.key] = h.value })
   for (const folder of collections.value) {
     const req = folder.children?.find(r => r.id === activeRequestId.value)
-    if (req) { req.method = request.method; req.url = request.url; req.body = request.body; req.headers = headers; req.pre_script = request.pre_script; await saveCollection(folder); ElMessage.success('已保存'); return }
+    if (req) { req.method = request.method; req.url = request.url; req.body = request.body; req.headers = headers; req.pre_script = request.pre_script; await saveCollection(folder); return }
+  }
+}
+
+async function exportConfig() {
+  try {
+    const blob = await exportProxyConfig()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `gridsim-proxy-config-${new Date().toISOString().slice(0,10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    ElMessage.success('导出成功')
+  } catch (e: any) {
+    ElMessage.error('导出失败: ' + e.message)
   }
 }
 
@@ -454,7 +489,8 @@ onMounted(loadData)
 .tree-request:hover .req-actions { display: flex; }
 .editor-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .request-bar { display: flex; gap: 8px; padding: 12px 16px; background: #111827; border-bottom: 1px solid #1e293b; }
-.method-select :deep(.el-input__wrapper) { background: #0d1117 !important; }
+.method-select :deep(.el-input__wrapper) { background: #0d1117 !important; width: 70px; }
+.method-select :deep(.el-input__inner) { text-align: center; font-weight: 600; font-size: 12px; }
 .tabs-area { display: flex; border-bottom: 1px solid #1e293b; background: #111827; padding: 0 16px; }
 .tab { padding: 9px 16px; font-size: 13px; font-weight: 500; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent; }
 .tab:hover { color: #94a3b8; }
@@ -486,5 +522,7 @@ onMounted(loadData)
 .history-method.DELETE { background: rgba(239,68,68,0.15); color: #ef4444; }
 .history-url { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #94a3b8; word-break: break-all; }
 .history-meta { margin-top: 4px; font-size: 10px; color: #64748b; display: flex; gap: 10px; }
+.history-body { margin-top: 6px; padding: 8px; background: #0d1117; border: 1px solid #1e293b; border-radius: 6px; max-height: 150px; overflow: auto; }
+.history-body pre { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #94a3b8; white-space: pre-wrap; word-break: break-all; margin: 0; }
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #64748b; gap: 10px; }
 </style>

@@ -509,3 +509,8 @@ export async function deleteEnvironment(id: string): Promise<void> {
 export async function activateEnvironment(id: string): Promise<void> {
   await http.post(`/proxy/environments/${id}/activate`)
 }
+
+export async function exportProxyConfig(): Promise<Blob> {
+  const res = await http.get('/proxy/export', { responseType: 'blob' as any })
+  return res.data
+}
