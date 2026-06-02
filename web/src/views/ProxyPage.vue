@@ -133,24 +133,33 @@
       </div>
     </el-drawer>
 
-    <el-dialog v-model="showEnvModal" title="环境变量管理" width="560px">
-      <div style="display: flex; gap: 16px;">
-        <div style="width: 140px; border-right: 1px solid #1e293b; padding-right: 12px;">
+    <el-dialog v-model="showEnvModal" title="环境变量管理" width="620px">
+      <div style="display: flex; gap: 16px; min-height: 320px;">
+        <div style="width: 140px; border-right: 1px solid #1e293b; padding-right: 12px; flex-shrink: 0;">
           <div v-for="env in environments" :key="env.id"
-            class="env-item" :class="{ active: env.id === activeEnvId }" @click="editEnv = { ...env }">
+            class="env-item" :class="{ active: env.id === activeEnvId }" @click="editEnv = { ...env, variables: { ...(env.variables || {}) } }">
             {{ env.name }}
           </div>
           <el-button size="small" style="margin-top: 8px; width: 100%;" @click="addEnvironment">+ 新建</el-button>
         </div>
-        <div style="flex: 1;" v-if="editEnv">
-          <el-form label-position="top" size="small">
+        <div style="flex: 1; display: flex; flex-direction: column;" v-if="editEnv">
+          <el-form label-position="top" size="small" style="flex: 1;">
             <el-form-item label="环境名称">
               <el-input v-model="editEnv.name" />
             </el-form-item>
             <el-form-item label="变量">
-              <div v-for="(val, key) in editEnv.variables" :key="key" class="kv-row">
-                <el-input :model-value="key" size="small" style="flex: 0.6;" disabled />
-                <el-input :model-value="val" size="small" disabled />
+              <div style="width: 100%;">
+                <div v-for="(val, key) in editEnv.variables" :key="key" class="kv-row" style="margin-bottom: 6px;">
+                  <el-input :model-value="key" size="small" style="flex: 0.5;" disabled />
+                  <el-input :model-value="val" size="small" style="flex: 0.5;" disabled />
+                  <el-button text size="small" type="warning" @click="startEditVar(key, val)">✏</el-button>
+                  <el-button text size="small" type="danger" @click="deleteVar(key)">🗑</el-button>
+                </div>
+                <div class="kv-row" style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #1e293b;">
+                  <el-input v-model="newVarKey" size="small" placeholder="变量名" style="flex: 0.5;" />
+                  <el-input v-model="newVarValue" size="small" placeholder="值" style="flex: 0.5;" />
+                  <el-button size="small" type="warning" @click="addVar">+ 添加</el-button>
+                </div>
               </div>
             </el-form-item>
           </el-form>
@@ -190,6 +199,9 @@ const environments = ref<ProxyEnvironment[]>([])
 const activeEnvId = ref('')
 const editEnv = ref<ProxyEnvironment | null>(null)
 const history = ref<any[]>([])
+const newVarKey = ref('')
+const newVarValue = ref('')
+const editingVarKey = ref<string | null>(null)
 
 const filteredCollections = computed(() => {
   if (!searchText.value) return collections.value
@@ -326,8 +338,38 @@ function addEnvironment() {
     if (!value) return
     const env: ProxyEnvironment = { id: genId(), name: value, variables: {} }
     environments.value.push(env)
-    editEnv.value = { ...env }
+    editEnv.value = { ...env, variables: {} }
   })
+}
+
+function addVar() {
+  if (!editEnv.value || !newVarKey.value.trim()) return
+  const key = newVarKey.value.trim()
+  if (editEnv.value.variables[key] !== undefined) {
+    ElMessage.warning('变量名已存在')
+    return
+  }
+  editEnv.value.variables[key] = newVarValue.value
+  newVarKey.value = ''
+  newVarValue.value = ''
+  ElMessage.success('已添加变量')
+}
+
+function deleteVar(key: string) {
+  if (!editEnv.value) return
+  ElMessageBox.confirm(`确定删除变量 "${key}"？`, '提示', { type: 'warning' }).then(() => {
+    delete editEnv.value!.variables[key]
+    ElMessage.success('已删除变量')
+  }).catch(() => {})
+}
+
+function startEditVar(key: string, val: string) {
+  editingVarKey.value = key
+  newVarKey.value = key
+  newVarValue.value = val
+  if (editEnv.value) {
+    delete editEnv.value.variables[key]
+  }
 }
 
 async function saveEnvs() {

@@ -96,6 +96,11 @@ func (h *ProxyHandler) executeRequest(req ProxyRequest, timeout time.Duration) P
 		httpReq.Header.Set(k, v)
 	}
 
+	// 自动设置 Content-Type：有 body 且未设置时默认 application/json
+	if req.Body != "" && httpReq.Header.Get("Content-Type") == "" {
+		httpReq.Header.Set("Content-Type", "application/json")
+	}
+
 	start := time.Now()
 	resp, err := client.Do(httpReq)
 	elapsed := time.Since(start)
