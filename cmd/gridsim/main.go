@@ -121,10 +121,12 @@ func runLegacyMode() {
 // ─── Server Mode (web management) ──────────────────────────────────────────
 
 type webServer struct {
-	mgr        *manager.Manager
-	httpSrv    *http.Server
-	cfgDir     string
-	userConfig *model.UserConfig
+	mgr          *manager.Manager
+	httpSrv      *http.Server
+	cfgDir       string
+	userConfig   *model.UserConfig
+	proxyStore   *api.ProxyStore
+	proxyHandler *api.ProxyHandler
 }
 
 func runServerMode() {
@@ -154,10 +156,15 @@ func runServerMode() {
 
 	mgr := manager.New(cfgStore, configDir)
 
+	proxyStore := api.NewProxyStore(configDir)
+	if err := proxyStore.Load(); err != nil {
+		slog.Warn("加载代理配置失败", "error", err)
+	}
+
 	// Build HTTP mux
 	mux := http.NewServeMux()
 	userCfg := loadUserConfig(configDir)
-	ws := &webServer{mgr: mgr, cfgDir: configDir, userConfig: userCfg}
+	ws := &webServer{mgr: mgr, cfgDir: configDir, userConfig: userCfg, proxyStore: proxyStore}
 	ws.registerRoutes(mux, configDir)
 
 	if p := parsePort(httpAddr); p > 0 {
@@ -197,6 +204,14 @@ func (ws *webServer) registerRoutes(mux *http.ServeMux, configDir string) {
 	mux.HandleFunc("/api/v1/upload", ws.handleUpload)
 	mux.HandleFunc("/api/v1/files", ws.handleFiles)
 	mux.HandleFunc("/api/v1/protocols", ws.handleProtocols)
+
+	// Proxy API Tester routes
+	ws.proxyHandler = api.NewProxyHandler()
+	ws.proxyHandler.Register(mux)
+	mux.HandleFunc("/api/v1/proxy/collections", ws.handleCollections)
+	mux.HandleFunc("/api/v1/proxy/collections/", ws.handleCollectionByID)
+	mux.HandleFunc("/api/v1/proxy/environments", ws.handleEnvironments)
+	mux.HandleFunc("/api/v1/proxy/environments/", ws.handleEnvironmentByID)
 
 	// Microgrid management routes
 	ws.registerMicrogridRoutes(mux)
@@ -586,6 +601,97 @@ func (ws *webServer) handleProtocols(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{"protocols": protocol.SupportedProtocols()})
+}
+
+// ─── Proxy API Tester Handlers ─────────────────────────────────────────────
+
+func (ws *webServer) handleCollections(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	switch r.Method {
+	case http.MethodGet:
+		writeJSON(w, http.StatusOK, map[string]interface{}{"collections": ws.proxyStore.GetCollections()})
+	case http.MethodPost:
+		var item api.CollectionItem
+		if err := json.NewDecoder(r.Body).Decode(&item); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid JSON")
+			return
+		}
+		if err := ws.proxyStore.SaveCollection(&item); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, item)
+	default:
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
+func (ws *webServer) handleCollectionByID(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	id := strings.TrimPrefix(r.URL.Path, "/api/v1/proxy/collections/")
+	switch r.Method {
+	case http.MethodDelete:
+		if err := ws.proxyStore.DeleteCollection(id); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+	default:
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
+func (ws *webServer) handleEnvironments(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	switch r.Method {
+	case http.MethodGet:
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"environments": ws.proxyStore.GetEnvironments(),
+			"active_id":    ws.proxyStore.ActiveEnvID,
+		})
+	case http.MethodPost:
+		var env api.Environment
+		if err := json.NewDecoder(r.Body).Decode(&env); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid JSON")
+			return
+		}
+		if err := ws.proxyStore.SaveEnvironment(&env); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, env)
+	default:
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
+func (ws *webServer) handleEnvironmentByID(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	path := strings.TrimPrefix(r.URL.Path, "/api/v1/proxy/environments/")
+	parts := strings.SplitN(path, "/", 2)
+	id := parts[0]
+
+	if len(parts) == 2 && parts[1] == "activate" {
+		if r.Method == http.MethodPost {
+			if err := ws.proxyStore.SetActiveEnv(id); err != nil {
+				writeError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+			return
+		}
+	}
+
+	switch r.Method {
+	case http.MethodDelete:
+		if err := ws.proxyStore.DeleteEnvironment(id); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+	default:
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────

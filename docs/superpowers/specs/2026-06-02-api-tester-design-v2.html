@@ -1,0 +1,1244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IEC104 模拟器 — 接口测试工具 v2 设计稿</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg-primary: #0a0e17;
+  --bg-secondary: #111827;
+  --bg-tertiary: #1a1f2e;
+  --bg-input: #0d1117;
+  --border: #1e293b;
+  --border-focus: #f59e0b;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --accent: #f59e0b;
+  --accent-hover: #fbbf24;
+  --accent-dim: rgba(245, 158, 11, 0.12);
+  --success: #22c55e;
+  --error: #ef4444;
+  --info: #3b82f6;
+  --method-get: #22c55e;
+  --method-post: #f59e0b;
+  --method-put: #3b82f6;
+  --method-delete: #ef4444;
+  --method-patch: #a855f7;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+/* ===== Header ===== */
+.app-header {
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border);
+}
+.app-header h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.app-header h2 .badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+/* ===== Layout ===== */
+.layout {
+  display: flex;
+  height: calc(100vh - 52px);
+}
+
+/* ===== App Sidebar ===== */
+.app-sidebar {
+  width: 200px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  padding: 12px 0;
+  flex-shrink: 0;
+}
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+  border-left: 3px solid transparent;
+}
+.sidebar-item:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+.sidebar-item.active {
+  color: var(--accent);
+  background: var(--accent-dim);
+  border-left-color: var(--accent);
+}
+.sidebar-item .icon { width: 18px; text-align: center; font-size: 15px; }
+
+/* ===== Proxy Layout ===== */
+.proxy-layout {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ===== Collection Panel ===== */
+.collection-panel {
+  width: 260px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+.collection-header {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.collection-search {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 7px 10px 7px 30px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 10px center;
+}
+.collection-search:focus { outline: none; border-color: var(--border-focus); }
+.collection-search::placeholder { color: var(--text-muted); }
+.collection-actions {
+  display: flex;
+  gap: 6px;
+}
+.collection-actions button {
+  flex: 1;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding: 5px 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.collection-actions button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.collection-tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+/* Tree items */
+.tree-folder {
+  user-select: none;
+}
+.tree-folder-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-secondary);
+  transition: all 0.15s;
+}
+.tree-folder-header:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+.tree-folder-header .arrow {
+  font-size: 10px;
+  transition: transform 0.2s;
+  width: 12px;
+  text-align: center;
+}
+.tree-folder-header .arrow.open { transform: rotate(90deg); }
+.tree-folder-header .folder-icon { font-size: 14px; }
+.tree-folder-header .folder-name { flex: 1; }
+.tree-folder-header .folder-actions {
+  display: none;
+  gap: 2px;
+}
+.tree-folder-header:hover .folder-actions { display: flex; }
+.tree-folder-header .folder-actions button {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+.tree-folder-header .folder-actions button:hover {
+  color: var(--text-primary);
+  background: var(--bg-input);
+}
+
+.tree-children {
+  padding-left: 16px;
+}
+.tree-children.collapsed { display: none; }
+
+.tree-request {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px 5px 28px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-muted);
+  transition: all 0.15s;
+  border-left: 2px solid transparent;
+}
+.tree-request:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+.tree-request.active {
+  color: var(--accent);
+  background: var(--accent-dim);
+  border-left-color: var(--accent);
+}
+.tree-request .req-method {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 4px;
+  border-radius: 3px;
+  min-width: 32px;
+  text-align: center;
+}
+.tree-request .req-method.GET { background: rgba(34,197,94,0.15); color: var(--method-get); }
+.tree-request .req-method.POST { background: rgba(245,158,11,0.15); color: var(--method-post); }
+.tree-request .req-method.PUT { background: rgba(59,130,246,0.15); color: var(--method-put); }
+.tree-request .req-method.DELETE { background: rgba(239,68,68,0.15); color: var(--method-delete); }
+.tree-request .req-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-request .req-actions {
+  display: none;
+  gap: 2px;
+}
+.tree-request:hover .req-actions { display: flex; }
+.tree-request .req-actions button {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+.tree-request .req-actions button:hover {
+  color: var(--text-primary);
+  background: var(--bg-input);
+}
+
+/* ===== Editor Panel ===== */
+.editor-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Request Bar */
+.request-bar {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+}
+.method-select { position: relative; }
+.method-select select {
+  appearance: none;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--method-get);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 36px 10px 14px;
+  cursor: pointer;
+  min-width: 100px;
+}
+.method-select select:focus { outline: none; border-color: var(--border-focus); }
+.method-select::after {
+  content: '▾';
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-size: 12px;
+  pointer-events: none;
+}
+.method-select.get select { color: var(--method-get); }
+.method-select.post select { color: var(--method-post); }
+.method-select.put select { color: var(--method-put); }
+.method-select.delete select { color: var(--method-delete); }
+.method-select.patch select { color: var(--method-patch); }
+
+.url-input {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  padding: 10px 14px;
+}
+.url-input:focus { outline: none; border-color: var(--border-focus); box-shadow: 0 0 0 3px var(--accent-dim); }
+.url-input::placeholder { color: var(--text-muted); font-family: 'Inter', sans-serif; }
+
+.send-btn {
+  background: var(--accent);
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 24px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.send-btn:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(245,158,11,0.3); }
+
+/* Tabs */
+.tabs-area {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+  padding: 0 16px;
+}
+.tab {
+  padding: 9px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+.tab:hover { color: var(--text-secondary); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* Content Split */
+.content-split {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+.request-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+.response-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.panel-header {
+  padding: 8px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 14px;
+}
+
+/* KV Editor */
+.kv-editor { width: 100%; }
+.kv-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 5px;
+  align-items: center;
+}
+.kv-row input[type="text"] {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 7px 10px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.kv-row input[type="text"]:focus { outline: none; border-color: var(--border-focus); }
+.kv-row input[type="text"]::placeholder { color: var(--text-muted); font-family: 'Inter', sans-serif; }
+.kv-row .kv-check { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
+.kv-row .kv-delete {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 3px;
+  border-radius: 3px;
+}
+.kv-row .kv-delete:hover { color: var(--error); background: rgba(239,68,68,0.1); }
+.add-row-btn {
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 5px 10px;
+  cursor: pointer;
+  margin-top: 4px;
+}
+.add-row-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Body Editor */
+.body-type-bar { display: flex; gap: 12px; margin-bottom: 8px; }
+.body-type {
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.body-type input[type="radio"] { accent-color: var(--accent); }
+.body-type.active { color: var(--accent); }
+.body-editor {
+  width: 100%;
+  min-height: 160px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  padding: 12px;
+  resize: vertical;
+}
+.body-editor:focus { outline: none; border-color: var(--border-focus); }
+
+/* Env bar */
+.env-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  background: var(--bg-tertiary);
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+.env-bar label { color: var(--text-muted); }
+.env-bar select {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--accent);
+  font-size: 12px;
+  padding: 4px 8px;
+}
+.env-bar select:focus { outline: none; border-color: var(--border-focus); }
+.env-bar .env-manage-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+.env-bar .env-manage-btn:hover { color: var(--accent); background: var(--accent-dim); }
+
+/* Response */
+.response-status {
+  display: flex;
+  gap: 12px;
+  padding: 8px 14px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+}
+.status-chip {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.status-chip.success { background: rgba(34,197,94,0.15); color: var(--success); }
+.status-chip.error { background: rgba(239,68,68,0.15); color: var(--error); }
+.status-chip.info { background: rgba(59,130,246,0.1); color: var(--info); }
+
+.response-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+}
+.json-view {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.json-key { color: #93c5fd; }
+.json-string { color: #86efac; }
+.json-number { color: #fbbf24; }
+.json-bool { color: #c084fc; }
+.json-null { color: #64748b; }
+
+/* Empty State */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+  gap: 10px;
+}
+.empty-state .icon { font-size: 40px; opacity: 0.3; }
+.empty-state p { font-size: 12px; }
+
+/* History Panel */
+.history-panel {
+  position: fixed;
+  right: -380px;
+  top: 52px;
+  width: 380px;
+  height: calc(100vh - 52px);
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border);
+  box-shadow: -4px 0 24px rgba(0,0,0,0.4);
+  transition: right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+}
+.history-panel.open { right: 0; }
+.history-header {
+  padding: 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.history-header h3 { font-size: 14px; font-weight: 600; }
+.history-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+}
+.history-close:hover { color: var(--text-primary); background: var(--bg-tertiary); }
+.history-list { flex: 1; overflow-y: auto; padding: 8px; }
+.history-item {
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-bottom: 4px;
+}
+.history-item:hover { background: var(--bg-tertiary); }
+.history-method {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-right: 8px;
+}
+.history-method.GET { background: rgba(34,197,94,0.15); color: var(--method-get); }
+.history-method.POST { background: rgba(245,158,11,0.15); color: var(--method-post); }
+.history-method.PUT { background: rgba(59,130,246,0.15); color: var(--method-put); }
+.history-method.DELETE { background: rgba(239,68,68,0.15); color: var(--method-delete); }
+.history-url {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+.history-meta {
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--text-muted);
+  display: flex;
+  gap: 10px;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 99;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+.overlay.open { opacity: 1; pointer-events: auto; }
+
+/* Env Modal */
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+.modal-mask.open { opacity: 1; pointer-events: auto; }
+.modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 560px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 48px rgba(0,0,0,0.4);
+}
+.modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.modal-header h3 { font-size: 15px; font-weight: 600; }
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+}
+.modal-close:hover { color: var(--text-primary); background: var(--bg-tertiary); }
+.modal-body {
+  padding: 16px 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+.modal-footer {
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.modal-footer button {
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  transition: all 0.2s;
+}
+.modal-footer .cancel { background: var(--bg-tertiary); color: var(--text-secondary); }
+.modal-footer .confirm { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 600; }
+.modal-footer .confirm:hover { background: var(--accent-hover); }
+
+/* Env list */
+.env-sidebar {
+  width: 140px;
+  border-right: 1px solid var(--border);
+  padding: 8px;
+  flex-shrink: 0;
+}
+.env-item {
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 2px;
+  transition: all 0.15s;
+}
+.env-item:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+.env-item.active { background: var(--accent-dim); color: var(--accent); }
+.env-add-btn {
+  width: 100%;
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 6px;
+  cursor: pointer;
+  margin-top: 8px;
+}
+.env-add-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.env-editor { flex: 1; padding: 12px; }
+.env-editor label {
+  font-size: 12px;
+  color: var(--text-muted);
+  display: block;
+  margin-bottom: 4px;
+}
+.env-editor input {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+}
+.env-editor input:focus { outline: none; border-color: var(--border-focus); }
+
+/* Context Menu */
+.context-menu {
+  position: fixed;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  z-index: 300;
+  min-width: 140px;
+  display: none;
+}
+.context-menu.show { display: block; }
+.context-menu-item {
+  padding: 7px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.context-menu-item:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+.context-menu-item.danger { color: var(--error); }
+.context-menu-item.danger:hover { background: rgba(239,68,68,0.1); }
+.context-menu-sep { height: 1px; background: var(--border); margin: 4px 0; }
+
+/* Design Badge */
+.design-badge {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  background: var(--accent);
+  color: #000;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  z-index: 300;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <h2>IEC104 模拟器管理系统 <span class="badge">v2.6.0-design</span></h2>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <span style="font-size:13px;color:var(--text-secondary);">admin</span>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- App Sidebar -->
+  <nav class="app-sidebar">
+    <div class="sidebar-item"><span class="icon">⚙</span> 配置管理</div>
+    <div class="sidebar-item"><span class="icon">📊</span> 运行监控</div>
+    <div class="sidebar-item"><span class="icon">📈</span> 实时趋势</div>
+    <div class="sidebar-item active"><span class="icon">🔌</span> 接口测试</div>
+  </nav>
+
+  <div class="proxy-layout">
+    <!-- Collection Panel -->
+    <div class="collection-panel">
+      <div class="collection-header">
+        <input type="text" class="collection-search" placeholder="搜索请求...">
+        <div class="collection-actions">
+          <button onclick="alert('新建文件夹')">📁 文件夹</button>
+          <button onclick="alert('新建请求')">＋ 请求</button>
+        </div>
+      </div>
+      <div class="collection-tree" id="collectionTree"></div>
+    </div>
+
+    <!-- Editor Panel -->
+    <div class="editor-panel">
+      <!-- Request Bar -->
+      <div class="request-bar">
+        <div class="method-select get" id="methodSelect">
+          <select id="method" onchange="updateMethodColor()">
+            <option value="GET">GET</option>
+            <option value="POST" selected>POST</option>
+            <option value="PUT">PUT</option>
+            <option value="DELETE">DELETE</option>
+            <option value="PATCH">PATCH</option>
+          </select>
+        </div>
+        <input type="text" class="url-input" id="urlInput" placeholder="输入请求 URL，支持 {{variable}}" value="{{base_url}}/api/v1/instances">
+        <button class="send-btn" onclick="sendRequest()">▶ 发送</button>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs-area">
+        <div class="tab active" onclick="switchTab(this, 'headers')">Headers</div>
+        <div class="tab" onclick="switchTab(this, 'body')">Body</div>
+        <div class="tab" onclick="switchTab(this, 'pre-script')">Pre-Script</div>
+      </div>
+
+      <!-- Content Split -->
+      <div class="content-split">
+        <!-- Request Panel -->
+        <div class="request-panel">
+          <div class="panel-header">
+            <span>请求配置</span>
+            <span style="color:var(--accent);font-size:11px;">2 Headers</span>
+          </div>
+          <div class="panel-body">
+            <div id="tab-headers" class="tab-content">
+              <div class="kv-editor" id="headersEditor">
+                <div class="kv-row">
+                  <input type="checkbox" class="kv-check" checked>
+                  <input type="text" placeholder="Key" value="Authorization">
+                  <input type="text" placeholder="Value" value="Bearer {{token}}">
+                  <button class="kv-delete" onclick="deleteRow(this)">×</button>
+                </div>
+                <div class="kv-row">
+                  <input type="checkbox" class="kv-check" checked>
+                  <input type="text" placeholder="Key" value="Content-Type">
+                  <input type="text" placeholder="Value" value="application/json">
+                  <button class="kv-delete" onclick="deleteRow(this)">×</button>
+                </div>
+                <div class="kv-row">
+                  <input type="checkbox" class="kv-check">
+                  <input type="text" placeholder="Key">
+                  <input type="text" placeholder="Value">
+                  <button class="kv-delete" onclick="deleteRow(this)">×</button>
+                </div>
+              </div>
+              <button class="add-row-btn" onclick="addHeaderRow()">+ 添加 Header</button>
+            </div>
+            <div id="tab-body" class="tab-content" style="display:none;">
+              <div class="body-type-bar">
+                <label class="body-type active"><input type="radio" name="bodyType" value="json" checked> JSON</label>
+                <label class="body-type"><input type="radio" name="bodyType" value="text"> Text</label>
+                <label class="body-type"><input type="radio" name="bodyType" value="none"> None</label>
+              </div>
+              <textarea class="body-editor" spellcheck="false">{
+  "name": "{{instance_name}}",
+  "iec104_port": {{port}},
+  "xlsx_file": "samples/point.xlsx"
+}</textarea>
+            </div>
+            <div id="tab-pre-script" class="tab-content" style="display:none;">
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">当前环境: <span style="color:var(--accent);">本地开发</span></div>
+              <div class="kv-editor">
+                <div class="kv-row">
+                  <input type="text" placeholder="变量名" value="base_url" style="flex:0.8;">
+                  <input type="text" placeholder="值" value="http://localhost:8989">
+                  <button class="kv-delete" onclick="deleteRow(this)">×</button>
+                </div>
+                <div class="kv-row">
+                  <input type="text" placeholder="变量名" value="token" style="flex:0.8;">
+                  <input type="text" placeholder="值" value="eyJhbGciOiJIUzI1NiIs...">
+                  <button class="kv-delete" onclick="deleteRow(this)">×</button>
+                </div>
+                <div class="kv-row">
+                  <input type="text" placeholder="变量名" value="instance_name" style="flex:0.8;">
+                  <input type="text" placeholder="值" value="变电站A">
+                  <button class="kv-delete" onclick="deleteRow(this)">×</button>
+                </div>
+              </div>
+              <button class="add-row-btn" onclick="addHeaderRow()">+ 添加变量</button>
+              <div style="margin-top:12px;font-size:11px;color:var(--text-muted);line-height:1.6;">
+                在 URL / Headers / Body 中使用 <code style="background:var(--bg-tertiary);padding:1px 6px;border-radius:3px;color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:11px;">{{变量名}}</code> 引用变量。
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Response Panel -->
+        <div class="response-panel">
+          <div class="panel-header">
+            <span>响应结果</span>
+            <button style="background:none;border:none;color:var(--text-muted);font-size:12px;cursor:pointer;" onclick="toggleHistory()">🕐 历史</button>
+          </div>
+          <div class="response-status" id="responseStatus" style="display:none;">
+            <span class="status-chip success" id="statusChip">● 200 OK</span>
+            <span class="status-chip info">⏱ <span id="responseTime">123</span> ms</span>
+            <span class="status-chip info">📦 <span id="responseSize">456</span> B</span>
+          </div>
+          <div class="response-body" id="responseBody">
+            <div class="empty-state">
+              <div class="icon">📡</div>
+              <p>点击「发送」发起请求</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Env Bar -->
+      <div class="env-bar">
+        <label>环境:</label>
+        <select id="envSelect" onchange="switchEnv()">
+          <option value="local">本地开发</option>
+          <option value="test">测试环境</option>
+          <option value="prod">生产环境</option>
+        </select>
+        <button class="env-manage-btn" onclick="openEnvModal()">⚙ 管理</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- History Panel -->
+<div class="overlay" id="overlay" onclick="toggleHistory()"></div>
+<div class="history-panel" id="historyPanel">
+  <div class="history-header">
+    <h3>🕐 请求历史</h3>
+    <button class="history-close" onclick="toggleHistory()">×</button>
+  </div>
+  <div class="history-list" id="historyList"></div>
+</div>
+
+<!-- Context Menu -->
+<div class="context-menu" id="contextMenu">
+  <div class="context-menu-item" onclick="renameItem()">✏️ 重命名</div>
+  <div class="context-menu-item" onclick="copyItem()">📋 复制</div>
+  <div class="context-menu-sep"></div>
+  <div class="context-menu-item danger" onclick="deleteItem()">🗑 删除</div>
+</div>
+
+<!-- Env Modal -->
+<div class="modal-mask" id="envModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>🌍 环境变量管理</h3>
+      <button class="modal-close" onclick="closeEnvModal()">×</button>
+    </div>
+    <div style="display:flex;flex:1;overflow:hidden;">
+      <div class="env-sidebar">
+        <div class="env-item active">本地开发</div>
+        <div class="env-item">测试环境</div>
+        <div class="env-item">生产环境</div>
+        <button class="env-add-btn">+ 新建环境</button>
+      </div>
+      <div class="env-editor">
+        <label>环境名称</label>
+        <input type="text" value="本地开发">
+        <label>变量列表</label>
+        <div class="kv-editor">
+          <div class="kv-row">
+            <input type="text" value="base_url" style="flex:0.6;">
+            <input type="text" value="http://localhost:8989">
+            <button class="kv-delete" onclick="deleteRow(this)">×</button>
+          </div>
+          <div class="kv-row">
+            <input type="text" value="token" style="flex:0.6;">
+            <input type="text" value="eyJhbGciOiJIUzI1NiIs...">
+            <button class="kv-delete" onclick="deleteRow(this)">×</button>
+          </div>
+          <div class="kv-row">
+            <input type="text" value="instance_id" style="flex:0.6;">
+            <input type="text" value="a1b2c3d4e5f6">
+            <button class="kv-delete" onclick="deleteRow(this)">×</button>
+          </div>
+        </div>
+        <button class="add-row-btn" style="margin-top:8px;">+ 添加变量</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="cancel" onclick="closeEnvModal()">取消</button>
+      <button class="confirm" onclick="closeEnvModal()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="design-badge">🎨 设计稿 v2 — 可交互原型</div>
+
+<script>
+const collectionData = [
+  {
+    name: '实例管理',
+    open: true,
+    children: [
+      { method: 'GET', name: '获取实例列表' },
+      { method: 'POST', name: '创建实例', active: true },
+      { method: 'GET', name: '获取实例详情' },
+      { method: 'PUT', name: '更新实例配置' },
+      { method: 'DELETE', name: '删除实例' },
+    ]
+  },
+  {
+    name: '实例控制',
+    open: true,
+    children: [
+      { method: 'POST', name: '启动实例' },
+      { method: 'POST', name: '停止实例' },
+      { method: 'POST', name: '重启实例' },
+    ]
+  },
+  {
+    name: '测点操作',
+    open: false,
+    children: [
+      { method: 'GET', name: '获取所有测点' },
+      { method: 'POST', name: '批量写入测点' },
+      { method: 'PUT', name: '配置自动变化' },
+    ]
+  },
+  {
+    name: 'CSV 回放',
+    open: false,
+    children: [
+      { method: 'POST', name: '上传 CSV 文件' },
+      { method: 'POST', name: '配置 CSV 回放' },
+      { method: 'GET', name: '列出 CSV 文件' },
+    ]
+  }
+];
+
+function renderTree() {
+  const tree = document.getElementById('collectionTree');
+  tree.innerHTML = collectionData.map((folder, fi) => `
+    <div class="tree-folder">
+      <div class="tree-folder-header" onclick="toggleFolder(${fi})">
+        <span class="arrow ${folder.open ? 'open' : ''}">▶</span>
+        <span class="folder-icon">📁</span>
+        <span class="folder-name">${folder.name}</span>
+        <span class="folder-actions">
+          <button onclick="event.stopPropagation();showHint('重命名文件夹')" title="重命名">✏</button>
+          <button onclick="event.stopPropagation();showHint('删除文件夹')" title="删除">🗑</button>
+        </span>
+      </div>
+      <div class="tree-children ${folder.open ? '' : 'collapsed'}">
+        ${folder.children.map((req, ri) => `
+          <div class="tree-request ${req.active ? 'active' : ''}" onclick="selectRequest(${fi},${ri})" oncontextmenu="showContextMenu(event)">
+            <span class="req-method ${req.method}">${req.method}</span>
+            <span class="req-name">${req.name}</span>
+            <span class="req-actions">
+              <button onclick="event.stopPropagation();showHint('复制')" title="复制">📋</button>
+              <button onclick="event.stopPropagation();showHint('删除')" title="删除">🗑</button>
+            </span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function toggleFolder(i) {
+  collectionData[i].open = !collectionData[i].open;
+  renderTree();
+}
+
+function selectRequest(fi, ri) {
+  collectionData.forEach(f => f.children.forEach(r => r.active = false));
+  collectionData[fi].children[ri].active = true;
+  const req = collectionData[fi].children[ri];
+  document.getElementById('method').value = req.method;
+  updateMethodColor();
+  renderTree();
+}
+
+function showContextMenu(e) {
+  e.preventDefault();
+  const menu = document.getElementById('contextMenu');
+  menu.style.left = e.clientX + 'px';
+  menu.style.top = e.clientY + 'px';
+  menu.classList.add('show');
+}
+document.addEventListener('click', () => document.getElementById('contextMenu').classList.remove('show'));
+
+function renameItem() { showHint('重命名'); }
+function copyItem() { showHint('复制请求'); }
+function deleteItem() { showHint('删除请求'); }
+
+function switchTab(el, tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+  document.getElementById('tab-' + tab).style.display = '';
+}
+
+function updateMethodColor() {
+  const m = document.getElementById('method').value;
+  document.getElementById('methodSelect').className = 'method-select ' + m.toLowerCase();
+}
+
+function addHeaderRow() {
+  const editor = document.getElementById('headersEditor');
+  const row = document.createElement('div');
+  row.className = 'kv-row';
+  row.innerHTML = '<input type="checkbox" class="kv-check" checked><input type="text" placeholder="Key"><input type="text" placeholder="Value"><button class="kv-delete" onclick="deleteRow(this)">×</button>';
+  editor.appendChild(row);
+}
+function deleteRow(btn) { btn.closest('.kv-row').remove(); }
+
+function toggleHistory() {
+  document.getElementById('historyPanel').classList.toggle('open');
+  document.getElementById('overlay').classList.toggle('open');
+  renderHistory();
+}
+
+let historyData = [
+  { method:'GET', url:'http://localhost:8989/api/v1/status', status:200, statusText:'OK', time:47, size:186, timestamp:'10:32:15' },
+  { method:'POST', url:'http://localhost:8989/api/v1/instances', status:201, statusText:'Created', time:123, size:94, timestamp:'10:31:42' },
+  { method:'PUT', url:'http://localhost:8989/api/v1/instances/a1b2c3d4/points/16385', status:200, statusText:'OK', time:35, size:28, timestamp:'10:30:08' },
+  { method:'POST', url:'http://192.168.1.100:8080/api/data', status:502, statusText:'Bad Gateway', time:5012, size:0, timestamp:'10:28:55' },
+];
+
+function renderHistory() {
+  const list = document.getElementById('historyList');
+  list.innerHTML = historyData.map((h, i) => `
+    <div class="history-item" onclick="loadHistory(${i})">
+      <span class="history-method ${h.method}">${h.method}</span>
+      <span class="history-url">${h.url}</span>
+      <div class="history-meta">
+        <span style="color:${h.status<400?'var(--success)':'var(--error)'}">● ${h.status}</span>
+        <span>${h.time}ms</span>
+        <span>${h.timestamp}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function loadHistory(i) {
+  const h = historyData[i];
+  document.getElementById('method').value = h.method;
+  updateMethodColor();
+  document.getElementById('urlInput').value = h.url;
+  toggleHistory();
+  showResponse(h.status, h.statusText, h.time, h.size, h.status<400 ? {message:"模拟响应 — 部署后返回真实结果"} : null);
+}
+
+function sendRequest() {
+  const method = document.getElementById('method').value;
+  const url = document.getElementById('urlInput').value;
+  document.getElementById('responseStatus').style.display = 'none';
+  document.getElementById('responseBody').innerHTML = '<div class="empty-state"><div class="spinner" style="width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.6s linear infinite;"></div><p>请求发送中...</p></div>';
+  setTimeout(() => {
+    const mock = { status:200, statusText:'OK', time:Math.floor(40+Math.random()*80), size:186, body:{version:"2.5.3",mode:"serve",configured:3,running:1,stopped:2,max_instances:1000} };
+    showResponse(mock.status, mock.statusText, mock.time, mock.size, mock.body);
+    historyData.unshift({method,url,status:mock.status,statusText:mock.statusText,time:mock.time,size:mock.size,timestamp:new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit'})});
+  }, 500+Math.random()*300);
+}
+
+function showResponse(status, statusText, time, size, body) {
+  document.getElementById('statusChip').textContent = '● ' + status + ' ' + statusText;
+  document.getElementById('statusChip').className = 'status-chip ' + (status<400?'success':'error');
+  document.getElementById('responseTime').textContent = time;
+  document.getElementById('responseSize').textContent = size;
+  document.getElementById('responseStatus').style.display = 'flex';
+  if (body) {
+    document.getElementById('responseBody').innerHTML = '<div class="json-view">' + syntaxHighlight(JSON.stringify(body,null,2)) + '</div>';
+  } else {
+    document.getElementById('responseBody').innerHTML = '<div class="json-view" style="color:var(--error);">请求失败 — 无法连接到目标服务器</div>';
+  }
+}
+
+function syntaxHighlight(json) {
+  json = json.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g, function(match) {
+    let cls = 'json-number';
+    if (/^"/.test(match)) { cls = /:$/.test(match) ? 'json-key' : 'json-string'; }
+    else if (/true|false/.test(match)) { cls = 'json-bool'; }
+    else if (/null/.test(match)) { cls = 'json-null'; }
+    return '<span class="'+cls+'">'+match+'</span>';
+  });
+}
+
+function switchEnv() {
+  const env = document.getElementById('envSelect').value;
+  const envNames = {local:'本地开发',test:'测试环境',prod:'生产环境'};
+  showHint('已切换到: ' + envNames[env]);
+}
+
+function openEnvModal() { document.getElementById('envModal').classList.add('open'); }
+function closeEnvModal() { document.getElementById('envModal').classList.remove('open'); }
+
+function showHint(msg) { console.log(msg); }
+
+renderTree();
+updateMethodColor();
+</script>
+</body>
+</html>

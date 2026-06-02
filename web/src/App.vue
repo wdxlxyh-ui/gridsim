@@ -44,6 +44,10 @@
               <el-icon><DataLine /></el-icon>
               <span>实时趋势</span>
             </el-menu-item>
+            <el-menu-item index="/proxy">
+              <el-icon><Connection /></el-icon>
+              <span>接口测试</span>
+            </el-menu-item>
           </el-menu>
         </el-aside>
         <el-main class="app-main">
@@ -61,7 +65,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Setting, Monitor, DataLine, Fold, ArrowDown } from '@element-plus/icons-vue'
+import { Setting, Monitor, DataLine, Fold, ArrowDown, Connection } from '@element-plus/icons-vue'
 import { getStatus, clearToken, type GlobalStatus } from './api'
 
 const route = useRoute()

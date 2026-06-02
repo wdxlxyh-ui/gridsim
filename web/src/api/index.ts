@@ -435,4 +435,76 @@ export async function deleteMicrogridFormula(instanceId: string, formulaId: stri
   await http.delete(`/microgrid/${instanceId}/formulas/${formulaId}`)
 }
 
+// ─── Proxy API Tester ──────────────────────────────────────────────────────
 
+export interface ProxyRequest {
+  method: string
+  url: string
+  headers: Record<string, string>
+  body: string
+  timeout?: number
+}
+
+export interface ProxyResponse {
+  status: number
+  status_text: string
+  headers: Record<string, string>
+  body: string
+  time_ms: number
+  size: number
+  error?: string
+}
+
+export interface CollectionItem {
+  id: string
+  name: string
+  type: 'folder' | 'request'
+  method?: string
+  url?: string
+  headers?: Record<string, string>
+  body?: string
+  children?: CollectionItem[]
+}
+
+export interface ProxyEnvironment {
+  id: string
+  name: string
+  variables: Record<string, string>
+}
+
+export async function proxyRequest(req: ProxyRequest): Promise<ProxyResponse> {
+  const res = await http.post('/proxy', req, { timeout: 120000 })
+  return res.data
+}
+
+export async function getCollections(): Promise<CollectionItem[]> {
+  const res = await http.get('/proxy/collections')
+  return res.data.collections
+}
+
+export async function saveCollection(item: CollectionItem): Promise<CollectionItem> {
+  const res = await http.post('/proxy/collections', item)
+  return res.data
+}
+
+export async function deleteCollection(id: string): Promise<void> {
+  await http.delete(`/proxy/collections/${id}`)
+}
+
+export async function getEnvironments(): Promise<{ environments: ProxyEnvironment[]; active_id: string }> {
+  const res = await http.get('/proxy/environments')
+  return res.data
+}
+
+export async function saveEnvironment(env: ProxyEnvironment): Promise<ProxyEnvironment> {
+  const res = await http.post('/proxy/environments', env)
+  return res.data
+}
+
+export async function deleteEnvironment(id: string): Promise<void> {
+  await http.delete(`/proxy/environments/${id}`)
+}
+
+export async function activateEnvironment(id: string): Promise<void> {
+  await http.post(`/proxy/environments/${id}/activate`)
+}
