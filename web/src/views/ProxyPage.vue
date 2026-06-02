@@ -76,14 +76,22 @@
               </div>
               <div v-if="activeTab === 'pre-script'">
                 <div style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">
-                  当前环境: <span style="color: #f59e0b">{{ activeEnvName }}</span>
+                  发送前执行脚本，用 <code style="background: #1a1f2e; padding: 1px 6px; border-radius: 3px; color: #f59e0b; font-family: 'JetBrains Mono', monospace; font-size: 11px;" v-text="'vars.变量名 = 值'"></code> 给变量赋值
                 </div>
-                <div v-for="(v, k) in activeEnvVars" :key="k" class="kv-row">
-                  <el-input :model-value="k" size="small" disabled style="flex: 0.6;" />
-                  <el-input :model-value="v" size="small" disabled />
+                <el-input v-model="request.pre_script" type="textarea" :rows="10"
+                  placeholder="示例：&#10;vars.timestamp = $now()&#10;vars.date = $formatTime('yyyy-MM-dd')&#10;vars.time = $formatTime('HH:mm:ss')&#10;vars.token = 'my-token-123'"
+                  style="font-family: 'JetBrains Mono', monospace; font-size: 12px;" />
+                <div style="margin-top: 8px; font-size: 11px; color: #64748b; line-height: 1.8;">
+                  <div><span style="color: #f59e0b;">内置函数：</span></div>
+                  <div><code v-text="'$now()'"></code> — 当前时间戳 (ISO 8601)</div>
+                  <div><code v-text="'$formatTime(fmt)'"></code> — 格式化时间，如 <code v-text="'yyyy-MM-dd HH:mm:ss'"></code></div>
+                  <div><code v-text="'$timestamp()'"></code> — Unix 秒级时间戳</div>
+                  <div><code v-text="'$uuid()'"></code> — 随机 ID</div>
                 </div>
-                <div style="margin-top: 8px; font-size: 11px; color: #64748b;">
-                  在 URL/Headers/Body 中使用 <code style="background: #1a1f2e; padding: 1px 6px; border-radius: 3px; color: #f59e0b; font-family: 'JetBrains Mono', monospace; font-size: 11px;" v-text="'{{变量名}}'"></code> 引用变量
+                <div style="margin-top: 6px; font-size: 11px; color: #64748b; border-top: 1px solid #1e293b; padding-top: 6px;">
+                  当前环境: <span style="color: #f59e0b;">{{ activeEnvName }}</span>
+                  <span v-if="Object.keys(activeEnvVars).length"> | 变量: </span>
+                  <code v-for="(v, k) in activeEnvVars" :key="k" style="color: #93c5fd; margin-right: 6px;">{{k}}={{v}}</code>
                 </div>
               </div>
             </div>
@@ -189,7 +197,7 @@ const sending = ref(false)
 const showHistory = ref(false)
 const showEnvModal = ref(false)
 
-const request = reactive({ method: 'GET', url: '', body: '' })
+const request = reactive({ method: 'GET', url: '', body: '', pre_script: '' })
 const headerList = ref<{ key: string; value: string; enabled: boolean }[]>([])
 const response = ref<ProxyResponse | null>(null)
 const activeRequestId = ref('')
@@ -229,8 +237,38 @@ async function send() {
   try {
     const headers: Record<string, string> = {}
     headerList.value.filter(h => h.enabled && h.key).forEach(h => { headers[h.key] = h.value })
-    const vars = activeEnvVars.value
-    const resolve = (s: string) => s.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] || `{{${k}}}`)
+
+    const vars: Record<string, string> = { ...activeEnvVars.value }
+
+    if (request.pre_script && request.pre_script.trim()) {
+      try {
+        const now = new Date()
+        const fmt = (f: string) => {
+          const pad = (n: number) => String(n).padStart(2, '0')
+          return f
+            .replace('yyyy', String(now.getFullYear()))
+            .replace('MM', pad(now.getMonth() + 1))
+            .replace('dd', pad(now.getDate()))
+            .replace('HH', pad(now.getHours()))
+            .replace('mm', pad(now.getMinutes()))
+            .replace('ss', pad(now.getSeconds()))
+        }
+        const helpers = {
+          $now: () => now.toISOString(),
+          $formatTime: fmt,
+          $timestamp: () => String(Math.floor(now.getTime() / 1000)),
+          $uuid: () => Date.now().toString(36) + Math.random().toString(36).slice(2, 10),
+        }
+        const scriptFn = new Function('vars', '$now', '$formatTime', '$timestamp', '$uuid', request.pre_script)
+        scriptFn(vars, helpers.$now, helpers.$formatTime, helpers.$timestamp, helpers.$uuid)
+      } catch (e: any) {
+        ElMessage.error('Pre-Script 执行出错: ' + e.message)
+        sending.value = false
+        return
+      }
+    }
+
+    const resolve = (s: string) => s.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] !== undefined ? vars[k] : `{{${k}}}`)
     const res = await proxyRequest({
       method: request.method, url: resolve(request.url), headers: Object.fromEntries(Object.entries(headers).map(([k, v]) => [k, resolve(v)])),
       body: bodyType.value === 'none' ? '' : resolve(request.body), timeout: 30,
@@ -270,7 +308,7 @@ function addFolder() {
 function addRequest() {
   ElMessageBox.prompt('请求名称', '新建请求').then(({ value }) => {
     if (!value) return
-    const req: CollectionItem = { id: genId(), name: value, type: 'request', method: 'GET', url: '', headers: {}, body: '' }
+    const req: CollectionItem = { id: genId(), name: value, type: 'request', method: 'GET', url: '', headers: {}, body: '', pre_script: '' }
     if (collections.value.length === 0) {
       const folder: any = { id: genId(), name: '默认文件夹', type: 'folder', children: [req], _open: true }
       collections.value.push(folder)
@@ -289,6 +327,7 @@ function loadRequest(req: CollectionItem) {
   request.method = req.method || 'GET'
   request.url = req.url || ''
   request.body = req.body || ''
+  request.pre_script = req.pre_script || ''
   headerList.value = Object.entries(req.headers || {}).map(([k, v]) => ({ key: k, value: v, enabled: true }))
 }
 
@@ -326,7 +365,7 @@ async function saveCurrentRequest() {
   headerList.value.filter(h => h.enabled && h.key).forEach(h => { headers[h.key] = h.value })
   for (const folder of collections.value) {
     const req = folder.children?.find(r => r.id === activeRequestId.value)
-    if (req) { req.method = request.method; req.url = request.url; req.body = request.body; req.headers = headers; await saveCollection(folder); ElMessage.success('已保存'); return }
+    if (req) { req.method = request.method; req.url = request.url; req.body = request.body; req.headers = headers; req.pre_script = request.pre_script; await saveCollection(folder); ElMessage.success('已保存'); return }
   }
 }
 

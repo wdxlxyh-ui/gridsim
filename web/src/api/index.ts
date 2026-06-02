@@ -463,6 +463,7 @@ export interface CollectionItem {
   url?: string
   headers?: Record<string, string>
   body?: string
+  pre_script?: string
   children?: CollectionItem[]
 }
 
