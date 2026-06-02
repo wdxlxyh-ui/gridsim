@@ -370,7 +370,10 @@ async function saveCurrentRequest() {
 }
 
 function loadHistory(h: any) { request.method = h.method; request.url = h.url; showHistory.value = false }
-function switchEnv(id: string) { activateEnvironment(id) }
+function switchEnv(id: string) {
+  activeEnvId.value = id
+  activateEnvironment(id)
+}
 
 function addEnvironment() {
   ElMessageBox.prompt('环境名称', '新建环境').then(({ value }) => {
@@ -412,6 +415,12 @@ function startEditVar(key: string, val: string) {
 }
 
 async function saveEnvs() {
+  if (editEnv.value) {
+    const idx = environments.value.findIndex(e => e.id === editEnv.value!.id)
+    if (idx !== -1) {
+      environments.value[idx] = { ...editEnv.value, variables: { ...editEnv.value.variables } }
+    }
+  }
   for (const env of environments.value) { await saveEnvironment(env) }
   showEnvModal.value = false
   ElMessage.success('环境变量已保存')
