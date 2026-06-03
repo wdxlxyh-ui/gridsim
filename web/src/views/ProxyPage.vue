@@ -44,7 +44,25 @@
           <el-input v-model="request.url" placeholder="输入 URL，支持 {{variable}}" class="url-input" />
           <el-button type="warning" @click="send" :loading="sending">▶ 发送</el-button>
           <el-button @click="saveCurrentRequest">💾 保存</el-button>
-          <el-button @click="exportConfig" size="small">📤 导出</el-button>
+          <el-dropdown trigger="click">
+            <el-button size="small">📤 导出 <el-icon><ArrowDown /></el-icon></el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item @click="exportConfig">导出 GridSim 格式</el-dropdown-item>
+                <el-dropdown-item @click="exportPostman">导出 Postman 格式</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+          <el-dropdown trigger="click">
+            <el-button size="small">📥 导入 <el-icon><ArrowDown /></el-icon></el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item @click="triggerImport('gridsim')">导入 GridSim 格式</el-dropdown-item>
+                <el-dropdown-item @click="triggerImport('postman')">导入 Postman 格式</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+          <input ref="importFileInput" type="file" accept=".json" style="display:none" @change="handleImportFile" />
         </div>
 
         <div class="tabs-area">
@@ -80,6 +98,7 @@
                   发送前执行脚本，用 <code style="background: #1a1f2e; padding: 1px 6px; border-radius: 3px; color: #f59e0b; font-family: 'JetBrains Mono', monospace; font-size: 11px;" v-text="'vars.变量名 = 值'"></code> 给变量赋值
                 </div>
                 <el-input v-model="request.pre_script" type="textarea" :rows="10"
+                  @input="onPreScriptInput"
                   placeholder="示例：&#10;vars.timestamp = $now()&#10;vars.date = $formatTime('yyyy-MM-dd')&#10;vars.time = $formatTime('HH:mm:ss')&#10;vars.token = 'my-token-123'"
                   style="font-family: 'JetBrains Mono', monospace; font-size: 12px;" />
                 <div style="margin-top: 8px; font-size: 11px; color: #64748b; line-height: 1.8;">
@@ -190,8 +209,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { ArrowDown } from '@element-plus/icons-vue'
 import {
   proxyRequest, getCollections, saveCollection, deleteCollection,
   getEnvironments, saveEnvironment, activateEnvironment, exportProxyConfig,
@@ -204,6 +224,8 @@ const bodyType = ref('json')
 const sending = ref(false)
 const showHistory = ref(false)
 const showEnvModal = ref(false)
+const importFileInput = ref<HTMLInputElement | null>(null)
+const importFormat = ref<'gridsim' | 'postman'>('gridsim')
 
 const request = reactive({ method: 'GET', url: '', body: '', pre_script: '' })
 const headerList = ref<{ key: string; value: string; enabled: boolean }[]>([])
@@ -218,6 +240,7 @@ const history = ref<any[]>([])
 const newVarKey = ref('')
 const newVarValue = ref('')
 const editingVarKey = ref<string | null>(null)
+let scriptSaveTimer: ReturnType<typeof setTimeout> | null = null
 
 const filteredCollections = computed(() => {
   if (!searchText.value) return collections.value
@@ -229,6 +252,14 @@ const activeEnvName = computed(() => environments.value.find(e => e.id === activ
 const activeEnvVars = computed(() => environments.value.find(e => e.id === activeEnvId.value)?.variables || {})
 
 function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8) }
+
+// Auto-save script content with debounce to prevent losing changes on refresh
+function onPreScriptInput() {
+  if (scriptSaveTimer) clearTimeout(scriptSaveTimer)
+  scriptSaveTimer = setTimeout(() => {
+    autoSaveRequest()
+  }, 800)
+}
 
 async function loadData() {
   collections.value = await getCollections()
@@ -339,6 +370,7 @@ function loadRequest(req: CollectionItem) {
   request.body = req.body || ''
   request.pre_script = req.pre_script || ''
   headerList.value = Object.entries(req.headers || {}).map(([k, v]) => ({ key: k, value: v, enabled: true }))
+  debouncedAutoSave()
 }
 
 function copyRequest(req: CollectionItem) {
@@ -381,11 +413,290 @@ async function autoSaveRequest() {
 }
 
 async function doSaveCurrentRequest() {
+  if (!activeRequestId.value) return
   const headers: Record<string, string> = {}
   headerList.value.filter(h => h.enabled && h.key).forEach(h => { headers[h.key] = h.value })
   for (const folder of collections.value) {
     const req = folder.children?.find(r => r.id === activeRequestId.value)
     if (req) { req.method = request.method; req.url = request.url; req.body = request.body; req.headers = headers; req.pre_script = request.pre_script; await saveCollection(folder); return }
+  }
+}
+
+// Auto-save on any request field change
+let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
+function debouncedAutoSave() {
+  if (autoSaveTimer) clearTimeout(autoSaveTimer)
+  autoSaveTimer = setTimeout(() => { autoSaveRequest() }, 500)
+}
+
+// ─── Import / Export ───────────────────────────────────────────────────────
+
+function triggerImport(format: 'gridsim' | 'postman') {
+  importFormat.value = format
+  importFileInput.value?.click()
+}
+
+function handleImportFile(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = async (ev) => {
+    try {
+      const text = ev.target?.result as string
+      if (importFormat.value === 'postman') {
+        await importPostman(text)
+      } else {
+        await importGridSim(text)
+      }
+    } catch (e: any) {
+      ElMessage.error('导入失败: ' + e.message)
+    }
+  }
+  reader.readAsText(file)
+  // Reset input so same file can be re-imported
+  ;(e.target as HTMLInputElement).value = ''
+}
+
+async function importGridSim(text: string) {
+  const data = JSON.parse(text)
+  if (data.collections && Array.isArray(data.collections)) {
+    for (const item of data.collections) {
+      await saveCollection(item)
+      if (!collections.value.find(c => c.id === item.id)) {
+        collections.value.push(item)
+      }
+    }
+  }
+  if (data.environments && Array.isArray(data.environments)) {
+    for (const env of data.environments) {
+      await saveEnvironment(env)
+      if (!environments.value.find(e => e.id === env.id)) {
+        environments.value.push(env)
+      }
+    }
+  }
+  if (data.active_env_id) {
+    activeEnvId.value = data.active_env_id
+    await activateEnvironment(data.active_env_id)
+  }
+  ElMessage.success('导入成功')
+}
+
+function isPostmanCollection(data: any): boolean {
+  return data?.info?.schema && data.info.schema.includes('postman') && Array.isArray(data.item)
+}
+
+function parsePostmanUrl(rawUrl: string): { host: string; path: string[]; query: { key: string; value: string }[] } {
+  // Parse "{{base_url}}/enos-edge/v1/getStrategyTypeList?orgId={{orgId}}"
+  const qIdx = rawUrl.indexOf('?')
+  let raw = qIdx >= 0 ? rawUrl.slice(0, qIdx) : rawUrl
+  const queryStr = qIdx >= 0 ? rawUrl.slice(qIdx + 1) : ''
+  
+  const query: { key: string; value: string }[] = []
+  if (queryStr) {
+    for (const part of queryStr.split('&')) {
+      const [k, ...vParts] = part.split('=')
+      if (k) query.push({ key: k, value: vParts.join('=') })
+    }
+  }
+
+  const parts = raw.split('/').filter(Boolean)
+  return { host: parts[0] || '', path: parts.slice(1), query }
+}
+
+function postmanUrlToRaw(p: { host: string; path: string[]; query: { key: string; value: string }[] }): string {
+  let raw = (p.host ? p.host + '/' : '') + p.path.join('/')
+  if (p.query.length) {
+    raw += '?' + p.query.map(q => `${q.key}=${q.value}`).join('&')
+  }
+  return raw
+}
+
+function postmanToGridsimCollection(item: any): CollectionItem | null {
+  if (!item || !item.request) return null
+  
+  const req = item.request
+  const method = (req.method || 'GET').toUpperCase()
+  let url = ''
+  let headers: Record<string, string> = {}
+  let body = ''
+  let bodyType = 'json' as string
+
+  if (typeof req.url === 'string') {
+    url = req.url
+  } else if (req.url) {
+    url = postmanUrlToRaw(req.url as any)
+  }
+
+  if (req.header) {
+    headers = Object.fromEntries(
+      (req.header as any[]).filter((h: any) => h.key).map((h: any) => [h.key, h.value || ''])
+    )
+  }
+
+  if (req.body) {
+    if (req.body.mode === 'raw') {
+      body = req.body.raw || ''
+      if (req.body.options?.raw?.language === 'json') bodyType = 'json'
+      else bodyType = 'text'
+    } else if (req.body.mode === 'urlencoded') {
+      body = (req.body.urlencoded as any[] || [])
+        .map((p: any) => `${p.key}=${p.value}`).join('&')
+      bodyType = 'text'
+      if (!headers['Content-Type']) headers['Content-Type'] = 'application/x-www-form-urlencoded'
+    } else if (req.body.mode === 'formdata') {
+      body = (req.body.formdata as any[] || [])
+        .map((p: any) => `${p.key}=${p.value || ''}`).join('\n')
+      bodyType = 'text'
+    }
+  }
+
+  // Collect prerequest/test scripts
+  let preScript = ''
+  if (item.event) {
+    for (const evt of item.event) {
+      if (evt.listen === 'prerequest' && evt.script?.exec) {
+        preScript += '// Prerequest Script\n' + evt.script.exec.join('\n') + '\n'
+      }
+      if (evt.listen === 'test' && evt.script?.exec) {
+        preScript += '// Test Script\n' + evt.script.exec.join('\n') + '\n'
+      }
+    }
+  }
+
+  // Recursively handle nested items (folders)
+  const children: CollectionItem[] = []
+  if (Array.isArray(item.item)) {
+    for (const child of item.item) {
+      const col = postmanToGridsimCollection(child)
+      if (col) children.push(col)
+    }
+  }
+
+  if (children.length > 0) {
+    return { id: genId(), name: item.name || 'Folder', type: 'folder', children, _open: true } as any
+  }
+
+  if (!url && !children.length) return null
+
+  return {
+    id: genId(), name: item.name || 'Untitled', type: 'request' as const,
+    method, url, headers, body, pre_script: preScript.trim() || '',
+  }
+}
+
+async function importPostman(text: string) {
+  let data: any
+  try { data = JSON.parse(text) } catch { throw new Error('无效的 JSON 文件') }
+  
+  if (!isPostmanCollection(data)) throw new Error('不是有效的 Postman Collection 格式')
+
+  const newCollections: CollectionItem[] = []
+  if (Array.isArray(data.item)) {
+    for (const item of data.item) {
+      const col = postmanToGridsimCollection(item)
+      if (col) newCollections.push(col)
+    }
+  }
+
+  if (newCollections.length === 0) throw new Error('未找到可导入的请求')
+
+  // Merge into existing collections
+  collections.value.push(...newCollections)
+  
+  // Save each new collection to backend
+  for (const col of newCollections) {
+    await saveCollection(col)
+  }
+
+  ElMessage.success(`成功导入 ${newCollections.length} 个请求/文件夹`)
+}
+
+async function buildPostmanExport(): Promise<any> {
+  const envMap: Record<string, string> = {}
+  for (const env of environments.value) {
+    if (env.variables) {
+      Object.assign(envMap, env.variables)
+    }
+  }
+
+  const vars: Record<string, string> = {}
+  for (const [k, v] of Object.entries(envMap)) {
+    vars[k] = `{{${k}}}`
+  }
+
+  const postmanItems: any[] = []
+  let requestCount = 0
+
+  function convertItem(item: CollectionItem): any {
+    if (item.type === 'folder') {
+      const children: any[] = []
+      if (item.children) {
+        for (const child of item.children) {
+          children.push(convertItem(child))
+        }
+      }
+      return { name: item.name, item: children }
+    }
+
+    // It's a request
+    requestCount++
+    const headers: any[] = []
+    if (item.headers) {
+      for (const [k, v] of Object.entries(item.headers)) {
+        if (k) headers.push({ key: k, value: v, type: 'text' })
+      }
+    }
+
+    const postmanReq: any = {
+      method: item.method || 'GET',
+      header: headers,
+    }
+
+    // Convert URL to Postman format
+    const parsed = parsePostmanUrl(item.url || '')
+    postmanReq.url = {
+      raw: item.url || '',
+      host: (parsed.host ? [parsed.host] : []),
+      path: parsed.path,
+      query: parsed.query.map(q => ({ key: q.key, value: q.value, enabled: true })),
+    }
+
+    // Convert body
+    if (item.body) {
+      postmanReq.body = {
+        mode: 'raw',
+        raw: item.body,
+        options: { raw: { language: 'json' } },
+      }
+      // Try to detect if it's not JSON
+      try { JSON.parse(item.body) } catch { postmanReq.body.options.raw.language = 'text' }
+    }
+
+    // Convert pre_script to Postman events
+    if (item.pre_script) {
+      postmanReq.event = [
+        {
+          listen: 'prerequest',
+          script: { type: 'text/javascript', exec: item.pre_script.split('\n').filter(l => l.trim()) },
+        },
+      ]
+    }
+
+    return { name: item.name || 'Untitled', request: postmanReq, response: [] }
+  }
+
+  for (const col of collections.value) {
+    postmanItems.push(convertItem(col))
+  }
+
+  return {
+    info: {
+      _postman_id: genId() + Math.random().toString(36).slice(2, 14),
+      name: 'GridSim Export',
+      schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
+    },
+    item: postmanItems,
   }
 }
 
@@ -399,6 +710,22 @@ async function exportConfig() {
     a.click()
     URL.revokeObjectURL(url)
     ElMessage.success('导出成功')
+  } catch (e: any) {
+    ElMessage.error('导出失败: ' + e.message)
+  }
+}
+
+async function exportPostman() {
+  try {
+    const postmanData = await buildPostmanExport()
+    const blob = new Blob([JSON.stringify(postmanData, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `gridsim-postman-export-${new Date().toISOString().slice(0,10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    ElMessage.success('Postman 格式导出成功')
   } catch (e: any) {
     ElMessage.error('导出失败: ' + e.message)
   }
@@ -462,6 +789,12 @@ async function saveEnvs() {
 }
 
 onMounted(loadData)
+
+// Auto-save when any request field changes
+watch(() => request.url, () => { if (activeRequestId.value) debouncedAutoSave() })
+watch(() => request.body, () => { if (activeRequestId.value) debouncedAutoSave() })
+watch(() => request.method, () => { if (activeRequestId.value) debouncedAutoSave() })
+watch(() => headerList.value, () => { if (activeRequestId.value) debouncedAutoSave() }, { deep: true })
 </script>
 
 <style scoped>
@@ -489,8 +822,8 @@ onMounted(loadData)
 .tree-request:hover .req-actions { display: flex; }
 .editor-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .request-bar { display: flex; gap: 8px; padding: 12px 16px; background: #111827; border-bottom: 1px solid #1e293b; }
-.method-select :deep(.el-input__wrapper) { background: #0d1117 !important; width: 70px; }
-.method-select :deep(.el-input__inner) { text-align: center; font-weight: 600; font-size: 12px; }
+.method-select :deep(.el-input__wrapper) { background: #0d1117 !important; width: auto; min-width: 58px; padding: 0 4px; }
+.method-select :deep(.el-input__inner) { text-align: center; font-weight: 600; font-size: 12px; width: 100%; }
 .tabs-area { display: flex; border-bottom: 1px solid #1e293b; background: #111827; padding: 0 16px; }
 .tab { padding: 9px 16px; font-size: 13px; font-weight: 500; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent; }
 .tab:hover { color: #94a3b8; }
