@@ -115,11 +115,14 @@
                     <span v-else class="env-vars-count" style="color: #64748b;">无变量</span>
                   </div>
                   <div v-if="Object.keys(activeEnvVars).length" class="env-vars-grid">
-                    <div v-for="(v, k) in activeEnvVars" :key="k" class="env-var-item" :title="`{{${k}}}`">
+                    <div v-for="(v, k) in activeEnvVars" :key="k" class="env-var-item" :class="{ 'var-invalid': !isValidVarName(k) }" :title="isValidVarName(k) ? `{{${k}}}` : `变量名 "${k}" 含非法字符（如 - 空格），{{${k}}} 将无法被替换`">
                       <span class="env-var-key">{{ k }}</span>
                       <span class="env-var-eq">=</span>
                       <span class="env-var-val">{{ v }}</span>
                     </div>
+                  </div>
+                  <div v-if="hasInvalidVarName" class="var-name-warn" style="margin-top: 6px;">
+                    ⚠ 部分变量名含非法字符（如 <code>-</code>），在 URL/Body 中引用将不会被替换。请在「环境管理」中修改。
                   </div>
                 </div>
               </div>
@@ -227,24 +230,30 @@
         </div>
         <div style="flex: 1; display: flex; flex-direction: column;" v-if="editEnv">
           <el-form label-position="top" size="small" style="flex: 1;">
-            <el-form-item label="环境名称">
-              <el-input v-model="editEnv.name" />
-            </el-form-item>
-            <el-form-item label="变量">
-              <div style="width: 100%;">
-                <div v-for="(val, key) in editEnv.variables" :key="key" class="kv-row" style="margin-bottom: 6px;">
-                  <el-input :model-value="key" size="small" style="flex: 0.5;" disabled />
-                  <el-input :model-value="val" size="small" style="flex: 0.5;" disabled />
-                  <el-button text size="small" type="warning" @click="startEditVar(key, val)">✏</el-button>
-                  <el-button text size="small" type="danger" @click="deleteVar(key)">🗑</el-button>
-                </div>
-                <div class="kv-row" style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #1e293b;">
-                  <el-input v-model="newVarKey" size="small" placeholder="变量名" style="flex: 0.5;" />
-                  <el-input v-model="newVarValue" size="small" placeholder="值" style="flex: 0.5;" />
-                  <el-button size="small" type="warning" @click="addVar">+ 添加</el-button>
-                </div>
-              </div>
-            </el-form-item>
+                <el-form-item label="环境名称">
+                  <el-input v-model="editEnv.name" />
+                </el-form-item>
+                <el-form-item label="变量">
+                  <div style="width: 100%;">
+                    <div v-for="(val, key) in editEnv.variables" :key="key" class="kv-row" style="margin-bottom: 6px;">
+                      <el-input :model-value="key" size="small" style="flex: 0.5;" :class="{ 'var-key-invalid': !isValidVarName(key) }" disabled />
+                      <el-input :model-value="val" size="small" style="flex: 0.5;" disabled />
+                      <el-button text size="small" type="warning" @click="startEditVar(key, val)">✏</el-button>
+                      <el-button text size="small" type="danger" @click="deleteVar(key)">🗑</el-button>
+                    </div>
+                    <div class="kv-row" style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #1e293b;">
+                      <el-input v-model="newVarKey" size="small" placeholder="变量名 (字母/数字/下划线/点)" style="flex: 0.5;" :class="{ 'var-key-invalid': newVarKey && !isValidVarName(newVarKey) }" @input="newVarKeyTouched = true" />
+                      <el-input v-model="newVarValue" size="small" placeholder="值" style="flex: 0.5;" />
+                      <el-button size="small" type="warning" @click="addVar">+ 添加</el-button>
+                    </div>
+                    <div v-if="newVarKey && !isValidVarName(newVarKey)" class="var-name-warn">
+                      ⚠ 变量名只能包含字母、数字、下划线和点（不支持 <code>-</code>、空格、中文等），否则在 URL/Body 中 <code>{{ '{{' }}{{ newVarKey || 'xxx' }}{{ '}}' }}</code> 将无法被替换
+                    </div>
+                    <div class="var-name-hint">
+                      💡 引用语法：<code>{{ '{{变量名}}' }}</code>，如 <code>{{ '{{base_url}}' }}</code>
+                    </div>
+                  </div>
+                </el-form-item>
           </el-form>
         </div>
       </div>
@@ -289,7 +298,14 @@ const historyOpen = ref<Record<number, boolean>>({})
 const newVarKey = ref('')
 const newVarValue = ref('')
 const editingVarKey = ref<string | null>(null)
+const newVarKeyTouched = ref(false)
 let scriptSaveTimer: ReturnType<typeof setTimeout> | null = null
+
+// 变量名合法字符：字母、数字、下划线、点（不支持 -、空格、中文等）
+function isValidVarName(name: string): boolean {
+  if (!name) return false
+  return /^[A-Za-z_][A-Za-z0-9_.]*$/.test(name)
+}
 
 const filteredCollections = computed(() => {
   if (!searchText.value) return collections.value
@@ -299,6 +315,7 @@ const filteredCollections = computed(() => {
 
 const activeEnvName = computed(() => environments.value.find(e => e.id === activeEnvId.value)?.name || '无')
 const activeEnvVars = computed(() => environments.value.find(e => e.id === activeEnvId.value)?.variables || {})
+const hasInvalidVarName = computed(() => Object.keys(activeEnvVars.value).some(k => !isValidVarName(k)))
 
 function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8) }
 
@@ -820,6 +837,10 @@ function addEnvironment() {
 function addVar() {
   if (!editEnv.value || !newVarKey.value.trim()) return
   const key = newVarKey.value.trim()
+  if (!isValidVarName(key)) {
+    ElMessage.error(`变量名 "${key}" 包含非法字符，只能使用字母、数字、下划线和点（不能以数字开头，不能含 - 空格 中文等）。` + `在 URL/Body 中 {{${key}}} 将无法被替换。`)
+    return
+  }
   if (editEnv.value.variables[key] !== undefined) {
     ElMessage.warning('变量名已存在')
     return
@@ -827,6 +848,7 @@ function addVar() {
   editEnv.value.variables[key] = newVarValue.value
   newVarKey.value = ''
   newVarValue.value = ''
+  newVarKeyTouched.value = false
   ElMessage.success('已添加变量')
 }
 
@@ -942,8 +964,16 @@ watch(() => headerList.value, () => { if (activeRequestId.value) debouncedAutoSa
 .env-vars-count { font-size: 10px; color: #94a3b8; background: #1a1f2e; padding: 1px 6px; border-radius: 3px; }
 .env-vars-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 4px 8px; }
 .env-var-item { display: flex; align-items: center; gap: 4px; padding: 3px 6px; background: #0d1117; border: 1px solid #1e293b; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 11px; min-width: 0; }
+.env-var-item.var-invalid { border-color: #ef4444; background: rgba(239, 68, 68, 0.08); }
+.env-var-item.var-invalid .env-var-key { color: #ef4444; text-decoration: line-through; }
 .env-var-key { color: #93c5fd; flex-shrink: 0; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .env-var-eq { color: #64748b; flex-shrink: 0; }
 .env-var-val { color: #e2e8f0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.var-key-invalid :deep(.el-input__wrapper) { background: rgba(239, 68, 68, 0.1) !important; border-color: #ef4444 !important; box-shadow: 0 0 0 1px #ef4444 inset !important; }
+.var-key-invalid :deep(.el-input__inner) { color: #ef4444 !important; }
+.var-name-warn { margin-top: 6px; padding: 6px 8px; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 4px; color: #fca5a5; font-size: 11px; line-height: 1.5; }
+.var-name-warn code { background: rgba(0,0,0,0.3); padding: 0 4px; border-radius: 2px; color: #fda4af; font-family: 'JetBrains Mono', monospace; }
+.var-name-hint { margin-top: 6px; font-size: 11px; color: #64748b; }
+.var-name-hint code { background: #1a1f2e; padding: 1px 5px; border-radius: 2px; color: #93c5fd; font-family: 'JetBrains Mono', monospace; }
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #64748b; gap: 10px; }
 </style>
