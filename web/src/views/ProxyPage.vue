@@ -66,9 +66,9 @@
         </div>
 
         <div class="tabs-area">
-          <div v-for="tab in ['headers','body','pre-script']" :key="tab"
+          <div v-for="tab in ['headers','body','pre-script','post-script']" :key="tab"
             class="tab" :class="{ active: activeTab === tab }" @click="activeTab = tab">
-            {{ tab === 'pre-script' ? 'Pre-Script' : tab.charAt(0).toUpperCase() + tab.slice(1) }}
+            {{ tab === 'pre-script' ? 'Pre-Script' : tab === 'post-script' ? 'Post-Script' : tab.charAt(0).toUpperCase() + tab.slice(1) }}
           </div>
         </div>
 
@@ -124,6 +124,25 @@
                   <div v-if="hasInvalidVarName" class="var-name-warn" style="margin-top: 6px;">
                     ⚠ 部分变量名含非法字符（如 <code>-</code>），在 URL/Body 中引用将不会被替换。请在「环境管理」中修改。
                   </div>
+                </div>
+              </div>
+              <div v-if="activeTab === 'post-script'">
+                <div style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">
+                  发送后执行脚本，用 <code style="background: #1a1f2e; padding: 1px 6px; border-radius: 3px; color: #f59e0b; font-family: 'JetBrains Mono', monospace; font-size: 11px;" v-text="'pm.response.json(\'data.id\')'"></code> 提取响应内容
+                </div>
+                <el-input v-model="request.test_script" type="textarea" :rows="10"
+                  @input="onPreScriptInput"
+                  placeholder="示例：&#10;var data = pm.response.json()&#10;if (data.token) {&#10;  pm.vars.set('token', data.token)&#10;  console.log('token 已保存')&#10;}&#10;pm.expect(pm.response.code).to.equal(200)"
+                  style="font-family: 'JetBrains Mono', monospace; font-size: 12px;" />
+                <div style="margin-top: 8px; font-size: 11px; color: #64748b; line-height: 1.8;">
+                  <div><span style="color: #f59e0b;">pm API：</span></div>
+                  <div><code v-text="'pm.response.json(path?)'"></code> — 解析 JSON 响应，可选路径如 <code v-text="'data.user.id'"></code></div>
+                  <div><code v-text="'pm.response.text()'"></code> — 原始响应文本</div>
+                  <div><code v-text="'pm.response.code'"></code> — HTTP 状态码</div>
+                  <div><code v-text="'pm.response.headers.get(k)'"></code> — 读取响应头</div>
+                  <div><code v-text="'pm.vars.set(k, v) / get(k) / has(k)'"></code> — 写入/读取会话变量</div>
+                  <div><code v-text="'pm.environment.set(k, v) / get(k)'"></code> — 写入/读取环境变量（自动持久化）</div>
+                  <div><code v-text="'pm.expect(v).to.equal(x)'"></code> — 断言检查（失败仅提示，不中断）</div>
                 </div>
               </div>
             </div>
@@ -284,7 +303,7 @@ const showEnvModal = ref(false)
 const importFileInput = ref<HTMLInputElement | null>(null)
 const importFormat = ref<'gridsim' | 'postman'>('gridsim')
 
-const request = reactive({ method: 'GET', url: '', body: '', pre_script: '' })
+const request = reactive({ method: 'GET', url: '', body: '', pre_script: '', test_script: '' })
 const headerList = ref<{ key: string; value: string; enabled: boolean }[]>([])
 const response = ref<ProxyResponse | null>(null)
 const activeRequestId = ref('')
@@ -339,6 +358,132 @@ function onPreScriptInput() {
   }, 800)
 }
 
+// 构造沙箱时间辅助函数（pre/post script 复用）
+function buildTimeHelpers() {
+  const now = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const fmt = (f: string) => f
+    .replace('yyyy', String(now.getFullYear()))
+    .replace('MM', pad(now.getMonth() + 1))
+    .replace('dd', pad(now.getDate()))
+    .replace('HH', pad(now.getHours()))
+    .replace('mm', pad(now.getMinutes()))
+    .replace('ss', pad(now.getSeconds()))
+  return {
+    $now: () => now.toISOString(),
+    $formatTime: fmt,
+    $timestamp: () => String(Math.floor(now.getTime() / 1000)),
+    $uuid: () => Date.now().toString(36) + Math.random().toString(36).slice(2, 10),
+  }
+}
+
+// 解析 JSON 路径（支持 a.b[0].c 语法）
+function resolveJsonPath(root: any, path: string): any {
+  if (!path) return root
+  const tokens: (string | number)[] = []
+  const re = /([^.[\]]+)|\[(\d+)\]/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(path)) !== null) {
+    if (m[2] !== undefined) tokens.push(Number(m[2]))
+    else tokens.push(m[1])
+  }
+  let cur: any = root
+  for (const t of tokens) {
+    if (cur == null) return undefined
+    cur = cur[t]
+  }
+  return cur
+}
+
+// 构造 pm 沙箱：vars (本请求临时) + environment (本环境持久化)
+function buildPmSandbox(vars: Record<string, string>, res: ProxyResponse | null) {
+  const envGet = (k: string) => activeEnvVars.value[k] ?? ''
+  const envSet = (k: string, v: any) => {
+    const env = environments.value.find(e => e.id === activeEnvId.value)
+    if (!env) return
+    env.variables[k] = String(v)
+    // 写回后端 + 触发本地响应式更新
+    saveEnvironment(env).catch((e: any) => ElMessage.error('保存环境变量失败: ' + e.message))
+  }
+  const responseObj: any = {
+    code: res?.status ?? 0,
+    status: res?.status_text ?? '',
+    headers: {
+      get: (k: string) => {
+        if (!res?.headers) return undefined
+        const lower = k.toLowerCase()
+        for (const [hk, hv] of Object.entries(res.headers)) {
+          if (hk.toLowerCase() === lower) return hv as string
+        }
+        return undefined
+      },
+    },
+    text: () => res?.body ?? '',
+    json: (path?: string) => {
+      let parsed: any
+      try { parsed = JSON.parse(res?.body || '{}') } catch { parsed = {} }
+      if (!path) return parsed
+      return resolveJsonPath(parsed, path)
+    },
+  }
+  return {
+    response: responseObj,
+    vars: {
+      get: (k: string) => vars[k] ?? '',
+      set: (k: string, v: any) => { vars[k] = String(v) },
+      has: (k: string) => k in vars,
+      unset: (k: string) => { delete vars[k] },
+      toObject: () => ({ ...vars }),
+    },
+    environment: {
+      get: envGet,
+      set: envSet,
+      has: (k: string) => k in activeEnvVars.value,
+      unset: (k: string) => {
+        const env = environments.value.find(e => e.id === activeEnvId.value)
+        if (!env) return
+        delete env.variables[k]
+        saveEnvironment(env).catch((e: any) => ElMessage.error('删除环境变量失败: ' + e.message))
+      },
+    },
+    expect: (actual: any) => {
+      // Postman 风格：pm.expect(actual).to.equal(expected) 失败时自动抛错
+      const result = (pass: boolean, expected: any) => {
+        const r = { pass, message: pass ? `断言通过` : `断言失败: 期望 ${JSON.stringify(expected)}，实际 ${JSON.stringify(actual)}` }
+        if (!pass) {
+          const e: any = new Error(r.message)
+          e.pass = r.pass
+          e.message = r.message
+          throw e
+        }
+        return r
+      }
+      const chain: any = {
+        to: {
+          equal: (expected: any) => result(actual === expected, expected),
+          eql: (expected: any) => result(JSON.stringify(actual) === JSON.stringify(expected), expected),
+          be: (expected: any) => result(actual === expected, expected),
+        },
+        equal: (expected: any) => result(actual === expected, expected),
+        eql: (expected: any) => result(JSON.stringify(actual) === JSON.stringify(expected), expected),
+      }
+      return chain
+    },
+  }
+}
+
+// 在 post-script 中抛出的断言包装为 ElMessage
+function runPostScript(testScript: string, vars: Record<string, string>, res: ProxyResponse | null) {
+  if (!testScript || !testScript.trim()) return
+  const helpers = buildTimeHelpers()
+  const pm = buildPmSandbox(vars, res)
+  const scriptFn = new Function(
+    'vars', 'pm', '$now', '$formatTime', '$timestamp', '$uuid',
+    `'use strict';\n${testScript}`
+  )
+  scriptFn(vars, pm, helpers.$now, helpers.$formatTime, helpers.$timestamp, helpers.$uuid)
+}
+
 async function loadData() {
   collections.value = await getCollections()
   const envData = await getEnvironments()
@@ -359,23 +504,7 @@ async function send() {
 
     if (request.pre_script && request.pre_script.trim()) {
       try {
-        const now = new Date()
-        const fmt = (f: string) => {
-          const pad = (n: number) => String(n).padStart(2, '0')
-          return f
-            .replace('yyyy', String(now.getFullYear()))
-            .replace('MM', pad(now.getMonth() + 1))
-            .replace('dd', pad(now.getDate()))
-            .replace('HH', pad(now.getHours()))
-            .replace('mm', pad(now.getMinutes()))
-            .replace('ss', pad(now.getSeconds()))
-        }
-        const helpers = {
-          $now: () => now.toISOString(),
-          $formatTime: fmt,
-          $timestamp: () => String(Math.floor(now.getTime() / 1000)),
-          $uuid: () => Date.now().toString(36) + Math.random().toString(36).slice(2, 10),
-        }
+        const helpers = buildTimeHelpers()
         const scriptFn = new Function('vars', '$now', '$formatTime', '$timestamp', '$uuid', request.pre_script)
         scriptFn(vars, helpers.$now, helpers.$formatTime, helpers.$timestamp, helpers.$uuid)
       } catch (e: any) {
@@ -398,6 +527,7 @@ async function send() {
       body: resolvedBody, timeout: 30,
     })
     response.value = res
+
     // 历史中保存最终发出的完整参数（变量已替换为实际值）
     const entry = {
       method: request.method,
@@ -416,6 +546,25 @@ async function send() {
     history.value.unshift(entry)
     if (history.value.length > 50) history.value.pop()
     localStorage.setItem('proxy_history', JSON.stringify(history.value))
+
+    // 执行 Post-Script（在 response 拿到后），可用 pm.response / pm.vars / pm.environment
+    if (request.test_script && request.test_script.trim()) {
+      try {
+        runPostScript(request.test_script, vars, res)
+      } catch (e: any) {
+        // 解析断言失败的返回对象 (pm.expect 返回 { pass, message })
+        if (e && typeof e === 'object' && 'pass' in e && 'message' in e) {
+          if (e.pass) {
+            ElMessage.success('Post-Script 断言通过: ' + e.message)
+          } else {
+            ElMessage.warning('Post-Script 断言失败: ' + e.message)
+          }
+        } else {
+          ElMessage.error('Post-Script 执行出错: ' + (e?.message || e))
+        }
+      }
+    }
+
     // 自动保存请求（包括脚本）
     await autoSaveRequest()
   } catch (e: any) {
@@ -448,7 +597,7 @@ function addFolder() {
 function addRequest() {
   ElMessageBox.prompt('请求名称', '新建请求').then(({ value }) => {
     if (!value) return
-    const req: CollectionItem = { id: genId(), name: value, type: 'request', method: 'GET', url: '', headers: {}, body: '', pre_script: '' }
+    const req: CollectionItem = { id: genId(), name: value, type: 'request', method: 'GET', url: '', headers: {}, body: '', pre_script: '', test_script: '' }
     if (collections.value.length === 0) {
       const folder: any = { id: genId(), name: '默认文件夹', type: 'folder', children: [req], _open: true }
       collections.value.push(folder)
@@ -468,6 +617,7 @@ function loadRequest(req: CollectionItem) {
   request.url = req.url || ''
   request.body = req.body || ''
   request.pre_script = req.pre_script || ''
+  request.test_script = req.test_script || ''
   headerList.value = Object.entries(req.headers || {}).map(([k, v]) => ({ key: k, value: v, enabled: true }))
   debouncedAutoSave()
 }
@@ -517,7 +667,7 @@ async function doSaveCurrentRequest() {
   headerList.value.filter(h => h.enabled && h.key).forEach(h => { headers[h.key] = h.value })
   for (const folder of collections.value) {
     const req = folder.children?.find(r => r.id === activeRequestId.value)
-    if (req) { req.method = request.method; req.url = request.url; req.body = request.body; req.headers = headers; req.pre_script = request.pre_script; await saveCollection(folder); return }
+    if (req) { req.method = request.method; req.url = request.url; req.body = request.body; req.headers = headers; req.pre_script = request.pre_script; req.test_script = request.test_script; await saveCollection(folder); return }
   }
 }
 
@@ -650,17 +800,20 @@ function postmanToGridsimCollection(item: any): CollectionItem | null {
     }
   }
 
-  // Collect prerequest/test scripts
+  // Collect prerequest/test scripts separately
   let preScript = ''
+  let testScript = ''
   if (item.event) {
     for (const evt of item.event) {
       if (evt.listen === 'prerequest' && evt.script?.exec) {
-        preScript += '// Prerequest Script\n' + evt.script.exec.join('\n') + '\n'
+        preScript += evt.script.exec.join('\n') + '\n'
       }
       if (evt.listen === 'test' && evt.script?.exec) {
-        preScript += '// Test Script\n' + evt.script.exec.join('\n') + '\n'
+        testScript += evt.script.exec.join('\n') + '\n'
       }
     }
+    preScript = preScript.trim()
+    testScript = testScript.trim()
   }
 
   // Recursively handle nested items (folders)
@@ -680,7 +833,9 @@ function postmanToGridsimCollection(item: any): CollectionItem | null {
 
   return {
     id: genId(), name: item.name || 'Untitled', type: 'request' as const,
-    method, url, headers, body, pre_script: preScript.trim() || '',
+    method, url, headers, body,
+    pre_script: preScript || undefined,
+    test_script: testScript || undefined,
   }
 }
 
@@ -772,15 +927,21 @@ async function buildPostmanExport(): Promise<any> {
       try { JSON.parse(item.body) } catch { postmanReq.body.options.raw.language = 'text' }
     }
 
-    // Convert pre_script to Postman events
+    // Convert pre_script/test_script to Postman events
+    const events: any[] = []
     if (item.pre_script) {
-      postmanReq.event = [
-        {
-          listen: 'prerequest',
-          script: { type: 'text/javascript', exec: item.pre_script.split('\n').filter(l => l.trim()) },
-        },
-      ]
+      events.push({
+        listen: 'prerequest',
+        script: { type: 'text/javascript', exec: item.pre_script.split('\n').filter(l => l.trim()) },
+      })
     }
+    if (item.test_script) {
+      events.push({
+        listen: 'test',
+        script: { type: 'text/javascript', exec: item.test_script.split('\n').filter(l => l.trim()) },
+      })
+    }
+    if (events.length) postmanReq.event = events
 
     return { name: item.name || 'Untitled', request: postmanReq, response: [] }
   }

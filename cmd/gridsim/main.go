@@ -1,6 +1,7 @@
 package main
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -32,6 +33,9 @@ import (
 	"github.com/spf13/pflag"
 	"golang.org/x/crypto/bcrypt"
 )
+
+//go:embed resources/*.json
+var builtinResources embed.FS
 
 var (
 	version    = "dev"
@@ -159,6 +163,9 @@ func runServerMode() {
 	proxyStore := api.NewProxyStore(configDir)
 	if err := proxyStore.Load(); err != nil {
 		slog.Warn("加载代理配置失败", "error", err)
+	}
+	if err := seedBuiltinProxyData(proxyStore); err != nil {
+		slog.Warn("写入内置 API 集合失败", "error", err)
 	}
 
 	// Build HTTP mux
@@ -923,4 +930,210 @@ func (ws *webServer) handleExport(w http.ResponseWriter, r *http.Request) {
 		"environments": ws.proxyStore.GetEnvironments(),
 		"active_env_id": ws.proxyStore.ActiveEnvID,
 	})
+}
+
+var builtinCollectionIDs = map[string]bool{}
+var builtinEnvIDs = map[string]bool{}
+
+func init() {
+	if data, err := builtinResources.ReadFile("resources/gridsim-builtin.postman_collection.json"); err == nil {
+		var pm struct {
+			Item []map[string]any `json:"item"`
+		}
+		if json.Unmarshal(data, &pm) == nil {
+			collectIDs(pm.Item, builtinCollectionIDs)
+		}
+	}
+	if data, err := builtinResources.ReadFile("resources/gridsim-builtin.env.json"); err == nil {
+		var envFile struct {
+			Environments []*api.Environment `json:"environments"`
+		}
+		if json.Unmarshal(data, &envFile) == nil {
+			for _, e := range envFile.Environments {
+				builtinEnvIDs[e.ID] = true
+			}
+		}
+	}
+}
+
+func collectIDs(items []map[string]any, out map[string]bool) {
+	for _, item := range items {
+		if id, ok := item["id"].(string); ok && id != "" {
+			out[id] = true
+		}
+		if child, ok := item["item"].([]any); ok {
+			for _, c := range child {
+				if m, ok := c.(map[string]any); ok {
+					if id, ok := m["id"].(string); ok && id != "" {
+						out[id] = true
+					}
+					if sub, ok := m["item"].([]any); ok {
+						inner := make([]map[string]any, 0, len(sub))
+						for _, s := range sub {
+							if mm, ok := s.(map[string]any); ok {
+								inner = append(inner, mm)
+							}
+						}
+						collectIDs(inner, out)
+					}
+				}
+			}
+		}
+	}
+}
+
+func seedBuiltinProxyData(store *api.ProxyStore) error {
+	if data, err := builtinResources.ReadFile("resources/gridsim-builtin.env.json"); err == nil {
+		var envFile struct {
+			Environments []*api.Environment `json:"environments"`
+			ActiveEnvID  string              `json:"active_env_id"`
+		}
+		if json.Unmarshal(data, &envFile) == nil {
+			existing := store.GetEnvironments()
+			have := map[string]bool{}
+			for _, e := range existing {
+				have[e.ID] = true
+			}
+			for _, e := range envFile.Environments {
+				if !have[e.ID] {
+					if err := store.SaveEnvironment(e); err != nil {
+						return fmt.Errorf("save env: %w", err)
+					}
+				}
+			}
+			if envFile.ActiveEnvID != "" {
+				_ = store.SetActiveEnv(envFile.ActiveEnvID)
+			}
+		}
+	}
+
+	if data, err := builtinResources.ReadFile("resources/gridsim-builtin.postman_collection.json"); err == nil {
+		var pm struct {
+			Item []map[string]any `json:"item"`
+		}
+		if json.Unmarshal(data, &pm) == nil {
+			existing := store.GetCollections()
+			have := map[string]bool{}
+			for _, c := range existing {
+				have[c.ID] = true
+			}
+			added := 0
+			for _, item := range pm.Item {
+				root := postmanItemToCollection(item)
+				if root != nil && !have[root.ID] {
+					if err := store.SaveCollection(root); err != nil {
+						return fmt.Errorf("save collection: %w", err)
+					}
+					added++
+				}
+			}
+			if added > 0 {
+				slog.Info("已写入内置 API 集合", "folders", added)
+			}
+		}
+	}
+	return nil
+}
+
+func postmanItemToCollection(item map[string]any) *api.CollectionItem {
+	name, _ := item["name"].(string)
+	id, _ := item["id"].(string)
+	if id == "" {
+		id = genBuiltinID(name)
+	}
+	node := &api.CollectionItem{
+		ID:   id,
+		Name: name,
+		Type: "folder",
+	}
+	if req, ok := item["request"].(map[string]any); ok {
+		node.Type = "request"
+		node.Method, _ = req["method"].(string)
+		if u, ok := req["url"].(map[string]any); ok {
+			if raw, ok := u["raw"].(string); ok {
+				node.URL = raw
+			}
+		} else if u, ok := req["url"].(string); ok {
+			node.URL = u
+		}
+		headers := map[string]string{}
+		if hs, ok := req["header"].([]any); ok {
+			for _, h := range hs {
+				if hm, ok := h.(map[string]any); ok {
+					k, _ := hm["key"].(string)
+					v, _ := hm["value"].(string)
+					if k != "" {
+						headers[k] = v
+					}
+				}
+			}
+		}
+		if len(headers) > 0 {
+			node.Headers = headers
+		}
+		if body, ok := req["body"].(map[string]any); ok {
+			if raw, ok := body["raw"].(string); ok {
+				node.Body = raw
+			}
+		}
+		if evts, ok := item["event"].([]any); ok {
+			var pre, post string
+			for _, e := range evts {
+				em, _ := e.(map[string]any)
+				listen, _ := em["listen"].(string)
+				if script, ok := em["script"].(map[string]any); ok {
+					if exec, ok := script["exec"].([]any); ok {
+						lines := make([]string, 0, len(exec))
+						for _, l := range exec {
+							if s, ok := l.(string); ok {
+								lines = append(lines, s)
+							}
+						}
+						body := joinLines(lines)
+						if listen == "prerequest" {
+							pre = body
+						} else if listen == "test" {
+							post = body
+						}
+					}
+				}
+			}
+			if pre != "" {
+				node.PreScript = pre
+			}
+			if post != "" {
+				node.TestScript = post
+			}
+		}
+	}
+	if child, ok := item["item"].([]any); ok {
+		for _, c := range child {
+			cm, _ := c.(map[string]any)
+			converted := postmanItemToCollection(cm)
+			if converted != nil {
+				node.Children = append(node.Children, converted)
+			}
+		}
+	}
+	return node
+}
+
+func joinLines(lines []string) string {
+	out := ""
+	for i, l := range lines {
+		if i > 0 {
+			out += "\n"
+		}
+		out += l
+	}
+	return out
+}
+
+func genBuiltinID(name string) string {
+	h := uint32(2166136261)
+	for i := 0; i < len(name); i++ {
+		h ^= uint32(name[i])
+		h *= 16777619
+	}
+	return fmt.Sprintf("builtin-%08x", h)
 }

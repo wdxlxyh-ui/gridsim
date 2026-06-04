@@ -464,6 +464,7 @@ export interface CollectionItem {
   headers?: Record<string, string>
   body?: string
   pre_script?: string
+  test_script?: string
   children?: CollectionItem[]
 }
 

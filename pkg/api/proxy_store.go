@@ -8,15 +8,16 @@ import (
 )
 
 type CollectionItem struct {
-	ID        string            `json:"id"`
-	Name      string            `json:"name"`
-	Type      string            `json:"type"`
-	Method    string            `json:"method,omitempty"`
-	URL       string            `json:"url,omitempty"`
-	Headers   map[string]string `json:"headers,omitempty"`
-	Body      string            `json:"body,omitempty"`
-	PreScript string            `json:"pre_script,omitempty"`
-	Children  []*CollectionItem `json:"children,omitempty"`
+	ID         string            `json:"id"`
+	Name       string            `json:"name"`
+	Type       string            `json:"type"`
+	Method     string            `json:"method,omitempty"`
+	URL        string            `json:"url,omitempty"`
+	Headers    map[string]string `json:"headers,omitempty"`
+	Body       string            `json:"body,omitempty"`
+	PreScript  string            `json:"pre_script,omitempty"`
+	TestScript string            `json:"test_script,omitempty"`
+	Children   []*CollectionItem `json:"children,omitempty"`
 }
 
 type Environment struct {
