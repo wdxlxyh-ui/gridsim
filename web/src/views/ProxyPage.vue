@@ -115,7 +115,7 @@
                     <span v-else class="env-vars-count" style="color: #64748b;">无变量</span>
                   </div>
                   <div v-if="Object.keys(activeEnvVars).length" class="env-vars-grid">
-                    <div v-for="(v, k) in activeEnvVars" :key="k" class="env-var-item" :class="{ 'var-invalid': !isValidVarName(k) }" :title="isValidVarName(k) ? `{{${k}}}` : `变量名 "${k}" 含非法字符（如 - 空格），{{${k}}} 将无法被替换`">
+                    <div v-for="(v, k) in activeEnvVars" :key="k" class="env-var-item" :class="{ 'var-invalid': !isValidVarName(k) }" :title="varTitle(k)">
                       <span class="env-var-key">{{ k }}</span>
                       <span class="env-var-eq">=</span>
                       <span class="env-var-val">{{ v }}</span>
@@ -247,10 +247,10 @@
                       <el-button size="small" type="warning" @click="addVar">+ 添加</el-button>
                     </div>
                     <div v-if="newVarKey && !isValidVarName(newVarKey)" class="var-name-warn">
-                      ⚠ 变量名只能包含字母、数字、下划线和点（不支持 <code>-</code>、空格、中文等），否则在 URL/Body 中 <code>{{ '{{' }}{{ newVarKey || 'xxx' }}{{ '}}' }}</code> 将无法被替换
+                      ⚠ 变量名只能包含字母、数字、下划线和点（不支持 <code>-</code>、空格、中文等），否则在 URL/Body 中 <code>{{ buildVarRef(newVarKey) }}</code> 将无法被替换
                     </div>
                     <div class="var-name-hint">
-                      💡 引用语法：<code>{{ '{{变量名}}' }}</code>，如 <code>{{ '{{base_url}}' }}</code>
+                      💡 引用语法：<code v-text="buildVarRef('变量名')"></code>，如 <code v-text="buildVarRef('base_url')"></code>
                     </div>
                   </div>
                 </el-form-item>
@@ -305,6 +305,18 @@ let scriptSaveTimer: ReturnType<typeof setTimeout> | null = null
 function isValidVarName(name: string): boolean {
   if (!name) return false
   return /^[A-Za-z_][A-Za-z0-9_.]*$/.test(name)
+}
+
+// 构造含花括号的提示文本（避免在模板里直接写 {{}} 触发 Vue 解析冲突）
+function varTitle(k: string): string {
+  const ref = '{' + '{' + k + '}' + '}'
+  if (isValidVarName(k)) return ref
+  return `变量名 "${k}" 含非法字符（如 - 空格），${ref} 将无法被替换`
+}
+
+// 在模板里构造 {{xxx}} 字符串（避免与 Vue 插值语法冲突）
+function buildVarRef(name: string): string {
+  return '{' + '{' + name + '}' + '}'
 }
 
 const filteredCollections = computed(() => {
