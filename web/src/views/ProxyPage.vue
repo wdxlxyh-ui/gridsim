@@ -108,10 +108,19 @@
                   <div><code v-text="'$timestamp()'"></code> — Unix 秒级时间戳</div>
                   <div><code v-text="'$uuid()'"></code> — 随机 ID</div>
                 </div>
-                <div style="margin-top: 6px; font-size: 11px; color: #64748b; border-top: 1px solid #1e293b; padding-top: 6px;">
-                  当前环境: <span style="color: #f59e0b;">{{ activeEnvName }}</span>
-                  <span v-if="Object.keys(activeEnvVars).length"> | 变量: </span>
-                  <code v-for="(v, k) in activeEnvVars" :key="k" style="color: #93c5fd; margin-right: 6px;">{{k}}={{v}}</code>
+                <div class="env-vars-box">
+                  <div class="env-vars-header">
+                    <span class="env-vars-title">当前环境: <span style="color: #f59e0b;">{{ activeEnvName }}</span></span>
+                    <span v-if="Object.keys(activeEnvVars).length" class="env-vars-count">{{ Object.keys(activeEnvVars).length }} 个变量</span>
+                    <span v-else class="env-vars-count" style="color: #64748b;">无变量</span>
+                  </div>
+                  <div v-if="Object.keys(activeEnvVars).length" class="env-vars-grid">
+                    <div v-for="(v, k) in activeEnvVars" :key="k" class="env-var-item" :title="`{{${k}}}`">
+                      <span class="env-var-key">{{ k }}</span>
+                      <span class="env-var-eq">=</span>
+                      <span class="env-var-val">{{ v }}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -927,5 +936,14 @@ watch(() => headerList.value, () => { if (activeRequestId.value) debouncedAutoSa
 .history-meta { margin-top: 4px; font-size: 10px; color: #64748b; display: flex; gap: 10px; }
 .history-body { margin-top: 6px; padding: 8px; background: #0d1117; border: 1px solid #1e293b; border-radius: 6px; max-height: 150px; overflow: auto; }
 .history-body pre { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #94a3b8; white-space: pre-wrap; word-break: break-all; margin: 0; }
+.env-vars-box { margin-top: 10px; border-top: 1px solid #1e293b; padding-top: 8px; }
+.env-vars-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.env-vars-title { font-size: 11px; color: #64748b; }
+.env-vars-count { font-size: 10px; color: #94a3b8; background: #1a1f2e; padding: 1px 6px; border-radius: 3px; }
+.env-vars-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 4px 8px; }
+.env-var-item { display: flex; align-items: center; gap: 4px; padding: 3px 6px; background: #0d1117; border: 1px solid #1e293b; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 11px; min-width: 0; }
+.env-var-key { color: #93c5fd; flex-shrink: 0; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.env-var-eq { color: #64748b; flex-shrink: 0; }
+.env-var-val { color: #e2e8f0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #64748b; gap: 10px; }
 </style>
