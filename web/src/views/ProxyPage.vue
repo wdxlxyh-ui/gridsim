@@ -249,6 +249,8 @@
               {{ env.name }}
               <span v-if="env.id === activeEnvId" style="color: #f59e0b; font-size: 10px; margin-left: 4px;">●</span>
             </span>
+            <el-button text size="small" type="primary" title="复制此环境 (KEY=VALUE)" style="padding: 0 4px; font-size: 12px;"
+              @click.stop="copyEntireEnv(env)">📋</el-button>
             <el-button v-if="environments.length > 1" text size="small" type="danger" style="padding: 0 4px; font-size: 12px;"
               @click.stop="deleteEntireEnv(env.id)" title="删除整个环境">×</el-button>
           </div>
@@ -256,9 +258,12 @@
         </div>
         <div style="flex: 1; display: flex; flex-direction: column;" v-if="editEnv">
           <el-form label-position="top" size="small" style="flex: 1;">
-                <el-form-item label="环境名称">
-                  <el-input v-model="editEnv.name" />
-                </el-form-item>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <el-form-item label="环境名称">
+                    <el-input v-model="editEnv.name" />
+                  </el-form-item>
+                  <el-button size="small" type="primary" @click="copyEntireEnv(editEnv)">📋 复制此环境</el-button>
+                </div>
                 <el-form-item label="变量">
                   <div style="width: 100%;">
                     <div v-for="(val, key) in editEnv.variables" :key="key" class="kv-row" style="margin-bottom: 6px;">
@@ -1092,6 +1097,41 @@ async function deleteEntireEnv(id: string) {
     ElMessage.success(`已删除环境 "${env.name}"`)
   } catch (e: any) {
     ElMessage.error('删除环境失败: ' + (e?.message || e))
+  }
+}
+
+// 复制整个环境为 dotenv 格式 (KEY='value' / KEY=value)
+async function copyEntireEnv(env: ProxyEnvironment) {
+  const lines = Object.entries(env.variables || {})
+    .map(([key, val]) => {
+      const needsQuote = /[\s'"\\$`]/.test(val) || val === ''
+      const quoted = needsQuote ? `'${val.replace(/'/g, "'\\''")}'` : val
+      return `${key}=${quoted}`
+    })
+    .join('\n')
+  if (!lines) {
+    ElMessage.warning('该环境没有变量')
+    return
+  }
+  const text = `# 环境: ${env.name}\n${lines}\n# 共 ${Object.keys(env.variables || {}).length} 个变量`
+  try {
+    await navigator.clipboard.writeText(text)
+    ElMessage.success(`已复制环境 "${env.name}" (${Object.keys(env.variables || {}).length} 个变量)`)
+  } catch (e: any) {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.style.position = 'fixed'
+    ta.style.left = '-9999px'
+    document.body.appendChild(ta)
+    ta.select()
+    try {
+      document.execCommand('copy')
+      ElMessage.success(`已复制环境 "${env.name}" (${Object.keys(env.variables || {}).length} 个变量)`)
+    } catch (err: any) {
+      ElMessage.error('复制失败: ' + (err?.message || err))
+    } finally {
+      document.body.removeChild(ta)
+    }
   }
 }
 
