@@ -1,6 +1,6 @@
 # IEC 104 模拟器 MCP 使用指南
 
-> 版本: 1.1 | 更新日期: 2026-05-21
+> 版本: 1.2 | 更新日期: 2026-06-04
 
 ## 概述
 
@@ -71,6 +71,21 @@ go build -o bin/mcp-server ./cmd/mcp-server/
 | `upload_file` | 上传 .xlsx 点表文件 |
 | `export_points_csv` | 导出实例所有测点实时数据为 CSV |
 | `update_qds` | 更新测点的品质描述 QDS |
+
+### 接口测试工具 (API Proxy)
+
+| 工具名称 | 说明 |
+|----------|------|
+| `proxy_list_collections` | 获取所有 API 接口集合/请求列表 |
+| `proxy_create_collection` | 创建新的 API 接口（request）或文件夹（folder），可设置 method/url/headers/body/前置脚本/后置脚本 |
+| `proxy_update_collection` | 修改 API 接口的 URL/method/headers/body/前置脚本/后置脚本 |
+| `proxy_delete_collection` | 删除指定 API 接口或文件夹 |
+| `proxy_execute_request` | 执行 HTTP 请求代理，发送请求并返回响应状态码、响应头、响应体、耗时 |
+| `proxy_list_environments` | 获取所有环境变量列表及当前激活的环境 ID |
+| `proxy_create_environment` | 创建新的环境变量组，可设置多个变量键值对 |
+| `proxy_update_environment` | 更新环境变量的值或名称 |
+| `proxy_activate_environment` | 激活指定环境变量组，激活后执行接口时自动注入环境变量 |
+| `proxy_delete_environment` | 删除指定环境变量组 |
 
 ### 全局工具
 
@@ -157,6 +172,74 @@ config_csv_replay(
 )
 ```
 
+### 5. 接口测试：发送 HTTP 请求
+
+```python
+# 通过 GridSim 代理发送 GET 请求
+proxy_execute_request(
+    method="GET",
+    url="https://api.example.com/data",
+    headers='{"Authorization": "Bearer token123"}',
+    timeout=30
+)
+```
+
+### 6. 接口测试：创建并管理 API 集合
+
+```python
+# 创建文件夹
+proxy_create_collection(
+    name="电力系统API",
+    type="folder"
+)
+
+# 在文件夹下创建接口
+proxy_create_collection(
+    name="获取实时数据",
+    type="request",
+    method="GET",
+    url="{{base_url}}/api/realtime",
+    headers='{"Content-Type": "application/json"}',
+    pre_script="console.log('前置脚本执行')",
+    test_script="pm.response.to.have.status(200)",
+    parent_id="req-1717488000000"
+)
+
+# 修改接口的 URL 和请求体
+proxy_update_collection(
+    id="req-1717488000123",
+    url="{{base_url}}/api/realtime/v2",
+    body='{"device_id": "PV-001"}',
+    method="POST"
+)
+
+# 删除接口
+proxy_delete_collection(id="req-1717488000123")
+```
+
+### 7. 接口测试：管理环境变量
+
+```python
+# 创建环境
+proxy_create_environment(
+    name="测试环境",
+    variables='{"base_url": "http://10.65.99.13:8989", "token": "dev-token-abc"}'
+)
+
+# 激活环境（后续请求自动注入 {{base_url}} 等变量）
+proxy_activate_environment(id="env-1717488000000")
+
+# 修改变量值
+proxy_update_environment(
+    id="env-1717488000000",
+    name="测试环境",
+    variables='{"base_url": "http://10.65.99.14:8989", "token": "prod-token-xyz"}'
+)
+
+# 删除环境
+proxy_delete_environment(id="env-1717488000000")
+```
+
 ## 一键安装包
 
 使用项目根目录的 `iec104-autotester-pack.tar.gz` 快速部署：
@@ -210,5 +293,5 @@ Error: dial tcp connection refused
 ## 版本信息
 
 - GridSim: 2.5.2+
-- MCP Server: 1.1.0
-- 工具总数: 28
+- MCP Server: 1.2.0
+- 工具总数: 38（原有28个 + 新增10个接口测试工具）

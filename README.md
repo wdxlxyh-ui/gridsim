@@ -11,7 +11,7 @@
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
-| **v2.5.3** | 2026-05-22 | **ECharts 实时趋势重构 + 批量读取 API** — TrendPage 全面改用 ECharts（时间轴基于真实时间戳、缩放拖拽、十字准线 tooltip）；新增 `GET /points/batch` 批量读取接口（N 次请求→1 次）；修复 goroutine nil pointer 崩溃；发行包预置 users.json + VERSION 文件 |
+| **v2.5.4** | 2026-06-04 | **接口测试菜单 MCP 工具 + API 文档** — 新增 10 个 MCP 工具覆盖接口测试全流程（创建/修改/删除接口、管理环境变量、执行代理请求、修改 URL/请求体/前置后置脚本）；更新 MCP.md、API.md、GRIDSIM.md 文档 |
 | **v2.5.2** | 2026-05-21 | **CSV 文件下拉选择+自动映射+MCP登录修复** — CSV 回放支持从已有文件下拉选择（共享目录+实例私有）；多列 CSV 自动按列名匹配测点 IOA（回退按序号分配）；新增 `GET /csv-files` API 和 `list_csv_files` MCP 工具；修复前端登录路径不匹配；修复 MCP write_points schema |
 | **v2.5.1** | 2026-05-20 | 前端实例容量显示 — ConfigPage 顶部显示已配置/1000、运行中、已停止计数 |
 | **v2.5.0** | 2026-05-20 | **CSV 多测点同步回放** — 独立卡片UI、多列CSV映射、相对/绝对时间支持、状态持久化 |
@@ -24,6 +24,14 @@
 | v2.0.1 | 2026-05 | HTTP 开关控制、API 文档、iptables 防火墙自动管理 |
 | v2.0 | 2026-05 | 多实例管理模式（serve 子命令）、Vue 3 Web 管理界面 |
 | v1.0 | - | 传统单实例模式 |
+
+### v2.5.4 新特性
+
+- **接口测试 MCP 工具** — 新增 10 个 MCP 工具覆盖接口测试全流程
+  - `proxy_list_collections` / `proxy_create_collection` / `proxy_update_collection` / `proxy_delete_collection` — 接口集合 CRUD
+  - `proxy_execute_request` — HTTP 代理请求执行
+  - `proxy_list_environments` / `proxy_create_environment` / `proxy_update_environment` / `proxy_activate_environment` / `proxy_delete_environment` — 环境变量管理
+- **文档更新** — MCP.md、API.md、GRIDSIM.md 全部同步更新
 
 ### v2.5.3 新特性
 
@@ -111,6 +119,7 @@
 - **自动变更策略** — 11种内置策略，后台独立 goroutine 调度，实例启停自动管理
 - **多规约支持** — IEC 104 + Modbus TCP 并行运行
 - **MCP Server** — 提供 GridSim MCP 工具，支持 AI 助手直接控制模拟器
+- **接口测试 (API Proxy)** — 内置 Postman 风格的接口测试工具，支持环境变量、前置/后置脚本、集合管理
 
 ---
 
@@ -251,6 +260,19 @@ go build -o bin/gridsim ./cmd/gridsim/
 | `GET` | `/api/v1/instances/{id}/points/export` | 导出测点 CSV 数据 |
 | `POST` | `/api/v1/instances/{id}/upload-csv` | 上传 CSV 回放文件 |
 
+### 接口测试 API（Proxy）
+
+| 方法 | 端点 | 说明 |
+|--------|----------|-------------|
+| `POST` | `/api/v1/proxy` | 执行 HTTP 代理请求 |
+| `GET` | `/api/v1/proxy/collections` | 获取接口集合列表 |
+| `POST` | `/api/v1/proxy/collections` | 创建/更新接口（upsert） |
+| `DELETE` | `/api/v1/proxy/collections/{id}` | 删除接口 |
+| `GET` | `/api/v1/proxy/environments` | 获取环境变量列表 |
+| `POST` | `/api/v1/proxy/environments` | 创建/更新环境变量（upsert） |
+| `POST` | `/api/v1/proxy/environments/{id}/activate` | 激活环境变量 |
+| `DELETE` | `/api/v1/proxy/environments/{id}` | 删除环境变量 |
+
 ### 实例级 API（传统模式）
 
 | 方法 | 端点 | 说明 |
@@ -286,7 +308,8 @@ curl -X PUT http://localhost:8989/api/v1/instances/{id}/points/auto-change/16385
 ## 项目结构
 
 ```
-├── cmd/gridsim/        入口（传统模式 + 服务模式）
+├── cmd/gridsim/            入口（传统模式 + 服务模式）
+├── cmd/gridsim-mcp/        MCP Server 入口（stdio）
 ├── internal/
 │   ├── detail/            v2.1 详情页模块
 │   │   ├── engine.go      自动变化调度引擎
@@ -316,6 +339,7 @@ curl -X PUT http://localhost:8989/api/v1/instances/{id}/points/auto-change/16385
 │   │   ├── ConfigPage.vue     配置管理（含实例容量显示）
 │   │   ├── MonitorPage.vue    运行监控
 │   │   ├── DetailPage.vue     v2.1 实例详情页 + v2.5 CSV多测点回放
+│   │   ├── ProxyPage.vue      接口测试（Postman风格）
 │   │   └── TrendPage.vue      v2.2 趋势对比页
 │   ├── src/api/           Axios API 客户端
 │   └── src/composables/   Vue composables（useApi）

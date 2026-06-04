@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	mcp "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -493,6 +494,334 @@ func NewDataInterfaceServer(client *SimulatorClient) *server.MCPServer {
 	}))
 
 	return s
+}
+
+// NewProxyServer creates an MCP server exposing API Proxy testing tools.
+func NewProxyServer(client *SimulatorClient) *server.MCPServer {
+	s := server.NewMCPServer(
+		"GridSim API Proxy",
+		"1.0.0",
+		server.WithLogging(),
+	)
+
+	// proxy_list_collections
+	s.AddTool(mcp.NewTool("proxy_list_collections",
+		mcp.WithDescription("获取所有 API 接口集合/请求列表（接口测试菜单中的全部接口）"),
+	), toolHandler(client, func(c *SimulatorClient, args map[string]any) (any, error) {
+		return c.ListCollections()
+	}))
+
+	// proxy_create_collection
+	s.AddTool(mcp.NewTool("proxy_create_collection",
+		mcp.WithDescription("创建新的 API 接口或文件夹。type 为 'request'（接口）或 'folder'（文件夹）。可设置 method、url、headers、body、pre_script、test_script"),
+		mcp.WithString("name", mcp.Description("名称"), mcp.Required()),
+		mcp.WithString("type", mcp.Description("类型: request(接口) / folder(文件夹)"), mcp.Required()),
+		mcp.WithString("method", mcp.Description("HTTP 方法: GET/POST/PUT/DELETE 等，仅 request 类型需要")),
+		mcp.WithString("url", mcp.Description("请求 URL，仅 request 类型需要")),
+		mcp.WithString("headers", mcp.Description("请求头 JSON 字符串，如 {\"Content-Type\":\"application/json\"}")),
+		mcp.WithString("body", mcp.Description("请求体内容")),
+		mcp.WithString("pre_script", mcp.Description("前置脚本")),
+		mcp.WithString("test_script", mcp.Description("后置脚本（测试脚本）")),
+		mcp.WithString("parent_id", mcp.Description("父文件夹 ID，为空则放在根层级")),
+	), toolHandler(client, func(c *SimulatorClient, args map[string]any) (any, error) {
+		id := fmt.Sprintf("req-%d", time.Now().UnixMilli())
+		item := map[string]any{
+			"id":   id,
+			"name": getStringArg(args, "name"),
+			"type": getStringArg(args, "type"),
+		}
+		if m := getStringArg(args, "method"); m != "" {
+			item["method"] = m
+		}
+		if u := getStringArg(args, "url"); u != "" {
+			item["url"] = u
+		}
+		if h := getStringArg(args, "headers"); h != "" {
+			var headers map[string]string
+			if err := json.Unmarshal([]byte(h), &headers); err == nil {
+				item["headers"] = headers
+			}
+		}
+		if b := getStringArg(args, "body"); b != "" {
+			item["body"] = b
+		}
+		if p := getStringArg(args, "pre_script"); p != "" {
+			item["pre_script"] = p
+		}
+		if t := getStringArg(args, "test_script"); t != "" {
+			item["test_script"] = t
+		}
+		// If parent_id set, we need to get existing collections, find parent, and add as child
+		parentID := getStringArg(args, "parent_id")
+		if parentID == "" {
+			body, _ := json.Marshal(item)
+			return c.SaveCollection(body)
+		}
+		// Fetch existing collections, add as child of parent
+		raw, err := c.ListCollections()
+		if err != nil {
+			return nil, fmt.Errorf("list collections: %w", err)
+		}
+		var result struct {
+			Collections []map[string]any `json:"collections"`
+		}
+		if err := json.Unmarshal(raw, &result); err != nil {
+			return nil, fmt.Errorf("parse collections: %w", err)
+		}
+		// Add child to parent
+		updated := addChildToParent(result.Collections, parentID, item)
+		if updated == nil {
+			return nil, fmt.Errorf("parent folder '%s' not found", parentID)
+		}
+		// Save each root collection
+		for _, c := range result.Collections {
+			b, _ := json.Marshal(c)
+			if _, err := client.SaveCollection(b); err != nil {
+				return nil, fmt.Errorf("save collection: %w", err)
+			}
+		}
+		return json.RawMessage(`{"status":"created","id":"`+id+`"}`), nil
+	}))
+
+	// proxy_update_collection
+	s.AddTool(mcp.NewTool("proxy_update_collection",
+		mcp.WithDescription("修改 API 接口的请求信息，包括 URL、method、headers、body、前置脚本、后置脚本等"),
+		mcp.WithString("id", mcp.Description("接口 ID"), mcp.Required()),
+		mcp.WithString("name", mcp.Description("名称")),
+		mcp.WithString("method", mcp.Description("HTTP 方法")),
+		mcp.WithString("url", mcp.Description("请求 URL")),
+		mcp.WithString("headers", mcp.Description("请求头 JSON 字符串")),
+		mcp.WithString("body", mcp.Description("请求体内容")),
+		mcp.WithString("pre_script", mcp.Description("前置脚本")),
+		mcp.WithString("test_script", mcp.Description("后置脚本")),
+	), toolHandler(client, func(c *SimulatorClient, args map[string]any) (any, error) {
+		id := getStringArg(args, "id")
+		raw, err := c.ListCollections()
+		if err != nil {
+			return nil, fmt.Errorf("list collections: %w", err)
+		}
+		var result struct {
+			Collections []map[string]any `json:"collections"`
+		}
+		if err := json.Unmarshal(raw, &result); err != nil {
+			return nil, fmt.Errorf("parse collections: %w", err)
+		}
+		item := findItemByID(result.Collections, id)
+		if item == nil {
+			return nil, fmt.Errorf("collection '%s' not found", id)
+		}
+		if v := getStringArg(args, "name"); v != "" {
+			(*item)["name"] = v
+		}
+		if v := getStringArg(args, "method"); v != "" {
+			(*item)["method"] = v
+		}
+		if v := getStringArg(args, "url"); v != "" {
+			(*item)["url"] = v
+		}
+		if v := getStringArg(args, "headers"); v != "" {
+			var headers map[string]string
+			if err := json.Unmarshal([]byte(v), &headers); err == nil {
+				(*item)["headers"] = headers
+			}
+		}
+		if v := getStringArg(args, "body"); v != "" {
+			(*item)["body"] = v
+		}
+		if v := getStringArg(args, "pre_script"); v != "" {
+			(*item)["pre_script"] = v
+		}
+		if v := getStringArg(args, "test_script"); v != "" {
+			(*item)["test_script"] = v
+		}
+		// Save all root collections
+		for _, c := range result.Collections {
+			b, _ := json.Marshal(c)
+			if _, err := client.SaveCollection(b); err != nil {
+				return nil, fmt.Errorf("save collection: %w", err)
+			}
+		}
+		return json.RawMessage(`{"status":"updated","id":"`+id+`"}`), nil
+	}))
+
+	// proxy_delete_collection
+	s.AddTool(mcp.NewTool("proxy_delete_collection",
+		mcp.WithDescription("删除指定 API 接口或文件夹"),
+		mcp.WithString("id", mcp.Description("接口/文件夹 ID"), mcp.Required()),
+	), toolHandler(client, func(c *SimulatorClient, args map[string]any) (any, error) {
+		return c.DeleteCollection(getStringArg(args, "id"))
+	}))
+
+	// proxy_execute_request
+	s.AddTool(mcp.NewTool("proxy_execute_request",
+		mcp.WithDescription("执行 API 请求（HTTP 代理），发送 HTTP 请求并返回响应状态码、响应头、响应体、耗时等信息"),
+		mcp.WithString("method", mcp.Description("HTTP 方法: GET/POST/PUT/DELETE/PATCH"), mcp.Required()),
+		mcp.WithString("url", mcp.Description("请求 URL"), mcp.Required()),
+		mcp.WithString("headers", mcp.Description("请求头 JSON 字符串")),
+		mcp.WithString("body", mcp.Description("请求体内容")),
+		mcp.WithNumber("timeout", mcp.Description("超时时间（秒），默认30，最大120")),
+	), toolHandler(client, func(c *SimulatorClient, args map[string]any) (any, error) {
+		req := map[string]any{
+			"method": getStringArg(args, "method"),
+			"url":    getStringArg(args, "url"),
+			"headers": map[string]string{},
+			"body":    getStringArg(args, "body"),
+			"timeout": 30,
+		}
+		if h := getStringArg(args, "headers"); h != "" {
+			var headers map[string]string
+			if err := json.Unmarshal([]byte(h), &headers); err == nil {
+				req["headers"] = headers
+			}
+		}
+		if t, ok := args["timeout"]; ok {
+			if timeout, ok := t.(float64); ok && timeout > 0 && timeout <= 120 {
+				req["timeout"] = timeout
+			}
+		}
+		body, _ := json.Marshal(req)
+		return c.ProxyRequest(body)
+	}))
+
+	// proxy_list_environments
+	s.AddTool(mcp.NewTool("proxy_list_environments",
+		mcp.WithDescription("获取所有环境变量列表，包括当前激活的环境 ID"),
+	), toolHandler(client, func(c *SimulatorClient, args map[string]any) (any, error) {
+		return c.ListEnvironments()
+	}))
+
+	// proxy_create_environment
+	s.AddTool(mcp.NewTool("proxy_create_environment",
+		mcp.WithDescription("创建新的环境变量组，可设置多个变量键值对"),
+		mcp.WithString("name", mcp.Description("环境名称"), mcp.Required()),
+		mcp.WithString("variables", mcp.Description("变量 JSON 字符串，如 {\"base_url\":\"http://example.com\",\"token\":\"abc123\"}"), mcp.Required()),
+	), toolHandler(client, func(c *SimulatorClient, args map[string]any) (any, error) {
+		id := fmt.Sprintf("env-%d", time.Now().UnixMilli())
+		var vars map[string]string
+		if err := json.Unmarshal([]byte(getStringArg(args, "variables")), &vars); err != nil {
+			return nil, fmt.Errorf("invalid variables JSON: %w", err)
+		}
+		env := map[string]any{
+			"id":        id,
+			"name":      getStringArg(args, "name"),
+			"variables": vars,
+		}
+		body, _ := json.Marshal(env)
+		return c.SaveEnvironment(body)
+	}))
+
+	// proxy_update_environment
+	s.AddTool(mcp.NewTool("proxy_update_environment",
+		mcp.WithDescription("更新环境变量的值或名称。variables 传入完整的新变量集合（会替换全部）"),
+		mcp.WithString("id", mcp.Description("环境 ID"), mcp.Required()),
+		mcp.WithString("name", mcp.Description("环境名称（可选）")),
+		mcp.WithString("variables", mcp.Description("变量 JSON 字符串，如 {\"base_url\":\"http://new.com\"}")),
+	), toolHandler(client, func(c *SimulatorClient, args map[string]any) (any, error) {
+		id := getStringArg(args, "id")
+		raw, err := c.ListEnvironments()
+		if err != nil {
+			return nil, fmt.Errorf("list environments: %w", err)
+		}
+		var result struct {
+			Environments []map[string]any `json:"environments"`
+			ActiveID     string            `json:"active_id"`
+		}
+		if err := json.Unmarshal(raw, &result); err != nil {
+			return nil, fmt.Errorf("parse environments: %w", err)
+		}
+		var target *map[string]any
+		for i := range result.Environments {
+			if result.Environments[i]["id"] == id {
+				target = &result.Environments[i]
+				break
+			}
+		}
+		if target == nil {
+			return nil, fmt.Errorf("environment '%s' not found", id)
+		}
+		if v := getStringArg(args, "name"); v != "" {
+			(*target)["name"] = v
+		}
+		if v := getStringArg(args, "variables"); v != "" {
+			var newVars map[string]string
+			if err := json.Unmarshal([]byte(v), &newVars); err == nil {
+				(*target)["variables"] = newVars
+			}
+		}
+		body, _ := json.Marshal(*target)
+		return c.SaveEnvironment(body)
+	}))
+
+	// proxy_activate_environment
+	s.AddTool(mcp.NewTool("proxy_activate_environment",
+		mcp.WithDescription("激活指定环境变量组，激活后执行接口测试时自动注入该环境的变量"),
+		mcp.WithString("id", mcp.Description("环境 ID"), mcp.Required()),
+	), toolHandler(client, func(c *SimulatorClient, args map[string]any) (any, error) {
+		return c.ActivateEnvironment(getStringArg(args, "id"))
+	}))
+
+	// proxy_delete_environment
+	s.AddTool(mcp.NewTool("proxy_delete_environment",
+		mcp.WithDescription("删除指定环境变量组"),
+		mcp.WithString("id", mcp.Description("环境 ID"), mcp.Required()),
+	), toolHandler(client, func(c *SimulatorClient, args map[string]any) (any, error) {
+		return c.DeleteEnvironment(getStringArg(args, "id"))
+	}))
+
+	return s
+}
+
+// Helper: recursively find an item by ID in the collection tree
+func findItemByID(items []map[string]any, id string) *map[string]any {
+	for i := range items {
+		if items[i]["id"] == id {
+			return &items[i]
+		}
+		if children, ok := items[i]["children"].([]any); ok {
+			for _, child := range children {
+				if childMap, ok := child.(map[string]any); ok {
+					if childMap["id"] == id {
+						return &childMap
+					}
+					if grandChildren, ok := childMap["children"].([]any); ok {
+						for _, gc := range grandChildren {
+							if gcMap, ok := gc.(map[string]any); ok {
+								if gcMap["id"] == id {
+									return &gcMap
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// Helper: add a child item to a parent folder by parent ID
+func addChildToParent(items []map[string]any, parentID string, child map[string]any) []map[string]any {
+	for i := range items {
+		if items[i]["id"] == parentID {
+			children, _ := items[i]["children"].([]any)
+			children = append(children, child)
+			items[i]["children"] = children
+			return items
+		}
+		if children, ok := items[i]["children"].([]any); ok {
+			for _, childItem := range children {
+				if cm, ok := childItem.(map[string]any); ok {
+					if cm["id"] == parentID {
+						gc, _ := cm["children"].([]any)
+						gc = append(gc, child)
+						cm["children"] = gc
+						return items
+					}
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func toolHandler(client *SimulatorClient, fn func(*SimulatorClient, map[string]any) (any, error)) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {

@@ -38,7 +38,7 @@ func main() {
 			os.Exit(1)
 		}
 	case "both":
-		// Combined server: all tools from both services in one MCP server
+		// Combined server: all tools from all services in one MCP server
 		s := mcp_srv.NewMCPServer(
 			"IEC104 Simulator MCP",
 			"1.0.0",
@@ -52,6 +52,11 @@ func main() {
 		// Transfer tools from Data Interface
 		dataSrv := mcp.NewDataInterfaceServer(client)
 		for _, t := range dataSrv.ListTools() {
+			s.AddTool(t.Tool, t.Handler)
+		}
+		// Transfer tools from Proxy Server
+		proxySrv := mcp.NewProxyServer(client)
+		for _, t := range proxySrv.ListTools() {
 			s.AddTool(t.Tool, t.Handler)
 		}
 		log.Printf("启动 IEC104 Simulator MCP Server (全部工具, stdio)")
