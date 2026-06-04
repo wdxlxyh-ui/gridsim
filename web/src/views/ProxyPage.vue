@@ -150,20 +150,59 @@
       </div>
     </div>
 
-    <el-drawer v-model="showHistory" title="请求历史" size="520px">
-      <div v-for="(h, i) in history" :key="i" class="history-item" @click="loadHistory(h)">
+    <el-drawer v-model="showHistory" title="请求历史" size="640px">
+      <div v-for="(h, i) in history" :key="i" class="history-item" @click="toggleHistoryDetail(i)">
         <div style="display: flex; align-items: center; gap: 8px;">
           <span class="history-method" :class="h.method">{{ h.method }}</span>
-          <span class="history-url">{{ h.url }}</span>
+          <span class="history-url">{{ h.resolved_url || h.url }}</span>
         </div>
         <div class="history-meta">
           <span :style="{ color: h.status < 400 ? '#22c55e' : '#ef4444' }">● {{ h.status }} {{ h.status_text || '' }}</span>
           <span>⏱ {{ h.time_ms }}ms</span>
           <span>📦 {{ h.size }}B</span>
           <span>🕐 {{ h.timestamp }}</span>
+          <span style="margin-left: auto; color: #64748b;">{{ historyOpen[i] ? '▼ 收起' : '▶ 详情' }}</span>
         </div>
-        <div v-if="h.body" class="history-body" @click.stop>
-          <pre>{{ h.body }}</pre>
+        <div v-if="historyOpen[i]" class="history-detail" @click.stop>
+          <!-- 最终 URL（含变量替换） -->
+          <div class="detail-section">
+            <div class="detail-label">🔗 最终 URL <span style="color: #64748b; font-size: 10px;">(变量已替换)</span></div>
+            <pre class="detail-pre">{{ h.resolved_url || h.url }}</pre>
+            <div v-if="h.url && h.resolved_url && h.url !== h.resolved_url" class="detail-original">
+              <div class="detail-label" style="font-size: 10px;">原始模板</div>
+              <pre class="detail-pre" style="color: #64748b;">{{ h.url }}</pre>
+            </div>
+          </div>
+
+          <!-- 请求 Headers -->
+          <div v-if="h.headers && Object.keys(h.headers).length" class="detail-section">
+            <div class="detail-label">📨 请求 Headers <span style="color: #64748b; font-size: 10px;">({{ Object.keys(h.headers).length }})</span></div>
+            <div v-for="(v, k) in h.headers" :key="k" class="detail-kv">
+              <span class="detail-k">{{ k }}:</span>
+              <span class="detail-v">{{ v }}</span>
+            </div>
+          </div>
+
+          <!-- 请求 Body -->
+          <div v-if="h.body" class="detail-section">
+            <div class="detail-label">📦 请求 Body</div>
+            <pre class="detail-pre">{{ h.body }}</pre>
+          </div>
+
+          <!-- 响应 Headers -->
+          <div v-if="h.response_headers && Object.keys(h.response_headers).length" class="detail-section">
+            <div class="detail-label">📥 响应 Headers <span style="color: #64748b; font-size: 10px;">({{ Object.keys(h.response_headers).length }})</span></div>
+            <div v-for="(v, k) in h.response_headers" :key="k" class="detail-kv">
+              <span class="detail-k">{{ k }}:</span>
+              <span class="detail-v">{{ v }}</span>
+            </div>
+          </div>
+
+          <!-- 响应 Body -->
+          <div v-if="h.response_body" class="detail-section">
+            <div class="detail-label">📄 响应 Body</div>
+            <pre class="detail-pre">{{ h.response_body }}</pre>
+          </div>
         </div>
       </div>
     </el-drawer>
@@ -237,6 +276,7 @@ const environments = ref<ProxyEnvironment[]>([])
 const activeEnvId = ref('')
 const editEnv = ref<ProxyEnvironment | null>(null)
 const history = ref<any[]>([])
+const historyOpen = ref<Record<number, boolean>>({})
 const newVarKey = ref('')
 const newVarValue = ref('')
 const editingVarKey = ref<string | null>(null)
@@ -308,12 +348,33 @@ async function send() {
     }
 
     const resolve = (s: string) => s.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] !== undefined ? vars[k] : `{{${k}}}`)
+    const resolvedUrl = resolve(request.url)
+    const resolvedBody = bodyType.value === 'none' ? '' : resolve(request.body)
+    const resolvedHeaders: Record<string, string> = {}
+    for (const [k, v] of Object.entries(headers)) {
+      resolvedHeaders[k] = resolve(v)
+    }
+
     const res = await proxyRequest({
-      method: request.method, url: resolve(request.url), headers: Object.fromEntries(Object.entries(headers).map(([k, v]) => [k, resolve(v)])),
-      body: bodyType.value === 'none' ? '' : resolve(request.body), timeout: 30,
+      method: request.method, url: resolvedUrl, headers: resolvedHeaders,
+      body: resolvedBody, timeout: 30,
     })
     response.value = res
-    const entry = { method: request.method, url: request.url, status: res.status, status_text: res.status_text, time_ms: res.time_ms, size: res.size, body: res.body, timestamp: new Date().toLocaleTimeString() }
+    // 历史中保存最终发出的完整参数（变量已替换为实际值）
+    const entry = {
+      method: request.method,
+      url: request.url,
+      resolved_url: resolvedUrl,
+      headers: resolvedHeaders,
+      body: resolvedBody,
+      status: res.status,
+      status_text: res.status_text,
+      time_ms: res.time_ms,
+      size: res.size,
+      response_body: res.body,
+      response_headers: res.headers,
+      timestamp: new Date().toLocaleTimeString(),
+    }
     history.value.unshift(entry)
     if (history.value.length > 50) history.value.pop()
     localStorage.setItem('proxy_history', JSON.stringify(history.value))
@@ -732,6 +793,7 @@ async function exportPostman() {
 }
 
 function loadHistory(h: any) { request.method = h.method; request.url = h.url; showHistory.value = false }
+function toggleHistoryDetail(i: number) { historyOpen.value[i] = !historyOpen.value[i] }
 function switchEnv(id: string) {
   activeEnvId.value = id
   activateEnvironment(id)
@@ -848,6 +910,14 @@ watch(() => headerList.value, () => { if (activeRequestId.value) debouncedAutoSa
 .env-item.active { background: rgba(245,158,11,0.1); color: #f59e0b; }
 .history-item { padding: 10px 12px; border-radius: 8px; cursor: pointer; margin-bottom: 4px; }
 .history-item:hover { background: #1a1f2e; }
+.history-detail { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #1e293b; }
+.detail-section { margin-bottom: 10px; }
+.detail-label { font-size: 11px; font-weight: 600; color: #94a3b8; margin-bottom: 4px; }
+.detail-pre { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #e2e8f0; background: #0a0e17; border: 1px solid #1e293b; border-radius: 4px; padding: 6px 8px; margin: 0; white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow: auto; }
+.detail-original { margin-top: 4px; }
+.detail-kv { display: flex; gap: 6px; padding: 3px 0; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+.detail-k { color: #93c5fd; flex-shrink: 0; }
+.detail-v { color: #e2e8f0; word-break: break-all; }
 .history-method { font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 3px; margin-right: 8px; }
 .history-method.GET { background: rgba(34,197,94,0.15); color: #22c55e; }
 .history-method.POST { background: rgba(245,158,11,0.15); color: #f59e0b; }
