@@ -242,8 +242,15 @@
       <div style="display: flex; gap: 16px; min-height: 320px;">
         <div style="width: 140px; border-right: 1px solid #1e293b; padding-right: 12px; flex-shrink: 0;">
           <div v-for="env in environments" :key="env.id"
-            class="env-item" :class="{ active: env.id === activeEnvId }" @click="editEnv = { ...env, variables: { ...(env.variables || {}) } }">
-            {{ env.name }}
+            class="env-item" :class="{ active: env.id === activeEnvId }"
+            :style="{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px' }">
+            <span style="flex: 1; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" :title="env.name"
+              @click="editEnv = { ...env, variables: { ...(env.variables || {}) } }">
+              {{ env.name }}
+              <span v-if="env.id === activeEnvId" style="color: #f59e0b; font-size: 10px; margin-left: 4px;">●</span>
+            </span>
+            <el-button v-if="environments.length > 1" text size="small" type="danger" style="padding: 0 4px; font-size: 12px;"
+              @click.stop="deleteEntireEnv(env.id)" title="删除整个环境">×</el-button>
           </div>
           <el-button size="small" style="margin-top: 8px; width: 100%;" @click="addEnvironment">+ 新建</el-button>
         </div>
@@ -257,6 +264,7 @@
                     <div v-for="(val, key) in editEnv.variables" :key="key" class="kv-row" style="margin-bottom: 6px;">
                       <el-input :model-value="key" size="small" style="flex: 0.5;" :class="{ 'var-key-invalid': !isValidVarName(key) }" disabled />
                       <el-input :model-value="val" size="small" style="flex: 0.5;" disabled />
+                      <el-button text size="small" type="primary" title="复制为 KEY=VALUE" @click="copyVar(key, val)">📋</el-button>
                       <el-button text size="small" type="warning" @click="startEditVar(key, val)">✏</el-button>
                       <el-button text size="small" type="danger" @click="deleteVar(key)">🗑</el-button>
                     </div>
@@ -290,7 +298,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown } from '@element-plus/icons-vue'
 import {
   proxyRequest, getCollections, saveCollection, deleteCollection,
-  getEnvironments, saveEnvironment, activateEnvironment, exportProxyConfig,
+  getEnvironments, saveEnvironment, deleteEnvironment, activateEnvironment, exportProxyConfig,
   type CollectionItem, type ProxyEnvironment, type ProxyResponse
 } from '../api'
 
@@ -1031,6 +1039,60 @@ function deleteVar(key: string) {
     delete editEnv.value!.variables[key]
     ElMessage.success('已删除变量')
   }).catch(() => {})
+}
+
+// 复制单个环境变量为 KEY=VALUE 格式（可粘贴到 .env / shell / 新输入框中编辑）
+async function copyVar(key: string, val: string) {
+  // 转义值为单引号包裹的 shell 形式（含特殊字符时）
+  const needsQuote = /[\s'"\\$`]/.test(val) || val === ''
+  const text = needsQuote ? `${key}='${val.replace(/'/g, "'\\''")}'` : `${key}=${val}`
+  try {
+    await navigator.clipboard.writeText(text)
+    ElMessage.success(`已复制: ${text.length > 40 ? text.slice(0, 40) + '…' : text}`)
+  } catch (e: any) {
+    // 后备方案：使用 textarea + execCommand
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.style.position = 'fixed'
+    ta.style.left = '-9999px'
+    document.body.appendChild(ta)
+    ta.select()
+    try {
+      document.execCommand('copy')
+      ElMessage.success(`已复制: ${text.length > 40 ? text.slice(0, 40) + '…' : text}`)
+    } catch (err: any) {
+      ElMessage.error('复制失败: ' + (err?.message || err))
+    } finally {
+      document.body.removeChild(ta)
+    }
+  }
+}
+
+// 删除整个环境
+async function deleteEntireEnv(id: string) {
+  const env = environments.value.find(e => e.id === id)
+  if (!env) return
+  const varCount = Object.keys(env.variables || {}).length
+  const wasActive = activeEnvId.value === id
+  try {
+    await ElMessageBox.confirm(
+      `确定删除环境 "${env.name}"？${varCount ? `该环境含 ${varCount} 个变量。` : ''}此操作不可撤销。`,
+      '删除环境',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
+    )
+  } catch { return }
+  try {
+    await deleteEnvironment(id)
+    environments.value = environments.value.filter(e => e.id !== id)
+    if (editEnv.value?.id === id) editEnv.value = null
+    if (wasActive && environments.value.length > 0) {
+      activeEnvId.value = environments.value[0].id
+      await activateEnvironment(environments.value[0].id).catch(() => {})
+    }
+    ElMessage.success(`已删除环境 "${env.name}"`)
+  } catch (e: any) {
+    ElMessage.error('删除环境失败: ' + (e?.message || e))
+  }
 }
 
 function startEditVar(key: string, val: string) {
