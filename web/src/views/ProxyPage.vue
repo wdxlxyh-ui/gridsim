@@ -111,8 +111,11 @@
                 <div class="env-vars-box">
                   <div class="env-vars-header">
                     <span class="env-vars-title">当前环境: <span style="color: #f59e0b;">{{ activeEnvName }}</span></span>
-                    <span v-if="Object.keys(activeEnvVars).length" class="env-vars-count">{{ Object.keys(activeEnvVars).length }} 个变量</span>
-                    <span v-else class="env-vars-count" style="color: #64748b;">无变量</span>
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                      <span v-if="Object.keys(activeEnvVars).length" class="env-vars-count">{{ Object.keys(activeEnvVars).length }} 个变量</span>
+                      <span v-else class="env-vars-count" style="color: #64748b;">无变量</span>
+                      <el-button text size="small" type="primary" title="复制当前环境为 dotenv 格式" @click.stop="copyEntireEnv(environments.find(e => e.id === activeEnvId))" style="padding: 0 4px; font-size: 12px; color: #f59e0b;">📋</el-button>
+                    </div>
                   </div>
                   <div v-if="Object.keys(activeEnvVars).length" class="env-vars-grid">
                     <div v-for="(v, k) in activeEnvVars" :key="k" class="env-var-item" :class="{ 'var-invalid': !isValidVarName(k) }" :title="varTitle(k)">
@@ -176,6 +179,7 @@
           <el-select v-model="activeEnvId" size="small" @change="switchEnv" style="width: 140px;">
             <el-option v-for="env in environments" :key="env.id" :value="env.id" :label="env.name" />
           </el-select>
+          <el-button text size="small" @click="copyEntireEnv(environments.find(e => e.id === activeEnvId))" title="复制当前环境" style="color: #94a3b8; padding: 0 4px; font-size: 12px;">📋</el-button>
           <el-button text size="small" @click="showEnvModal = true">⚙ 管理</el-button>
         </div>
       </div>
@@ -1101,7 +1105,11 @@ async function deleteEntireEnv(id: string) {
 }
 
 // 复制整个环境为 dotenv 格式 (KEY='value' / KEY=value)
-async function copyEntireEnv(env: ProxyEnvironment) {
+async function copyEntireEnv(env?: ProxyEnvironment | null) {
+  if (!env) {
+    ElMessage.warning('当前没有可选中的环境')
+    return
+  }
   const lines = Object.entries(env.variables || {})
     .map(([key, val]) => {
       const needsQuote = /[\s'"\\$`]/.test(val) || val === ''
