@@ -158,7 +158,7 @@
             </div>
             <div v-if="response" class="response-status">
               <el-tag :type="response.status < 400 ? 'success' : 'danger'">
-                ● {{ response.status }} {{ response.status_text }}
+                <span :class="{ 'glitch-text': response.status >= 400 }">● {{ response.status }} {{ response.status_text }}</span>
               </el-tag>
               <el-tag type="info">⏱ {{ response.time_ms }} ms</el-tag>
               <el-tag type="info">📦 {{ response.size }} B</el-tag>
@@ -1269,4 +1269,18 @@ watch(() => headerList.value, () => { if (activeRequestId.value) debouncedAutoSa
 .var-name-hint { margin-top: 6px; font-size: 11px; color: #64748b; }
 .var-name-hint code { background: #1a1f2e; padding: 1px 5px; border-radius: 2px; color: #93c5fd; font-family: 'JetBrains Mono', monospace; }
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #64748b; gap: 10px; }
+
+/* P10: GlitchText for error status codes */
+@keyframes glitch-text {
+  0%, 85%, 100% { transform: translate(0); text-shadow: none; }
+  86% { transform: translate(-2px, 1px); text-shadow: 2px 0 rgba(239, 68, 68, 0.8); }
+  88% { transform: translate(2px, -1px); text-shadow: -2px 0 rgba(59, 130, 246, 0.8); }
+  90% { transform: translate(-1px, -1px); text-shadow: 1px 0 rgba(239, 68, 68, 0.6); }
+  92% { transform: translate(0); text-shadow: none; }
+}
+
+.glitch-text {
+  display: inline-block;
+  animation: glitch-text 3s ease-in-out infinite;
+}
 </style>

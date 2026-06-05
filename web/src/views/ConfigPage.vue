@@ -371,3 +371,28 @@ onMounted(() => {
   fetchFiles()
 })
 </script>
+
+<style scoped>
+/* P8: AnimatedList stagger — table rows */
+@keyframes row-stagger {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+:deep(.el-table__row) {
+  animation: row-stagger 0.35s ease both;
+}
+
+:deep(.el-table__row:nth-child(1))  { animation-delay: 0.05s; }
+:deep(.el-table__row:nth-child(2))  { animation-delay: 0.10s; }
+:deep(.el-table__row:nth-child(3))  { animation-delay: 0.15s; }
+:deep(.el-table__row:nth-child(4))  { animation-delay: 0.20s; }
+:deep(.el-table__row:nth-child(5))  { animation-delay: 0.25s; }
+:deep(.el-table__row:nth-child(6))  { animation-delay: 0.30s; }
+:deep(.el-table__row:nth-child(7))  { animation-delay: 0.35s; }
+:deep(.el-table__row:nth-child(8))  { animation-delay: 0.40s; }
+:deep(.el-table__row:nth-child(9))  { animation-delay: 0.45s; }
+:deep(.el-table__row:nth-child(10)) { animation-delay: 0.50s; }
+:deep(.el-table__row:nth-child(11)) { animation-delay: 0.55s; }
+:deep(.el-table__row:nth-child(12)) { animation-delay: 0.60s; }
+</style>
