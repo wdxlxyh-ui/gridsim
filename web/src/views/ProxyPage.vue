@@ -253,8 +253,8 @@
               {{ env.name }}
               <span v-if="env.id === activeEnvId" style="color: #f59e0b; font-size: 10px; margin-left: 4px;">●</span>
             </span>
-            <el-button text size="small" type="primary" title="复制此环境 (KEY=VALUE)" style="padding: 0 4px; font-size: 12px;"
-              @click.stop="copyEntireEnv(env)">📋</el-button>
+            <el-button text size="small" type="primary" title="复制并新建环境" style="padding: 0 4px; font-size: 12px;"
+              @click.stop="duplicateEnvironment(env)">📋</el-button>
             <el-button v-if="environments.length > 1" text size="small" type="danger" style="padding: 0 4px; font-size: 12px;"
               @click.stop="deleteEntireEnv(env.id)" title="删除整个环境">×</el-button>
           </div>
@@ -266,7 +266,7 @@
                   <el-form-item label="环境名称">
                     <el-input v-model="editEnv.name" />
                   </el-form-item>
-                  <el-button size="small" type="primary" @click="copyEntireEnv(editEnv)">📋 复制此环境</el-button>
+                  <el-button size="small" type="primary" @click="duplicateEnvironment(editEnv)">📋 复制此环境</el-button>
                 </div>
                 <el-form-item label="变量">
                   <div style="width: 100%;">
@@ -1022,6 +1022,16 @@ function addEnvironment() {
     environments.value.push(env)
     editEnv.value = { ...env, variables: {} }
   })
+}
+
+async function duplicateEnvironment(src?: ProxyEnvironment | null) {
+  if (!src) { ElMessage.warning('请先选择一个环境'); return }
+  const newName = src.name + ' (副本)'
+  const newEnv: ProxyEnvironment = { id: genId(), name: newName, variables: { ...(src.variables || {}) } }
+  environments.value.push(newEnv)
+  editEnv.value = { ...newEnv, variables: { ...newEnv.variables } }
+  await saveEnvironment(newEnv)
+  ElMessage.success(`已复制环境 "${src.name}" → "${newName}" (${Object.keys(newEnv.variables).length} 个变量)`)
 }
 
 function addVar() {
