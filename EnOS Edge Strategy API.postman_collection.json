@@ -1,0 +1,549 @@
+{
+  "info": {
+    "_postman_id": "58c33966-7c8d-4267-a449-3da8a376ee9c",
+    "name": "EnOS Edge Strategy API",
+    "description": "EGC控制策略 / 稀疏策略 / 归档策略 接口集合",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "20414005",
+    "_collection_link": "https://go.postman.co/collection/20414005-58c33966-7c8d-4267-a449-3da8a376ee9c?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "1. EGC 控制策略",
+      "item": [
+        {
+          "name": "getStrategyTypeList - 获取策略类型列表",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "apim-accesstoken",
+                "value": "{{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/enos-edge/v1/getStrategyTypeList?orgId={{orgId}}&locale={{locale}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "enos-edge",
+                "v1",
+                "getStrategyTypeList"
+              ],
+              "query": [
+                {
+                  "key": "orgId",
+                  "value": "{{orgId}}"
+                },
+                {
+                  "key": "locale",
+                  "value": "{{locale}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "getStrategy - 获取策略详情",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "apim-accesstoken",
+                "value": "{{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/enos-edge/v1/getStrategy?orgId={{orgId}}&boxId={{boxId}}&locale={{locale}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "enos-edge",
+                "v1",
+                "getStrategy"
+              ],
+              "query": [
+                {
+                  "key": "orgId",
+                  "value": "{{orgId}}"
+                },
+                {
+                  "key": "boxId",
+                  "value": "{{boxId}}"
+                },
+                {
+                  "key": "locale",
+                  "value": "{{locale}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "createOrUpdateStrategy - 创建或更新策略",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apim-accesstoken",
+                "value": "{{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"meterDeviceKey\": \"{{meterDeviceKey}}\",\n  \"meterAssetId\": \"{{meterAssetId}}\",\n  \"period\": \"5\",\n  \"exportLimit\": 10,\n  \"importLimit\": 10,\n  \"edgeAssetId\": \"{{edgeAssetId}}\",\n  \"boxId\": \"{{boxId}}\",\n  \"strategyType\": 1,\n  \"devices\": [\n    {\n      \"type\": 0,\n      \"deviceInfo\": [\n        {\n          \"assetId\": \"\",\n          \"deviceKey\": \"\"\n        }\n      ],\n      \"controlType\": 0,\n      \"maxExportPower\": \"5\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/enos-edge/v1/createOrUpdateStrategy?orgId={{orgId}}&userName={{userName}}&locale={{locale}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "enos-edge",
+                "v1",
+                "createOrUpdateStrategy"
+              ],
+              "query": [
+                {
+                  "key": "orgId",
+                  "value": "{{orgId}}"
+                },
+                {
+                  "key": "userName",
+                  "value": "{{userName}}"
+                },
+                {
+                  "key": "locale",
+                  "value": "{{locale}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "patchUpdateStrategy - 局部更新策略",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apim-accesstoken",
+                "value": "{{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"period\": \"5\",\n  \"edgeAssetId\": \"{{edgeAssetId}}\",\n  \"activeMargin\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/enos-edge/v1/patchUpdateStrategy?orgId={{orgId}}&userName={{userName}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "enos-edge",
+                "v1",
+                "patchUpdateStrategy"
+              ],
+              "query": [
+                {
+                  "key": "orgId",
+                  "value": "{{orgId}}"
+                },
+                {
+                  "key": "userName",
+                  "value": "{{userName}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "strategyOperation - 启用/禁用策略",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apim-accesstoken",
+                "value": "{{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{strategyId}}\",\n  \"value\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/enos-edge/v1/strategyOperation?orgId={{orgId}}&userName={{userName}}&locale={{locale}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "enos-edge",
+                "v1",
+                "strategyOperation"
+              ],
+              "query": [
+                {
+                  "key": "orgId",
+                  "value": "{{orgId}}"
+                },
+                {
+                  "key": "userName",
+                  "value": "{{userName}}"
+                },
+                {
+                  "key": "locale",
+                  "value": "{{locale}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "delStrategy - 删除策略",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "apim-accesstoken",
+                "value": "{{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/enos-edge/v1/delStrategy?orgId={{orgId}}&id={{strategyId}}&userName={{userName}}&locale={{locale}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "enos-edge",
+                "v1",
+                "delStrategy"
+              ],
+              "query": [
+                {
+                  "key": "orgId",
+                  "value": "{{orgId}}"
+                },
+                {
+                  "key": "id",
+                  "value": "{{strategyId}}"
+                },
+                {
+                  "key": "userName",
+                  "value": "{{userName}}"
+                },
+                {
+                  "key": "locale",
+                  "value": "{{locale}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "submitSelfCheck - 提交自检",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "apim-accesstoken",
+                "value": "{{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/enos-edge/v1/submitSelfCheck?orgId={{orgId}}&id={{strategyId}}&locale={{locale}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "enos-edge",
+                "v1",
+                "submitSelfCheck"
+              ],
+              "query": [
+                {
+                  "key": "orgId",
+                  "value": "{{orgId}}"
+                },
+                {
+                  "key": "id",
+                  "value": "{{strategyId}}"
+                },
+                {
+                  "key": "locale",
+                  "value": "{{locale}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "getSelfCheckResult - 获取自检结果",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "apim-accesstoken",
+                "value": "{{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/enos-edge/v1/getSelfCheckResult?orgId={{orgId}}&id={{strategyId}}&locale={{locale}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "enos-edge",
+                "v1",
+                "getSelfCheckResult"
+              ],
+              "query": [
+                {
+                  "key": "orgId",
+                  "value": "{{orgId}}"
+                },
+                {
+                  "key": "id",
+                  "value": "{{strategyId}}"
+                },
+                {
+                  "key": "locale",
+                  "value": "{{locale}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "listDevices - 列出EGC子设备",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "apim-accesstoken",
+                "value": "{{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/enos-edge/v1/listDevices?orgId={{orgId}}&boxId={{boxId}}&locale={{locale}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "enos-edge",
+                "v1",
+                "listDevices"
+              ],
+              "query": [
+                {
+                  "key": "orgId",
+                  "value": "{{orgId}}"
+                },
+                {
+                  "key": "boxId",
+                  "value": "{{boxId}}"
+                },
+                {
+                  "key": "locale",
+                  "value": "{{locale}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "listMeters - 列出电表设备",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "apim-accesstoken",
+                "value": "{{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/enos-edge/v1/listMeters?orgId={{orgId}}&boxId={{boxId}}&locale={{locale}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "enos-edge",
+                "v1",
+                "listMeters"
+              ],
+              "query": [
+                {
+                  "key": "orgId",
+                  "value": "{{orgId}}"
+                },
+                {
+                  "key": "boxId",
+                  "value": "{{boxId}}"
+                },
+                {
+                  "key": "locale",
+                  "value": "{{locale}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "updateDevice - 更新设备属性",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apim-accesstoken",
+                "value": "{{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assetId\": \"{{deviceAssetId}}\",\n  \"deviceAttributes\": {\n    \"attrIdentifiler\": \"\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/enos-edge/v1/updateDevice?orgId={{orgId}}&locale={{locale}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "enos-edge",
+                "v1",
+                "updateDevice"
+              ],
+              "query": [
+                {
+                  "key": "orgId",
+                  "value": "{{orgId}}"
+                },
+                {
+                  "key": "locale",
+                  "value": "{{locale}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "获取 Token",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "var moment = require('moment');",
+              "var ts = moment().valueOf();",
+              "var app_key = pm.environment.get('app_key');",
+              "var app_secret = pm.environment.get('app_secret');",
+              "var origin = app_key + ts + app_secret;",
+              "var token_encry = CryptoJS.SHA256(origin).toString().toLowerCase();",
+              "pm.environment.set('encryption', token_encry);",
+              "pm.environment.set('appKey', app_key);",
+              "pm.environment.set('genTs', ts);"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var data = JSON.parse(responseBody);",
+              "if (data.data && data.data.accessToken) {",
+              "    pm.environment.set('access_token', data.data.accessToken);",
+              "    console.log('Token saved:', data.data.accessToken.substring(0,20) + '...');",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"appKey\": \"{{appKey}}\", \"encryption\": \"{{encryption}}\", \"timestamp\": \"{{genTs}}\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{token_url}}",
+          "host": [
+            "{{token_url}}"
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}

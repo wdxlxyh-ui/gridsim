@@ -143,7 +143,9 @@ function loadTemplates() {
 }
 
 function saveTemplates() {
-  localStorage.setItem('trend_templates', JSON.stringify(templates.value))
+  try {
+    localStorage.setItem('trend_templates', JSON.stringify(templates.value))
+  } catch { /* quota exceeded in private browsing */ }
 }
 
 function loadTemplate(id: string) {
@@ -272,12 +274,14 @@ function confirmAddTrace() {
 
 // ── Persistence ──
 function savePanels() {
-  const save = panels.value.map(p => ({
-    id: p.id,
-    templateId: p.templateId,
-    traceConfigs: p.traceConfigs,
-  }))
-  localStorage.setItem('trend_panels', JSON.stringify(save))
+  try {
+    const save = panels.value.map(p => ({
+      id: p.id,
+      templateId: p.templateId,
+      traceConfigs: p.traceConfigs,
+    }))
+    localStorage.setItem('trend_panels', JSON.stringify(save))
+  } catch { /* quota exceeded in private browsing */ }
 }
 
 function loadPanels() {

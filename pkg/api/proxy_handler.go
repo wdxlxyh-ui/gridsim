@@ -113,7 +113,13 @@ func (h *ProxyHandler) executeRequest(req ProxyRequest, timeout time.Duration) P
 	}
 	defer resp.Body.Close()
 
-	bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
+	// Read up to 10MB + 1 byte to detect truncation
+	const maxBodySize = 10 << 20
+	bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, maxBodySize+1))
+	truncated := len(bodyBytes) > maxBodySize
+	if truncated {
+		bodyBytes = bodyBytes[:maxBodySize]
+	}
 
 	respHeaders := make(map[string]string)
 	for k := range resp.Header {
@@ -121,7 +127,7 @@ func (h *ProxyHandler) executeRequest(req ProxyRequest, timeout time.Duration) P
 	}
 
 	statusText := http.StatusText(resp.StatusCode)
-	return ProxyResponse{
+	result := ProxyResponse{
 		Status:     resp.StatusCode,
 		StatusText: statusText,
 		Headers:    respHeaders,
@@ -129,9 +135,13 @@ func (h *ProxyHandler) executeRequest(req ProxyRequest, timeout time.Duration) P
 		TimeMs:     elapsed.Milliseconds(),
 		Size:       len(bodyBytes),
 	}
+	if truncated {
+		result.Error = "response body truncated at 10MB"
+	}
+	return result
 }
 
-var varPattern = regexp.MustCompile(`\{\{(\w+)\}\}`)
+var varPattern = regexp.MustCompile(`\{\{([A-Za-z_][A-Za-z0-9_.]*)\}\}`)
 
 func ReplaceVars(text string, vars map[string]string) string {
 	if len(vars) == 0 {

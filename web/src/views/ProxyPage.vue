@@ -302,7 +302,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown } from '@element-plus/icons-vue'
 import {
@@ -367,12 +367,15 @@ const hasInvalidVarName = computed(() => Object.keys(activeEnvVars.value).some(k
 
 function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8) }
 
+// Unified debounce for auto-save (B9: merged script + field saves into single timer)
+function scheduleAutoSave(delay = 500) {
+  if (scriptSaveTimer) clearTimeout(scriptSaveTimer)
+  scriptSaveTimer = setTimeout(() => { autoSaveRequest() }, delay)
+}
+
 // Auto-save script content with debounce to prevent losing changes on refresh
 function onPreScriptInput() {
-  if (scriptSaveTimer) clearTimeout(scriptSaveTimer)
-  scriptSaveTimer = setTimeout(() => {
-    autoSaveRequest()
-  }, 800)
+  scheduleAutoSave(800)
 }
 
 // 构造沙箱时间辅助函数（pre/post script 复用）
@@ -531,7 +534,7 @@ async function send() {
       }
     }
 
-    const resolve = (s: string) => s.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] !== undefined ? vars[k] : `{{${k}}}`)
+    const resolve = (s: string) => s.replace(/\{\{([A-Za-z_][A-Za-z0-9_.]*)\}\}/g, (_, k) => vars[k] !== undefined ? vars[k] : `{{${k}}}`)
     const resolvedUrl = resolve(request.url)
     const resolvedBody = bodyType.value === 'none' ? '' : resolve(request.body)
     const resolvedHeaders: Record<string, string> = {}
@@ -546,6 +549,8 @@ async function send() {
     response.value = res
 
     // 历史中保存最终发出的完整参数（变量已替换为实际值）
+    // O4: Truncate large response bodies to prevent localStorage overflow
+    const MAX_HISTORY_BODY = 100 * 1024
     const entry = {
       method: request.method,
       url: request.url,
@@ -556,7 +561,7 @@ async function send() {
       status_text: res.status_text,
       time_ms: res.time_ms,
       size: res.size,
-      response_body: res.body,
+      response_body: res.body && res.body.length > MAX_HISTORY_BODY ? res.body.slice(0, MAX_HISTORY_BODY) + '\n...[truncated]' : res.body,
       response_headers: res.headers,
       timestamp: new Date().toLocaleTimeString(),
     }
@@ -688,11 +693,9 @@ async function doSaveCurrentRequest() {
   }
 }
 
-// Auto-save on any request field change
-let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
+// Auto-save on any request field change (reuses unified debounce)
 function debouncedAutoSave() {
-  if (autoSaveTimer) clearTimeout(autoSaveTimer)
-  autoSaveTimer = setTimeout(() => { autoSaveRequest() }, 500)
+  scheduleAutoSave(500)
 }
 
 // ─── Import / Export ───────────────────────────────────────────────────────
@@ -1010,9 +1013,15 @@ async function exportPostman() {
 
 function loadHistory(h: any) { request.method = h.method; request.url = h.url; showHistory.value = false }
 function toggleHistoryDetail(i: number) { historyOpen.value[i] = !historyOpen.value[i] }
-function switchEnv(id: string) {
+async function switchEnv(id: string) {
+  const prevId = activeEnvId.value
   activeEnvId.value = id
-  activateEnvironment(id)
+  try {
+    await activateEnvironment(id)
+  } catch {
+    activeEnvId.value = prevId
+    ElMessage.error('切换环境失败')
+  }
 }
 
 function addEnvironment() {
@@ -1181,6 +1190,11 @@ watch(() => request.url, () => { if (activeRequestId.value) debouncedAutoSave() 
 watch(() => request.body, () => { if (activeRequestId.value) debouncedAutoSave() })
 watch(() => request.method, () => { if (activeRequestId.value) debouncedAutoSave() })
 watch(() => headerList.value, () => { if (activeRequestId.value) debouncedAutoSave() }, { deep: true })
+
+// B7: Clean up timers on unmount
+onUnmounted(() => {
+  if (scriptSaveTimer) clearTimeout(scriptSaveTimer)
+})
 </script>
 
 <style scoped>

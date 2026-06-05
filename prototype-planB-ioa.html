@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>方案 B 交互原型 — 设备自声明 IOA（系统自动分配）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --page:#070d1a;--card:#0d1a2d;--card-hover:#0f1f36;--input-bg:#0a1628;
+  --border:#1a2d4a;--border-focus:#2196F3;
+  --text:#e8edf5;--text-dim:#7a8ba8;--text-muted:#3a4a6a;
+  --blue:#2196F3;--blue-glow:rgba(33,150,243,0.15);
+  --green:#4CAF50;--green-bg:rgba(76,175,80,0.12);
+  --amber:#FF9800;--amber-bg:rgba(255,152,0,0.12);
+  --red:#f44336;--red-bg:rgba(244,67,54,0.12);
+  --purple:#AB47BC;
+  --radius:8px;--radius-sm:4px;
+  --font:'Inter',system-ui,sans-serif;
+  --mono:'JetBrains Mono',monospace;
+}
+body{font-family:var(--font);background:var(--page);color:var(--text);min-height:100vh;padding:24px;line-height:1.5;}
+.app{max-width:1060px;margin:0 auto;}
+
+/* Header */
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid var(--border);}
+.header h1{font-size:17px;font-weight:600;display:flex;align-items:center;gap:10px;}
+.header h1 span{color:var(--text-dim);font-weight:400;font-size:13px;}
+.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px rgba(76,175,80,0.4);margin-right:6px;}
+
+/* Tabs */
+.tabs{display:flex;gap:2px;margin-bottom:18px;background:var(--card);border-radius:var(--radius);padding:4px;border:1px solid var(--border);}
+.tab-btn{flex:1;padding:8px 16px;border:none;background:transparent;color:var(--text-dim);font-size:13px;font-weight:500;cursor:pointer;border-radius:5px;transition:all .12s;font-family:var(--font);}
+.tab-btn.active{background:var(--blue);color:#fff;box-shadow:0 2px 10px rgba(33,150,243,0.3);}
+.tab-btn:not(.active):hover{background:var(--card-hover);color:var(--text);}
+
+/* Card */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:14px;overflow:hidden;}
+.card-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600;color:var(--text-dim);letter-spacing:0.3px;text-transform:uppercase;}
+.card-bd{padding:14px 16px;}
+
+/* Device List */
+.dev-list{display:flex;flex-direction:column;gap:6px;}
+.dev-row{
+  display:grid;grid-template-columns:auto 1fr auto auto auto auto;
+  gap:10px;align-items:center;padding:10px 14px;
+  background:var(--card);border:1px solid var(--border);border-radius:5px;
+  transition:all .1s;
+}
+.dev-row:hover{border-color:rgba(33,150,243,0.2);background:var(--card-hover);}
+.dev-row.conflict{border-color:var(--red);background:var(--red-bg);}
+
+.tag{font-size:10px;font-weight:600;padding:2px 8px;border-radius:3px;text-transform:uppercase;letter-spacing:0.4px;}
+.tag-pv{background:rgba(76,175,80,0.15);color:var(--green);}
+.tag-battery{background:var(--blue-glow);color:var(--blue);}
+.tag-load{background:var(--amber-bg);color:var(--amber);}
+.tag-charger{background:rgba(171,71,188,0.15);color:var(--purple);}
+
+.dev-name{font-weight:500;font-size:13px;}
+.dev-ioa{
+  font-family:var(--mono);font-size:11px;padding:2px 10px;border-radius:4px;
+  background:var(--blue-glow);color:var(--blue);white-space:nowrap;
+}
+.dev-ioa.conflict{background:var(--red-bg);color:var(--red);}
+.dev-spec{font-size:12px;color:var(--text-dim);}
+.dev-status{font-size:11px;}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border:none;border-radius:5px;font-size:12px;font-weight:500;cursor:pointer;font-family:var(--font);transition:all .12s;}
+.btn-primary{background:var(--blue);color:#fff;}
+.btn-primary:hover{box-shadow:0 2px 12px rgba(33,150,243,0.35);}
+.btn-outline{background:transparent;color:var(--text-dim);border:1px solid var(--border);}
+.btn-outline:hover{border-color:var(--blue);color:var(--blue);}
+.btn-danger{background:transparent;color:var(--red);border:1px solid var(--red);}
+.btn-danger:hover{background:var(--red-bg);}
+.btn-sm{padding:4px 10px;font-size:11px;}
+.btn-icon{padding:4px 8px;border:none;border-radius:4px;font-size:11px;font-weight:500;cursor:pointer;font-family:var(--font);transition:all .1s;background:transparent;color:var(--text-dim);}
+.btn-icon:hover{background:var(--card-hover);color:var(--text);}
+.btn-icon.danger{color:var(--red);}
+.btn-icon.danger:hover{background:var(--red-bg);}
+
+/* IOA Badge */
+.ioa-badge{font-family:var(--mono);font-size:10px;padding:1px 7px;border-radius:3px;font-weight:500;}
+.ioa-auto{background:var(--blue-glow);color:var(--blue);}
+.ioa-reserved{background:rgba(76,175,80,0.1);color:var(--green);}
+.ioa-conflict{background:var(--red-bg);color:var(--red);}
+
+/* Alert Banners */
+.alert{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:5px;font-size:12px;margin-bottom:12px;}
+.alert-error{background:var(--red-bg);color:var(--red);border:1px solid rgba(244,67,54,0.2);}
+.alert-warn{background:var(--amber-bg);color:var(--amber);border:1px solid rgba(255,152,0,0.2);}
+.alert-success{background:var(--green-bg);color:var(--green);border:1px solid rgba(76,175,80,0.2);}
+.alert-icon{font-size:16px;flex-shrink:0;}
+
+/* Table */
+.table-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+th{text-align:left;padding:7px 10px;color:var(--text-dim);font-weight:500;font-size:10px;text-transform:uppercase;letter-spacing:0.4px;border-bottom:1px solid var(--border);}
+td{padding:6px 10px;border-bottom:1px solid rgba(26,45,74,0.4);}
+tr:hover td{background:var(--card-hover);}
+
+/* Dialogs */
+.modal-overlay{
+  display:none;position:fixed;top:0;left:0;width:100%;height:100%;
+  background:rgba(0,0,0,0.7);backdrop-filter:blur(3px);
+  z-index:100;justify-content:center;align-items:center;
+}
+.modal-overlay.open{display:flex;}
+.modal{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:10px;width:520px;max-height:85vh;overflow-y:auto;
+  box-shadow:0 20px 60px rgba(0,0,0,0.5);animation:mIn .2s ease-out;
+}
+@keyframes mIn{from{opacity:0;transform:translateY(12px) scale(0.98);}}
+.modal-hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);}
+.modal-hdr h2{font-size:14px;font-weight:600;}
+.modal-close{width:26px;height:26px;border:none;background:transparent;color:var(--text-dim);font-size:16px;cursor:pointer;border-radius:4px;display:flex;align-items:center;justify-content:center;}
+.modal-close:hover{background:var(--card-hover);color:var(--text);}
+.modal-bd{padding:18px;}
+.modal-ft{display:flex;justify-content:flex-end;gap:8px;padding:10px 18px;border-top:1px solid var(--border);}
+
+/* Form */
+.fg{margin-bottom:12px;}
+.fl{display:block;font-size:11px;color:var(--text-dim);margin-bottom:3px;font-weight:500;}
+.inp{width:100%;padding:7px 10px;background:var(--input-bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:13px;font-family:var(--font);outline:none;transition:border .12s;}
+.inp:focus{border-color:var(--border-focus);box-shadow:0 0 0 3px var(--blue-glow);}
+.inp::placeholder{color:var(--text-muted);}
+.inp.error{border-color:var(--red);box-shadow:0 0 0 3px var(--red-bg);}
+.inp:disabled{opacity:0.5;cursor:not-allowed;}
+.inp-sfx{display:flex;align-items:center;gap:6px;}
+.inp-sfx .inp{flex:1;}
+.inp-sfx .sfx{font-size:11px;color:var(--text-dim);white-space:nowrap;}
+.flex-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.rg{display:flex;gap:2px;background:var(--input-bg);padding:3px;border-radius:5px;border:1px solid var(--border);}
+.ro{padding:5px 12px;border:none;background:transparent;color:var(--text-dim);font-size:11px;font-weight:500;cursor:pointer;border-radius:3px;transition:all .1s;font-family:var(--font);}
+.ro.active{background:var(--blue);color:#fff;}
+
+/* IOA Allocation Table */
+.ioa-table{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:10px;}
+.ioa-cell{
+  padding:5px 6px;border-radius:3px;font-size:10px;font-family:var(--mono);
+  text-align:center;cursor:default;transition:all .1s;
+  background:var(--input-bg);border:1px solid var(--border);color:var(--text-dim);
+}
+.ioa-cell.ai{border-color:rgba(33,150,243,0.3);color:var(--blue);background:var(--blue-glow);}
+.ioa-cell.di{border-color:rgba(255,152,0,0.3);color:var(--amber);background:var(--amber-bg);}
+.ioa-cell.ao{border-color:rgba(156,39,176,0.3);color:var(--purple);background:rgba(171,71,188,0.1);}
+.ioa-cell.do{border-color:rgba(76,175,80,0.3);color:var(--green);background:var(--green-bg);}
+.ioa-cell.custom{border-color:rgba(33,150,243,0.15);color:var(--text-dim);background:transparent;border-style:dashed;}
+.ioa-cell.free{color:var(--text-muted);border-color:transparent;background:transparent;}
+.ioa-cell.conflict{background:var(--red-bg);border-color:var(--red);color:var(--red);}
+.ioa-cell .lbl{display:block;font-size:7px;text-transform:uppercase;letter-spacing:0.3px;font-family:var(--font);font-weight:500;opacity:0.6;}
+
+/* Misc */
+.flex{display:flex;}.items-center{align-items:center;}.gap-6{gap:6px;}.gap-10{gap:10px;}.mt-8{margin-top:8px;}.mt-10{margin-top:10px;}.mb-10{margin-bottom:10px;}
+.text-xs{font-size:11px;}.text-2xs{font-size:10px;}.text-dim{color:var(--text-dim);}.mono{font-family:var(--mono);}
+.badge{display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:500;}
+.badge.on{background:var(--green-bg);color:var(--green);}
+.badge.off{background:var(--red-bg);color:var(--red);}
+.divider{height:1px;background:var(--border);margin:12px 0;}
+
+/* Point item */
+.pt-item{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;}
+.pt-item .ioa{min-width:50px;}
+.pt-item .name{color:var(--text-dim);}
+.pt-item .name strong{color:var(--text);}
+
+/* Demo */
+.demo-bar{
+  text-align:center;padding:10px;font-size:11px;color:var(--text-dim);
+  border:1px dashed var(--border);border-radius:5px;margin-bottom:14px;
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>
+      <span class="status-dot"></span>
+      微电网仿真系统
+      <span>| 方案 B — IOA 系统自动分配</span>
+    </h1>
+    <span style="font-size:11px;color:var(--text-dim);background:var(--card);padding:4px 12px;border-radius:20px;border:1px solid var(--border)">交互原型 v2</span>
+  </div>
+
+  <div class="demo-bar">
+    💡 点击设备行的"详情"查看 IOA 分配 · 模拟冲突场景观察错误提示
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('topo')">拓扑配置</button>
+    <button class="tab-btn" onclick="switchTab('points')">测点列表</button>
+  </div>
+
+  <!-- ======================== TAB: TOPOLOGY ======================== -->
+  <div id="tab-topo">
+
+    <!-- Conflict Banner (hidden by default) -->
+    <div class="alert alert-error" id="conflictBanner" style="display:none">
+      <span class="alert-icon">⚠️</span>
+      <div>
+        <strong>IOA 冲突检测</strong><br>
+        <span id="conflictMsg"></span>
+      </div>
+      <button class="btn btn-sm btn-danger" style="margin-left:auto" onclick="resolveConflicts()">自动修复</button>
+    </div>
+
+    <div class="alert alert-success" id="okBanner" style="display:none">
+      <span class="alert-icon">✓</span>
+      <span id="okMsg">IOA 分配正常，无冲突</span>
+    </div>
+
+    <!-- Device List -->
+    <div class="card">
+      <div class="card-hdr">
+        <span>设备列表</span>
+        <button class="btn btn-primary btn-sm" onclick="openAdd()">+ 添加设备</button>
+      </div>
+      <div class="card-bd">
+        <div class="dev-list" id="devList"></div>
+      </div>
+    </div>
+
+    <!-- IOA Map & Grid Meter -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div class="card">
+        <div class="card-hdr"><span>IOA 分配总览</span></div>
+        <div class="card-bd">
+          <div style="display:flex;flex-direction:column;gap:4px;font-size:11px">
+            <div class="flex items-center gap-6"><span class="text-dim">已分配设备</span><strong>4</strong><span class="text-dim">/ 20</span></div>
+            <div class="flex items-center gap-6"><span class="text-dim">占用范围</span><span class="mono" style="color:var(--blue)">101–350</span></div>
+            <div class="flex items-center gap-6"><span class="text-dim">下一可用</span><span class="mono" style="color:var(--green)">351</span></div>
+          </div>
+          <div class="ioa-table" id="ioaMapGrid"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hdr"><span>关口表（固定保留）</span></div>
+        <div class="card-bd">
+          <div style="display:flex;flex-wrap:wrap;gap:4px 14px;font-size:11px">
+            <span><span class="ioa-badge ioa-reserved">1</span> 有功功率</span>
+            <span><span class="ioa-badge ioa-reserved">2</span> 无功功率</span>
+            <span><span class="ioa-badge ioa-reserved">3</span> 电压</span>
+            <span><span class="ioa-badge ioa-reserved">4</span> 频率</span>
+            <span><span class="ioa-badge ioa-reserved">1001</span> 运行状态</span>
+            <span><span class="ioa-badge ioa-reserved">1002</span> 孤岛状态</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================== TAB: POINTS ======================== -->
+  <div id="tab-points" style="display:none">
+    <div class="card">
+      <div class="card-hdr">
+        <span>IEC104 测点列表</span>
+        <span style="font-weight:400;font-size:10px;color:var(--text-muted)">共计 31 个测点</span>
+      </div>
+      <div class="card-bd">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>IOA</th><th>归属设备</th><th>测点名称</th><th>类型</th><th>当前值</th><th>状态</th></tr>
+            </thead>
+            <tbody id="ptTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================== ADD DEVICE DIALOG ======================== -->
+  <div class="modal-overlay" id="addDlg">
+    <div class="modal">
+      <div class="modal-hdr">
+        <h2>添加设备</h2>
+        <button class="modal-close" onclick="closeDlg('addDlg')">✕</button>
+      </div>
+      <div class="modal-bd">
+        <!-- Validation banner -->
+        <div class="alert alert-error" id="addErr" style="display:none">
+          <span class="alert-icon">⚠️</span>
+          <span id="addErrMsg"></span>
+        </div>
+
+        <div class="fg">
+          <label class="fl">设备类型</label>
+          <div class="rg">
+            <button class="ro active" onclick="pickType(this,'pv')">光伏</button>
+            <button class="ro" onclick="pickType(this,'battery')">储能</button>
+            <button class="ro" onclick="pickType(this,'load')">负荷</button>
+            <button class="ro" onclick="pickType(this,'charger')">充电桩</button>
+          </div>
+        </div>
+
+        <div class="fg">
+          <label class="fl">设备名称</label>
+          <input class="inp" id="addName" value="光伏-3" placeholder="如: PV-3" />
+        </div>
+
+        <!-- IOA auto-assignment info (read-only) -->
+        <div class="fg" style="background:var(--blue-glow);border-radius:5px;padding:10px 12px;border:1px solid rgba(33,150,243,0.15)">
+          <div class="flex items-center gap-6" style="margin-bottom:6px">
+            <span style="font-size:11px;font-weight:600;color:var(--blue)">IOA 分配预览</span>
+            <span class="ioa-badge ioa-auto" id="addIOABadge">351~400</span>
+            <span style="font-size:10px;color:var(--text-dim)">（系统自动分配）</span>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:2px 14px;font-size:10px;color:var(--text-dim)" id="addIOAPreview">
+            <span>AI 351~352</span>
+            <span>DI 361~362</span>
+            <span>AO 371</span>
+            <span>DO 381</span>
+            <span>自定义 391~400</span>
+          </div>
+        </div>
+
+        <div class="flex-row">
+          <div class="fg">
+            <label class="fl">额定功率</label>
+            <div class="inp-sfx"><input class="inp" value="150" /><span class="sfx">kW</span></div>
+          </div>
+          <div class="fg">
+            <label class="fl">效率</label>
+            <div class="inp-sfx"><input class="inp" value="0.95" /><span class="sfx">%</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-ft">
+        <button class="btn btn-outline" onclick="closeDlg('addDlg')">取消</button>
+        <button class="btn btn-primary" onclick="doAddDevice()">添加</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================== DEVICE DETAIL DIALOG ======================== -->
+  <div class="modal-overlay" id="detailDlg">
+    <div class="modal" style="width:600px">
+      <div class="modal-hdr">
+        <h2 id="detailTitle">设备详情</h2>
+        <button class="modal-close" onclick="closeDlg('detailDlg')">✕</button>
+      </div>
+      <div class="modal-bd">
+        <!-- Conflict inside detail -->
+        <div class="alert alert-error" id="detailConflict" style="display:none">
+          <span class="alert-icon">⚠️</span>
+          <span id="detailConflictMsg"></span>
+        </div>
+
+        <div class="flex-row">
+          <div class="fg">
+            <label class="fl">设备名称</label>
+            <input class="inp" id="dtName" disabled />
+          </div>
+          <div class="fg">
+            <label class="fl">控制模式</label>
+            <div class="rg">
+              <button class="ro" onclick="pickMode(this,'remote')">远方</button>
+              <button class="ro" onclick="pickMode(this,'local')">本地</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- IOA Display (read-only) -->
+        <div class="fg">
+          <label class="fl">IOA 分配 <span class="text-2xs text-dim">（系统自动 · 不可修改）</span></label>
+          <div style="background:var(--input-bg);border:1px solid var(--border);border-radius:5px;padding:8px 12px">
+            <div class="flex items-center gap-10" style="margin-bottom:6px">
+              <span class="mono" style="font-size:13px;font-weight:600;color:var(--blue)" id="dtIOABase">101</span>
+              <span class="text-xs text-dim" id="dtIOARange">占用 AI 101~102 · DI 111~112 · AO 121 · DO 131</span>
+            </div>
+            <div id="dtIOAGrid" class="ioa-table" style="grid-template-columns:repeat(10,1fr)"></div>
+          </div>
+        </div>
+
+        <!-- Standard points list -->
+        <div class="fg">
+          <label class="fl">标准测点</label>
+          <div id="dtPoints" style="display:grid;grid-template-columns:1fr 1fr;gap:2px 20px"></div>
+        </div>
+
+        <!-- Custom points (read-only) -->
+        <div class="divider"></div>
+        <div class="fg">
+          <label class="fl">自定义测点 <span class="text-2xs text-dim">（共 3 个）</span></label>
+          <div id="dtCustom">
+            <div class="pt-item"><span class="ioa ioa-badge ioa-auto">391</span><span class="name"><strong>电芯最高温</strong> BMS.MaxCellTemp</span><span class="badge" style="background:var(--blue-glow);color:var(--blue);font-size:9px">AI</span></div>
+            <div class="pt-item"><span class="ioa ioa-badge ioa-auto">392</span><span class="name"><strong>电芯最低温</strong> BMS.MinCellTemp</span><span class="badge" style="background:var(--blue-glow);color:var(--blue);font-size:9px">AI</span></div>
+            <div class="pt-item"><span class="ioa ioa-badge ioa-auto">393</span><span class="name"><strong>故障告警</strong> BMS.Fault</span><span class="badge" style="background:var(--amber-bg);color:var(--amber);font-size:9px">DI</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-ft">
+        <button class="btn btn-outline" onclick="closeDlg('detailDlg')">关闭</button>
+        <button class="btn btn-primary" onclick="closeDlg('detailDlg')">保存</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── Data ──
+const TLABEL = { pv:'光伏', battery:'储能', load:'负荷', charger:'充电桩' };
+const TCLASS = { pv:'tag-pv', battery:'tag-battery', load:'tag-load', charger:'tag-charger' };
+
+// Device struct now has NO user-settable IOA — system assigns it
+const devices = [
+  { id:'pv1', type:'pv', name:'光伏-1', ioa:101, spec:'100 kW', on:true  },
+  { id:'bat1', type:'battery', name:'储能-1', ioa:151, spec:'100 kWh / 200 kW', on:true },
+  { id:'load1', type:'load', name:'负荷-1', ioa:201, spec:'50 kW', on:true },
+  { id:'ch1', type:'charger', name:'充电桩-1', ioa:251, spec:'30 kW', on:false },
+];
+
+// Standard point offsets per type
+const STDOFF = {
+  pv: [
+    {off:0, name:'有功功率', type:'AI'}, {off:1, name:'日发电量', type:'AI'},
+    {off:10, name:'运行状态', type:'DI'}, {off:11, name:'开关状态', type:'DI'},
+    {off:20, name:'功率设定', type:'AO'}, {off:30, name:'远程启机', type:'DO'}
+  ],
+  battery: [
+    {off:0, name:'电池SOC', type:'AI'}, {off:1, name:'充放电功率', type:'AI'},
+    {off:10, name:'运行状态', type:'DI'}, {off:11, name:'开关状态', type:'DI'},
+    {off:20, name:'功率设定', type:'AO'}, {off:30, name:'远程启机', type:'DO'}
+  ],
+  load: [
+    {off:0, name:'有功功率', type:'AI'},
+    {off:10, name:'运行状态', type:'DI'}, {off:11, name:'开关状态', type:'DI'},
+    {off:20, name:'功率设定', type:'AO'}, {off:30, name:'遥控分合', type:'DO'}
+  ],
+  charger: [
+    {off:0, name:'充电功率', type:'AI'},
+    {off:10, name:'运行状态', type:'DI'}, {off:11, name:'开关状态', type:'DI'},
+    {off:20, name:'功率设定', type:'AO'}, {off:30, name:'遥控分合', type:'DO'}
+  ]
+};
+
+// ── Auto IOA Allocation Engine ──
+function nextIOABase() {
+  const occupied = new Set();
+  // Grid meter reserved
+  for (let i = 1; i <= 100; i++) occupied.add(i);
+  // Existing devices
+  devices.forEach(d => {
+    for (let off = 0; off < 50; off++) occupied.add(d.ioa + off);
+  });
+  // Find first free 50-block
+  for (let base = 101; base <= 65000; base += 50) {
+    let free = true;
+    for (let off = 0; off < 50; off++) {
+      if (occupied.has(base + off)) { free = false; break; }
+    }
+    if (free) return base;
+  }
+  return 0;
+}
+
+function allocCustomPointIOA(dev, idx) {
+  return dev.ioa + 40 + idx * 2;
+}
+
+// ── Validation Engine (Frontend) ──
+function validateIOA() {
+  const errors = [];
+  const seen = new Map(); // ioa → device info
+
+  // Grid meter reserved check
+  for (let d of devices) {
+    for (let off = 0; off < 50; off++) {
+      const ioa = d.ioa + off;
+      if (ioa <= 100) {
+        errors.push(`设备 "${d.name}" IOA ${ioa} 与关口表保留区 (1-100) 冲突`);
+      }
+      if (seen.has(ioa) && seen.get(ioa) !== d.id) {
+        errors.push(`设备 "${d.name}" IOA ${ioa} 与设备 "${seen.get(ioa)}" 冲突`);
+      }
+      seen.set(ioa, d.id);
+    }
+  }
+  return errors;
+}
+
+function markConflicts() {
+  const errs = validateIOA();
+  const banner = document.getElementById('conflictBanner');
+  const okBanner = document.getElementById('okBanner');
+  const msg = document.getElementById('conflictMsg');
+
+  if (errs.length > 0) {
+    banner.style.display = 'flex';
+    okBanner.style.display = 'none';
+    msg.innerHTML = errs.join('<br>');
+    // Mark conflicting devices
+    devices.forEach(d => {
+      // Check if this device has any conflict
+      let hasConflict = false;
+      for (let off = 0; off < 50; off++) {
+        const ioa = d.ioa + off;
+        if (ioa <= 100) { hasConflict = true; break; }
+        for (let d2 of devices) {
+          if (d2.id === d.id) continue;
+          if (ioa >= d2.ioa && ioa < d2.ioa + 50) { hasConflict = true; break; }
+        }
+        if (hasConflict) break;
+      }
+      d._conflict = hasConflict;
+    });
+  } else {
+    banner.style.display = 'none';
+    okBanner.style.display = 'flex';
+    okMsg.textContent = 'IOA 分配正常，无冲突';
+    devices.forEach(d => d._conflict = false);
+  }
+  renderDevList();
+  renderPoints();
+}
+
+function resolveConflicts() {
+  // Reassign all devices IOA in order
+  devices.sort((a, b) => a.ioa - b.ioa || a.id.localeCompare(b.id));
+  let base = 101;
+  // But grid meter 1-100 must be protected
+  devices.forEach(d => {
+    // Check if current base collides with grid meter range
+    while (base <= 100) base += 50;
+    d.ioa = base;
+    base += 50;
+  });
+  markConflicts();
+}
+
+// ── Render Device List ──
+function renderDevList() {
+  const el = document.getElementById('devList');
+  el.innerHTML = devices.map(d => {
+    const endIoa = d.ioa + 49;
+    return `<div class="dev-row ${d._conflict ? 'conflict' : ''}">
+      <span class="tag ${TCLASS[d.type]}">${TLABEL[d.type]}</span>
+      <span class="dev-name">${d.name}</span>
+      <span class="dev-ioa ${d._conflict ? 'conflict' : ''}"><span style="opacity:0.5">基础</span> ${d.ioa}~${endIoa}</span>
+      <span class="dev-spec">${d.spec}</span>
+      <span><span class="badge ${d.on ? 'on' : 'off'}">${d.on ? '合' : '分'}</span></span>
+      <div style="display:flex;gap:4px">
+        <button class="btn-icon" onclick="showDetail('${d.id}')">详情</button>
+        <button class="btn-icon danger" onclick="devices.splice(${devices.indexOf(d)},1);markConflicts();renderPoints()">删除</button>
+      </div>
+    </div>`;
+  }).join('');
+  renderIOAMap();
+}
+
+// ── Render IOA Map ──
+function renderIOAMap() {
+  const grid = document.getElementById('ioaMapGrid');
+  const cells = [];
+  for (let d of devices) {
+    for (let off = 0; off < 50; off++) {
+      if (off >= 6 && off < 40) continue; // skip unused gap, show only meaningful range
+    }
+  }
+
+  // Show a condensed overview: first 6 points of each device
+  let html = '';
+  devices.forEach(d => {
+    const offsets = STDOFF[d.type] || [];
+    offsets.forEach(o => {
+      const ioa = d.ioa + o.off;
+      const typeClass = o.type.toLowerCase();
+      const conflict = d._conflict;
+      html += `<div class="ioa-cell ${typeClass} ${conflict ? 'conflict' : ''}" title="${d.name} ${o.name} (IOA ${ioa})">
+        ${ioa}<span class="lbl">${o.type}</span>
+      </div>`;
+    });
+    // Custom range indicator
+    html += `<div class="ioa-cell custom" title="${d.name} 自定义测点">${d.ioa+40}<span class="lbl">CSTM</span></div>`;
+  });
+  grid.innerHTML = html || '<div class="text-xs text-dim" style="grid-column:1/-1;text-align:center;padding:8px">暂无设备</div>';
+}
+
+// ── Point Table ──
+function renderPoints() {
+  const tbody = document.getElementById('ptTbody');
+  const rows = [];
+
+  // Grid meter
+  const gp = [
+    [1,'关口表_有功功率','AI','—'],[2,'关口表_无功功率','AI','—'],
+    [3,'关口表_电压','AI','10.0 kV'],[4,'关口表_频率','AI','50.00 Hz'],
+    [1001,'关口表_运行状态','DI','1'],[1002,'关口表_孤岛状态','DI','0']
+  ];
+  gp.forEach(p => {
+    rows.push(`<tr><td><span class="ioa-badge ioa-reserved">${p[0]}</span></td>
+      <td><span style="color:var(--text-muted)">关口表</span></td>
+      <td>${p[1]}</td>
+      <td><span class="badge" style="background:rgba(33,150,243,0.1);color:var(--blue);font-size:9px">${p[2]}</span></td>
+      <td class="mono">${p[3]}</td><td><span class="badge" style="background:var(--green-bg);color:var(--green);font-size:9px">固定</span></td></tr>`);
+  });
+
+  // Devices
+  devices.forEach(d => {
+    const offsets = STDOFF[d.type] || [];
+    offsets.forEach(o => {
+      const ioa = d.ioa + o.off;
+      const conflict = d._conflict;
+      rows.push(`<tr>
+        <td><span class="ioa-badge ${conflict ? 'ioa-conflict' : 'ioa-auto'}">${ioa}</span></td>
+        <td><span style="color:var(--blue)">${d.name}</span></td>
+        <td><span style="color:var(--text-dim)">${d.id}_</span>${o.name}</td>
+        <td><span class="badge" style="background:${o.type==='AI'?'var(--blue-glow);color:var(--blue)':'var(--amber-bg);color:var(--amber)'};font-size:9px">${o.type}</span></td>
+        <td class="mono">${d.on ? (o.type==='DI'?'1':'—') : '0'}</td>
+        <td>${conflict ? '<span class="badge" style="background:var(--red-bg);color:var(--red);font-size:9px">⚠ 冲突</span>' : '<span class="badge" style="background:var(--green-bg);color:var(--green);font-size:9px">正常</span>'}</td>
+      </tr>`);
+    });
+  });
+
+  tbody.innerHTML = rows.join('');
+}
+
+// ── Add Device ──
+let newType = 'pv';
+
+function pickType(el, t) {
+  el.closest('.rg').querySelectorAll('.ro').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  newType = t;
+  updateAddPreview();
+}
+
+function updateAddPreview() {
+  const base = nextIOABase();
+  document.getElementById('addIOABadge').textContent = `${base}~${base+49}`;
+  const offsets = STDOFF[newType] || [];
+  const ai = offsets.filter(o => o.type === 'AI');
+  const di = offsets.filter(o => o.type === 'DI');
+  const parts = [];
+  if (ai.length) parts.push(`AI ${base}~${base+ai.length-1}`);
+  if (di.length) parts.push(`DI ${base+di[0].off}~${base+di[di.length-1].off}`);
+  const ao = offsets.find(o => o.type === 'AO');
+  if (ao) parts.push(`AO ${base+ao.off}`);
+  const do_ = offsets.find(o => o.type === 'DO');
+  if (do_) parts.push(`DO ${base+do_.off}`);
+  parts.push(`自定义 ${base+40}~${base+49}`);
+  document.getElementById('addIOAPreview').innerHTML = parts.map(p => `<span>${p}</span>`).join('');
+}
+
+function openAdd() {
+  document.getElementById('addErr').style.display = 'none';
+  document.getElementById('addName').value = '';
+  updateAddPreview();
+  document.getElementById('addDlg').classList.add('open');
+}
+
+function doAddDevice() {
+  const name = document.getElementById('addName').value.trim();
+  if (!name) {
+    document.getElementById('addErrMsg').textContent = '请输入设备名称';
+    document.getElementById('addErr').style.display = 'flex';
+    return;
+  }
+  // Validate name uniqueness
+  if (devices.some(d => d.name === name)) {
+    document.getElementById('addErrMsg').textContent = `设备名称 "${name}" 已存在`;
+    document.getElementById('addErr').style.display = 'flex';
+    return;
+  }
+
+  const base = nextIOABase();
+  if (!base) {
+    document.getElementById('addErrMsg').textContent = 'IOA 地址空间已满，无法添加新设备';
+    document.getElementById('addErr').style.display = 'flex';
+    return;
+  }
+
+  const id = name.toLowerCase().replace(/[^a-z0-9]/g,'') + '-' + Date.now();
+  const specs = { pv:`${document.querySelector('#addDlg .inp-sfx .inp')?.value || 100} kW` };
+  devices.push({
+    id, type: newType, name, ioa: base,
+    spec: specs[newType] || '—',
+    on: true,
+    _conflict: false
+  });
+  closeDlg('addDlg');
+  markConflicts();
+  renderPoints();
+}
+
+// ── Device Detail ──
+function showDetail(id) {
+  const d = devices.find(x => x.id === id);
+  if (!d) return;
+
+  document.getElementById('detailTitle').textContent = `设备详情 — ${d.name}`;
+  document.getElementById('dtName').value = d.name;
+  document.getElementById('dtIOABase').textContent = d.ioa;
+
+  // IOA range description
+  const offsets = STDOFF[d.type] || [];
+  const ai = offsets.filter(o => o.type === 'AI');
+  const di = offsets.filter(o => o.type === 'DI');
+  const ao = offsets.find(o => o.type === 'AO');
+  const do_ = offsets.find(o => o.type === 'DO');
+  const parts = [];
+  if (ai.length) parts.push(`AI ${d.ioa+ai[0].off}~${d.ioa+ai[ai.length-1].off}`);
+  if (di.length) parts.push(`DI ${d.ioa+di[0].off}~${d.ioa+di[di.length-1].off}`);
+  if (ao) parts.push(`AO ${d.ioa+ao.off}`);
+  if (do_) parts.push(`DO ${d.ioa+do_.off}`);
+  document.getElementById('dtIOARange').textContent = `占用 ${parts.join(' · ')}`;
+
+  // Conflict check
+  const conflictAlert = document.getElementById('detailConflict');
+  if (d._conflict) {
+    conflictAlert.style.display = 'flex';
+    document.getElementById('detailConflictMsg').textContent = `IOA 范围 ${d.ioa}~${d.ioa+49} 与其他设备冲突，请联系管理员修复`;
+  } else {
+    conflictAlert.style.display = 'none';
+  }
+
+  // Grid view
+  const grid = document.getElementById('dtIOAGrid');
+  const gridCells = [];
+  for (let off = 0; off < 50; off++) {
+    const ioa = d.ioa + off;
+    const std = offsets.find(o => o.off === off);
+    if (std) {
+      gridCells.push(`<div class="ioa-cell ${std.type.toLowerCase()}" title="${std.name} (${std.type})">${ioa}<span class="lbl">${std.type}</span></div>`);
+    } else if (off >= 40) {
+      const ci = off - 40;
+      gridCells.push(`<div class="ioa-cell custom" title="自定义测点 ${ci+1}">${ioa}<span class="lbl">C${ci+1}</span></div>`);
+    } else {
+      gridCells.push(`<div class="ioa-cell free">•</div>`);
+    }
+  }
+  grid.innerHTML = gridCells.join('');
+
+  // Standard points list
+  const ptList = document.getElementById('dtPoints');
+  ptList.innerHTML = offsets.map(o =>
+    `<div class="pt-item"><span class="ioa ioa-badge ioa-auto">${d.ioa+o.off}</span><span class="name"><strong>${o.name}</strong> ${d.id}_${o.name}</span><span class="badge" style="background:${o.type==='AI'?'var(--blue-glow);color:var(--blue)':'var(--amber-bg);color:var(--amber)'};font-size:9px">${o.type}</span></div>`
+  ).join('');
+
+  document.getElementById('detailDlg').classList.add('open');
+}
+
+// ── Dialogs ──
+function closeDlg(id) { document.getElementById(id).classList.remove('open'); }
+
+// ── Tabs ──
+function switchTab(name) {
+  document.getElementById('tab-topo').style.display = name === 'topo' ? '' : 'none';
+  document.getElementById('tab-points').style.display = name === 'points' ? '' : 'none';
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.textContent.trim().startsWith(name === 'topo' ? '拓扑' : '测点')));
+}
+
+function pickMode(el) {
+  el.closest('.rg').querySelectorAll('.ro').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ── Init ──
+markConflicts();
+renderPoints();
+</script>
+</body>
+</html>
