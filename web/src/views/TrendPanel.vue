@@ -199,7 +199,13 @@ async function fetchAllPoints() {
         let v = pt.value
         if (pt.point_type === 'DI' || pt.point_type === 'DO') v = pt.bool_value ? 1 : 0
         else if (pt.point_type === 'PI') v = pt.int_value
-        trace.data.push([ts, v])
+        // Deduplicate: skip if same timestamp as last point
+        const last = trace.data[trace.data.length - 1]
+        if (last && last[0] === ts) {
+          last[1] = v // update value if changed
+        } else {
+          trace.data.push([ts, v])
+        }
       }
     } catch { /* instance may have stopped */ }
   }
