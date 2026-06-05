@@ -176,30 +176,46 @@ func (c *SimulatorClient) ConfigCSVReplay(instID string, body json.RawMessage) (
 	return c.post(fmt.Sprintf("/api/v1/instances/%s/csv-replay", instID), body)
 }
 
-// ---- Proxy / API Testing ----
+// ---- Proxy / API Tester Tools ----
 
-func (c *SimulatorClient) ProxyRequest(body json.RawMessage) (json.RawMessage, error) {
-	return c.post("/api/v1/proxy", body)
+func (c *SimulatorClient) ProxyRequest(method, url, headersJSON, body string, timeout int) (json.RawMessage, error) {
+	type proxyReq struct {
+		Method  string            `json:"method"`
+		URL     string            `json:"url"`
+		Headers map[string]string `json:"headers"`
+		Body    string            `json:"body"`
+		Timeout int               `json:"timeout"`
+	}
+	hdrs := make(map[string]string)
+	if headersJSON != "" {
+		_ = json.Unmarshal([]byte(headersJSON), &hdrs)
+	}
+	if timeout <= 0 {
+		timeout = 30
+	}
+	reqBody := proxyReq{Method: method, URL: url, Headers: hdrs, Body: body, Timeout: timeout}
+	raw, _ := json.Marshal(reqBody)
+	return c.post("/api/v1/proxy", raw)
 }
 
-func (c *SimulatorClient) ListCollections() (json.RawMessage, error) {
+func (c *SimulatorClient) GetCollections() (json.RawMessage, error) {
 	return c.get("/api/v1/proxy/collections")
 }
 
-func (c *SimulatorClient) SaveCollection(body json.RawMessage) (json.RawMessage, error) {
-	return c.post("/api/v1/proxy/collections", body)
+func (c *SimulatorClient) SaveCollection(itemJSON string) (json.RawMessage, error) {
+	return c.post("/api/v1/proxy/collections", json.RawMessage(itemJSON))
 }
 
 func (c *SimulatorClient) DeleteCollection(id string) (json.RawMessage, error) {
 	return c.delete("/api/v1/proxy/collections/" + id)
 }
 
-func (c *SimulatorClient) ListEnvironments() (json.RawMessage, error) {
+func (c *SimulatorClient) GetEnvironments() (json.RawMessage, error) {
 	return c.get("/api/v1/proxy/environments")
 }
 
-func (c *SimulatorClient) SaveEnvironment(body json.RawMessage) (json.RawMessage, error) {
-	return c.post("/api/v1/proxy/environments", body)
+func (c *SimulatorClient) SaveEnvironment(envJSON string) (json.RawMessage, error) {
+	return c.post("/api/v1/proxy/environments", json.RawMessage(envJSON))
 }
 
 func (c *SimulatorClient) DeleteEnvironment(id string) (json.RawMessage, error) {
@@ -208,6 +224,10 @@ func (c *SimulatorClient) DeleteEnvironment(id string) (json.RawMessage, error) 
 
 func (c *SimulatorClient) ActivateEnvironment(id string) (json.RawMessage, error) {
 	return c.post("/api/v1/proxy/environments/"+id+"/activate", nil)
+}
+
+func (c *SimulatorClient) ExportProxyConfig() (json.RawMessage, error) {
+	return c.get("/api/v1/proxy/export")
 }
 
 // ---- HTTP helpers ----

@@ -37,6 +37,14 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
 			os.Exit(1)
 		}
+	case "proxy":
+		s := mcp.NewProxyServer(client)
+		log.Printf("启动 IEC104 API Tester MCP Server (stdio)")
+		log.Printf("连接模拟器: %s", *simulatorURL)
+		if err := mcp_srv.ServeStdio(s); err != nil {
+			fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
+			os.Exit(1)
+		}
 	case "both":
 		// Combined server: all tools from all services in one MCP server
 		s := mcp_srv.NewMCPServer(
@@ -44,17 +52,14 @@ func main() {
 			"1.0.0",
 			mcp_srv.WithLogging(),
 		)
-		// Transfer tools from Instance Manager
 		instSrv := mcp.NewInstanceManagerServer(client)
 		for _, t := range instSrv.ListTools() {
 			s.AddTool(t.Tool, t.Handler)
 		}
-		// Transfer tools from Data Interface
 		dataSrv := mcp.NewDataInterfaceServer(client)
 		for _, t := range dataSrv.ListTools() {
 			s.AddTool(t.Tool, t.Handler)
 		}
-		// Transfer tools from Proxy Server
 		proxySrv := mcp.NewProxyServer(client)
 		for _, t := range proxySrv.ListTools() {
 			s.AddTool(t.Tool, t.Handler)
@@ -66,7 +71,7 @@ func main() {
 			os.Exit(1)
 		}
 	default:
-		fmt.Fprintf(os.Stderr, "未知模式: %s (可选: instance / data / both)\n", *mode)
+		fmt.Fprintf(os.Stderr, "未知模式: %s (可选: instance / data / proxy / both)\n", *mode)
 		os.Exit(1)
 	}
 }
