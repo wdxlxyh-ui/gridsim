@@ -305,13 +305,13 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Ro
 }
 
 .collapsed .nav-label {
-  opacity: 0;
-  pointer-events: none;
+  display: none;
 }
 
 .collapsed .nav-item {
   justify-content: center;
   padding: 10px;
+  gap: 0;
 }
 
 .collapsed .nav-item .nav-pill {
