@@ -108,7 +108,7 @@ const formRef = ref<FormInstance>()
 const loading = ref(false)
 const errorMsg = ref('')
 
-const titleChars = 'IEC104 模拟器管理'.split('')
+const titleChars = 'GridSim'.split('')
 
 const form = reactive({
   username: '',
