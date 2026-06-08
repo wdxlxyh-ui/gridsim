@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"sort"
@@ -439,38 +440,48 @@ func HandleMicrogridExportXLSX(mgr ManagerBridge) http.HandlerFunc {
 		zw := zip.NewWriter(w)
 		defer zw.Close()
 
+		// 1) Per-device xlsx
 		for prefix, groupPts := range groups {
 			if len(groupPts) == 0 { continue }
-			f := excelize.NewFile()
-			sheet := "point"
-			f.SetSheetName("Sheet1", sheet)
-			headers := []string{"point-name", "point-number", "value-type", "point-type", "efficient", "base-value", "alias"}
-			for i, h := range headers {
-				cell, _ := excelize.CoordinatesToCellName(i+1, 1)
-				f.SetCellValue(sheet, cell, h)
-			}
-			for i, p := range groupPts {
-				row := i + 2
-				vt := "DOUBLE"
-				switch p.ValueType {
-				case config.VTFloat: vt = "DOUBLE"
-				case config.VTBit: vt = "BIT"
-				case config.VTInt: vt = "INT"
-				}
-				alias := p.Alias
-				if idx := strings.Index(alias, "|"); idx >= 0 { alias = p.Alias[:idx] }
-				f.SetCellValue(sheet, fmt.Sprintf("A%d", row), p.Name)
-				f.SetCellValue(sheet, fmt.Sprintf("B%d", row), p.IOA)
-				f.SetCellValue(sheet, fmt.Sprintf("C%d", row), vt)
-				f.SetCellValue(sheet, fmt.Sprintf("D%d", row), string(p.PointType))
-				f.SetCellValue(sheet, fmt.Sprintf("E%d", row), p.Efficient)
-				f.SetCellValue(sheet, fmt.Sprintf("F%d", row), 0) // 导出的点表 base-value 统一为 0，实际基值由 ExpandPoints 定义
-				f.SetCellValue(sheet, fmt.Sprintf("G%d", row), alias)
-			}
 			entry, _ := zw.Create(prefix + ".xlsx")
-			f.Write(entry)
+			writePointXLSX(entry, groupPts)
 		}
+
+		// 2) Complete xlsx with all points
+		allEntry, _ := zw.Create("完整点表.xlsx")
+		writePointXLSX(allEntry, pts)
 	}
+}
+
+// writePointXLSX writes a point table xlsx into w.
+func writePointXLSX(w io.Writer, pts []*config.Point) {
+	f := excelize.NewFile()
+	sheet := "point"
+	f.SetSheetName("Sheet1", sheet)
+	headers := []string{"point-name", "point-number", "value-type", "point-type", "efficient", "base-value", "alias"}
+	for i, h := range headers {
+		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+		f.SetCellValue(sheet, cell, h)
+	}
+	for i, p := range pts {
+		row := i + 2
+		vt := "DOUBLE"
+		switch p.ValueType {
+		case config.VTFloat: vt = "DOUBLE"
+		case config.VTBit: vt = "BIT"
+		case config.VTInt: vt = "INT"
+		}
+		alias := p.Alias
+		if idx := strings.Index(alias, "|"); idx >= 0 { alias = p.Alias[:idx] }
+		f.SetCellValue(sheet, fmt.Sprintf("A%d", row), p.Name)
+		f.SetCellValue(sheet, fmt.Sprintf("B%d", row), p.IOA)
+		f.SetCellValue(sheet, fmt.Sprintf("C%d", row), vt)
+		f.SetCellValue(sheet, fmt.Sprintf("D%d", row), string(p.PointType))
+		f.SetCellValue(sheet, fmt.Sprintf("E%d", row), p.Efficient)
+		f.SetCellValue(sheet, fmt.Sprintf("F%d", row), 0) // 导出的点表 base-value 统一为 0，实际基值由 ExpandPoints 定义
+		f.SetCellValue(sheet, fmt.Sprintf("G%d", row), alias)
+	}
+	f.Write(w)
 }
 
 func defaultTopology() Topology {

@@ -22,7 +22,7 @@
           >保存拓扑</el-button>
           <el-button @click="handleExportTopology">导出拓扑</el-button>
           <el-button @click="handleImportTopology" :disabled="running">导入拓扑</el-button>
-          <el-button @click="handleExportXLSX">导出点表</el-button>
+          <el-button @click="handleExportXLSX">导出点表(完整+按设备)</el-button>
           <input ref="topoImportRef" type="file" accept=".json" style="display:none" @change="onTopoFile" />
         </div>
       </div>
