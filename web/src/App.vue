@@ -33,25 +33,6 @@
       <el-container style="height: calc(100vh - var(--header-height))">
         <el-aside class="app-sidebar" :class="{ collapsed: sidebarCollapsed }"
           @mouseenter="sidebarCollapsed = false" @mouseleave="sidebarCollapsed = true">
-          <div class="sidebar-brand">
-            <svg viewBox="0 0 56 56" width="36" height="36" fill="none">
-              <defs>
-                <linearGradient id="sb-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="#3b82f6"/>
-                  <stop offset="50%" stop-color="#8b5cf6"/>
-                  <stop offset="100%" stop-color="#3b82f6"/>
-                </linearGradient>
-              </defs>
-              <polygon points="28,4 50,16 50,40 28,52 6,40 6,16" stroke="url(#sb-grad)" stroke-width="2.5" fill="none"/>
-              <circle cx="28" cy="16" r="2.5" fill="#3b82f6" opacity="0.7"/>
-              <circle cx="50" cy="28" r="2" fill="#8b5cf6" opacity="0.5"/>
-              <circle cx="6" cy="28" r="2" fill="#3b82f6" opacity="0.5"/>
-              <circle cx="28" cy="52" r="2" fill="#8b5cf6" opacity="0.5"/>
-              <line x1="28" y1="16" x2="28" y2="52" stroke="#3b82f6" stroke-width="0.6" opacity="0.3"/>
-              <line x1="6" y1="28" x2="50" y2="28" stroke="#8b5cf6" stroke-width="0.6" opacity="0.3"/>
-              <path d="M24,28 L28,20 L32,28 L28,30.5 Z" fill="#f59e0b" opacity="0.9"/>
-            </svg>
-          </div>
           <nav class="sidebar-nav">
             <div
               v-for="item in menuItems" :key="item.path"
@@ -254,23 +235,6 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Ro
   min-width: 1ch;
   text-align: center;
   transition: color 0.3s;
-}
-
-/* ─── Sidebar brand (collapsed mini logo) ─── */
-.sidebar-brand {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px 0 4px;
-  max-height: 0;
-  opacity: 0;
-  overflow: hidden;
-  transition: max-height 0.3s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s;
-}
-
-.collapsed .sidebar-brand {
-  max-height: 56px;
-  opacity: 1;
 }
 
 /* ─── Sidebar with PillNav (P2) ─── */
