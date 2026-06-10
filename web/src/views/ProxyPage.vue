@@ -10,8 +10,12 @@
           </div>
         </div>
         <div class="collection-tree">
-          <div v-for="folder in filteredCollections" :key="folder.id" class="tree-folder">
-            <div class="tree-folder-header" @click="folder._open = !folder._open">
+          <div v-for="folder in filteredCollections" :key="folder.id" class="tree-folder"
+            @dragover.prevent="onDragOver($event, folder)"
+            @dragleave="onDragLeave($event, folder)"
+            @drop="onDrop($event, folder)">
+            <div class="tree-folder-header" :class="{ selected: folder.id === activeFolderId }"
+              @click="selectFolder(folder)">
               <span class="arrow" :class="{ open: folder._open }">▶</span>
               <span class="folder-icon">📁</span>
               <span class="folder-name">{{ folder.name }}</span>
@@ -23,6 +27,9 @@
             <div class="tree-children" :class="{ collapsed: !folder._open }">
               <div v-for="req in (folder.children || [])" :key="req.id"
                 class="tree-request" :class="{ active: req.id === activeRequestId }"
+                draggable="true"
+                @dragstart="onDragStart($event, req, folder)"
+                @dragend="onDragEnd"
                 @click="loadRequest(req)">
                 <span class="req-method" :class="req.method">{{ req.method }}</span>
                 <span class="req-name">{{ req.name }}</span>
@@ -324,6 +331,7 @@ const request = reactive({ method: 'GET', url: '', body: '', pre_script: '', tes
 const headerList = ref<{ key: string; value: string; enabled: boolean }[]>([])
 const response = ref<ProxyResponse | null>(null)
 const activeRequestId = ref('')
+const activeFolderId = ref('')
 
 const collections = ref<(CollectionItem & { _open?: boolean })[]>([])
 const environments = ref<ProxyEnvironment[]>([])
@@ -624,13 +632,77 @@ function addRequest() {
       const folder: any = { id: genId(), name: '默认文件夹', type: 'folder', children: [req], _open: true }
       collections.value.push(folder)
       saveCollection(folder)
+      activeFolderId.value = folder.id
     } else {
-      const folder = collections.value[0]
+      let folder = activeFolderId.value
+        ? collections.value.find(f => f.id === activeFolderId.value)
+        : null
+      if (!folder) folder = collections.value[0]
       if (!folder.children) folder.children = []
       folder.children.push(req)
       saveCollection(folder)
+      activeFolderId.value = folder.id
     }
+    activeRequestId.value = req.id
+    loadRequest(req)
   })
+}
+
+function selectFolder(folder: any) {
+  activeFolderId.value = folder.id
+  folder._open = !folder._open
+}
+
+// Drag-and-drop state
+let dragReq: CollectionItem | null = null
+let dragSrcFolder: any = null
+
+function onDragStart(e: DragEvent, req: CollectionItem, folder: any) {
+  dragReq = req
+  dragSrcFolder = folder
+  e.dataTransfer!.effectAllowed = 'move'
+  e.dataTransfer!.setData('text/plain', req.id)
+  ;(e.target as HTMLElement).classList.add('dragging')
+}
+
+function onDragEnd(e: DragEvent) {
+  ;(e.target as HTMLElement).classList.remove('dragging')
+  dragReq = null
+  dragSrcFolder = null
+  document.querySelectorAll('.tree-folder.drag-over').forEach(el => el.classList.remove('drag-over'))
+}
+
+function onDragOver(e: DragEvent, folder: any) {
+  if (!dragReq) return
+  if (folder.id === dragSrcFolder?.id) return
+  e.preventDefault()
+  e.dataTransfer!.dropEffect = 'move'
+  ;(e.currentTarget as HTMLElement).classList.add('drag-over')
+}
+
+function onDragLeave(e: DragEvent, folder: any) {
+  ;(e.currentTarget as HTMLElement).classList.remove('drag-over')
+}
+
+function onDrop(e: DragEvent, targetFolder: any) {
+  ;(e.currentTarget as HTMLElement).classList.remove('drag-over')
+  if (!dragReq || !dragSrcFolder) return
+  if (targetFolder.id === dragSrcFolder.id) return
+
+  // Remove from source folder
+  if (dragSrcFolder.children) {
+    dragSrcFolder.children = dragSrcFolder.children.filter((r: CollectionItem) => r.id !== dragReq!.id)
+    saveCollection(dragSrcFolder)
+  }
+
+  // Add to target folder
+  if (!targetFolder.children) targetFolder.children = []
+  targetFolder.children.push(dragReq)
+  targetFolder._open = true
+  saveCollection(targetFolder)
+
+  activeFolderId.value = targetFolder.id
+  ElMessage.success(`已移动到「${targetFolder.name}」`)
 }
 
 function loadRequest(req: CollectionItem) {
@@ -1206,6 +1278,7 @@ onUnmounted(() => {
 .collection-tree { flex: 1; overflow-y: auto; padding: 8px 0; }
 .tree-folder-header { display: flex; align-items: center; gap: 6px; padding: 6px 12px; cursor: pointer; font-size: 13px; color: #94a3b8; }
 .tree-folder-header:hover { background: #1a1f2e; color: #e2e8f0; }
+.tree-folder-header.selected { background: rgba(245,158,11,0.06); color: #f59e0b; }
 .arrow { font-size: 10px; transition: transform 0.2s; width: 12px; text-align: center; }
 .arrow.open { transform: rotate(90deg); }
 .tree-children { padding-left: 16px; }
@@ -1220,6 +1293,9 @@ onUnmounted(() => {
 .req-method.DELETE { background: rgba(239,68,68,0.15); color: #ef4444; }
 .req-actions { display: none; gap: 2px; }
 .tree-request:hover .req-actions { display: flex; }
+.tree-request.dragging { opacity: 0.4; }
+.tree-folder.drag-over { background: rgba(245,158,11,0.08); border-radius: 4px; }
+.tree-folder.drag-over .tree-folder-header { color: #f59e0b; }
 .editor-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .request-bar { display: flex; gap: 8px; padding: 12px 16px; background: #111827; border-bottom: 1px solid #1e293b; }
 .method-select :deep(.el-input__wrapper) { background: #0d1117 !important; width: auto; min-width: 58px; padding: 0 4px; }
