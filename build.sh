@@ -14,7 +14,7 @@ set -euo pipefail
 
 # ─── Config ───────────────────────────────────────────────────────────────
 PROJECT="gridsim"
-VERSION="2.1.3"
+VERSION="3.0.0"
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 DIST_DIR="$ROOT/dist"
 GO_CMD="${GO:-go}"

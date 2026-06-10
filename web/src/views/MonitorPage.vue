@@ -17,8 +17,9 @@
     </div>
 
     <el-row :gutter="16" v-loading="loading">
-      <el-col v-for="inst in instances" :key="inst.id" :xs="24" :sm="12" :md="8" :lg="6" style="margin-bottom: 16px">
-        <el-card shadow="never">
+      <el-col v-for="(inst, idx) in instances" :key="inst.id" :xs="24" :sm="12" :md="8" :lg="6"
+        class="stagger-col" :style="{ marginBottom: '16px', animationDelay: idx * 0.06 + 's' }">
+        <el-card shadow="never" class="monitor-card" @mousemove="onCardHover" @mouseleave="onCardLeave">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px">
             <span style="font-weight: 600; font-size: 15px">{{ inst.name }}</span>
             <el-tag v-if="inst.status === 'running'" type="success" size="small">运行中</el-tag>
@@ -56,9 +57,9 @@
               v-if="inst.status === 'running'"
               type="primary"
               size="small"
-              @click="$router.push('/detail/' + inst.id)"
+              @click="openInstance(inst)"
             >
-              详情
+              {{ inst.protocol === 'microgrid' ? '微电网' : '详情' }}
             </el-button>
             <el-button
               v-if="inst.status === 'running'"
@@ -97,6 +98,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -111,7 +113,16 @@ const loading = ref(false)
 const instances = ref<InstanceState[]>([])
 const lastRefresh = ref('')
 const actionLoading = ref('')
+const router = useRouter()
 let timer: ReturnType<typeof setInterval> | null = null
+
+function openInstance(inst: InstanceState) {
+  if (inst.protocol === 'microgrid') {
+    router.push('/microgrid/' + inst.id)
+  } else {
+    router.push('/detail/' + inst.id)
+  }
+}
 
 async function fetchData() {
   loading.value = true
@@ -178,6 +189,20 @@ function fmtUptime(s: number): string {
   return `${sec}s`
 }
 
+// P9: SpotlightCard — mouse-tracking glow
+function onCardHover(e: MouseEvent) {
+  const el = e.currentTarget as HTMLElement
+  const rect = el.getBoundingClientRect()
+  el.style.setProperty('--mx', `${e.clientX - rect.left}px`)
+  el.style.setProperty('--my', `${e.clientY - rect.top}px`)
+}
+
+function onCardLeave(e: MouseEvent) {
+  const el = e.currentTarget as HTMLElement
+  el.style.setProperty('--mx', '-200px')
+  el.style.setProperty('--my', '-200px')
+}
+
 onMounted(() => {
   fetchData()
   // Auto-refresh every 5s
@@ -188,3 +213,49 @@ onUnmounted(() => {
   if (timer) clearInterval(timer)
 })
 </script>
+
+<style scoped>
+/* P8: AnimatedList stagger — card grid */
+@keyframes card-stagger {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+:deep(.stagger-col) {
+  animation: card-stagger 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* P9: SpotlightCard — hover glow */
+:deep(.monitor-card) {
+  position: relative;
+  overflow: hidden;
+  --mx: -200px;
+  --my: -200px;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+:deep(.monitor-card::before) {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle 200px at var(--mx) var(--my), rgba(245, 158, 11, 0.08), transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+:deep(.monitor-card:hover::before) {
+  opacity: 1;
+}
+
+:deep(.monitor-card:hover) {
+  border-color: rgba(245, 158, 11, 0.25) !important;
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.06);
+}
+
+:deep(.monitor-card .el-card__body) {
+  position: relative;
+  z-index: 1;
+}
+</style>

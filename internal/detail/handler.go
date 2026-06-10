@@ -12,6 +12,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"gridsim/internal/model"
@@ -820,6 +822,7 @@ type configCSVReplayReq struct {
 	TimeFormat string             `json:"time_format"`
 	TimeUnit   string             `json:"time_unit"`
 	CSVLoop    *bool              `json:"csv_loop"`
+	Loop       *bool              `json:"loop"`
 	Mappings   []csvReplayMapping `json:"mappings"`
 }
 
@@ -874,6 +877,8 @@ func (h *DetailHandler) handleConfigCSVReplay(w http.ResponseWriter, r *http.Req
 		colMap := map[int]uint32{m.Column: m.IOA}
 		colMapJSON, _ := json.Marshal(colMap)
 
+		loop := req.CSVLoop
+		if loop == nil { loop = req.Loop }
 		cfg := &model.AutoChangeConfig{
 			PointIOA: m.IOA,
 			Strategy: model.StrategyCSV,
@@ -883,7 +888,7 @@ func (h *DetailHandler) handleConfigCSVReplay(w http.ResponseWriter, r *http.Req
 				TimeFormat:   timeFmt,
 				TimeUnit:     timeUnit,
 				CSVColumnMap: string(colMapJSON),
-				CSVLoop:      req.CSVLoop,
+				CSVLoop:      loop,
 			},
 			UpdatedAt: time.Now(),
 		}
@@ -1199,4 +1204,213 @@ func (h *DetailHandler) recoverPanic(w http.ResponseWriter) {
 		slog.Error("panic recovered in detail handler", "instance", h.instID, "recover", rec)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 	}
+}
+
+// ─── Batch CSV Replay ───
+
+type batchReplayReq struct {
+	CSVFiles           []string           `json:"csv_files"`
+	Sequential         bool               `json:"sequential"`
+	AutoCleanup        bool               `json:"auto_cleanup"`
+	PauseBetweenFilesS int                `json:"pause_between_files_s"`
+	Mappings           []csvReplayMapping `json:"mappings"`
+	OnError            string             `json:"on_error"`
+	Loop               bool               `json:"loop"`
+}
+
+type batchState struct {
+	mu           sync.Mutex
+	ID           string                 `json:"batch_id"`
+	Status       string                 `json:"status"`
+	Total        int                    `json:"total"`
+	Completed    int                    `json:"completed"`
+	Failed       int                    `json:"failed"`
+	FileResults  map[string]*fileResult `json:"per_file_results"`
+	CSVFiles     []string               `json:"-"`
+	Mappings     []csvReplayMapping     `json:"-"`
+	PauseBetween int                    `json:"-"`
+	AutoCleanup  bool                   `json:"-"`
+	OnError      string                 `json:"-"`
+	cancel       chan struct{}
+}
+
+type fileResult struct {
+	Status  string                 `json:"status"`
+	Metrics map[string]interface{} `json:"metrics_snapshot,omitempty"`
+	Error   string                 `json:"error,omitempty"`
+}
+
+var (
+	batchStates   = make(map[string]*batchState)
+	batchStatesMu sync.Mutex
+	batchIDSeq    int64
+)
+
+func (h *DetailHandler) HandleBatchReplay(w http.ResponseWriter, r *http.Request) {
+	defer h.recoverPanic(w)
+	if r.Method == http.MethodGet {
+		h.handleBatchProgress(w, r)
+		return
+	}
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
+	}
+
+	var req batchReplayReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON: " + err.Error()})
+		return
+	}
+	if len(req.CSVFiles) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "csv_files is required"})
+		return
+	}
+	if len(req.Mappings) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "mappings is required"})
+		return
+	}
+	if req.OnError == "" { req.OnError = "continue" }
+
+	batchID := fmt.Sprintf("batch_%s_%d", h.instID[:8], atomic.AddInt64(&batchIDSeq, 1))
+
+	bs := &batchState{
+		ID: batchID, Status: "running", Total: len(req.CSVFiles),
+		CSVFiles: req.CSVFiles, Mappings: req.Mappings,
+		PauseBetween: req.PauseBetweenFilesS, AutoCleanup: req.AutoCleanup,
+		OnError: req.OnError, cancel: make(chan struct{}),
+		FileResults: make(map[string]*fileResult),
+	}
+	for _, f := range req.CSVFiles {
+		bs.FileResults[f] = &fileResult{Status: "pending"}
+	}
+
+	batchStatesMu.Lock()
+	batchStates[batchID] = bs
+	batchStatesMu.Unlock()
+
+	go h.runBatchReplay(bs)
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"batch_id": batchID, "status": "running",
+		"total": bs.Total, "completed": 0, "failed": 0,
+	})
+}
+
+func (h *DetailHandler) handleBatchProgress(w http.ResponseWriter, r *http.Request) {
+	batchID := strings.TrimPrefix(r.URL.Path, "/api/v1/instances/"+h.instID+"/batch-replay/")
+	batchStatesMu.Lock()
+	bs, ok := batchStates[batchID]
+	batchStatesMu.Unlock()
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "batch not found"})
+		return
+	}
+	bs.mu.Lock()
+	defer bs.mu.Unlock()
+	writeJSON(w, http.StatusOK, bs)
+}
+
+func (h *DetailHandler) runBatchReplay(bs *batchState) {
+	defer func() {
+		bs.mu.Lock()
+		if bs.Status == "running" { bs.Status = "done" }
+		bs.mu.Unlock()
+	}()
+
+	for _, csvFile := range bs.CSVFiles {
+		select {
+		case <-bs.cancel: return
+		default:
+		}
+
+		bs.mu.Lock()
+		if fr, ok := bs.FileResults[csvFile]; ok { fr.Status = "running" }
+		bs.mu.Unlock()
+
+		// Auto cleanup: delete old auto-change configs for mapped IOAs
+		if bs.AutoCleanup {
+			for _, m := range bs.Mappings {
+				if h.engine != nil { h.engine.Remove(m.IOA) }
+			}
+			time.Sleep(2 * time.Second)
+		}
+
+		err := h.playOneCSVFile(csvFile, bs.Mappings)
+		bs.mu.Lock()
+		if err != nil {
+			bs.Failed++
+			bs.FileResults[csvFile].Status = "failed"
+			bs.FileResults[csvFile].Error = err.Error()
+			if bs.OnError == "stop" { bs.Status = "failed"; bs.mu.Unlock(); return }
+		} else {
+			bs.Completed++
+			bs.FileResults[csvFile].Status = "done"
+			bs.FileResults[csvFile].Metrics = h.collectMetrics()
+		}
+		bs.mu.Unlock()
+
+		if bs.PauseBetween > 0 {
+			select {
+			case <-bs.cancel: return
+			case <-time.After(time.Duration(bs.PauseBetween) * time.Second):
+			}
+		}
+	}
+}
+
+func (h *DetailHandler) playOneCSVFile(fileName string, mappings []csvReplayMapping) error {
+	if h.engine == nil { return fmt.Errorf("engine not available") }
+	for _, m := range mappings {
+		if _, ok := h.store.Get(m.IOA); !ok { continue }
+		colMap := map[int]uint32{m.Column: m.IOA}
+		colMapJSON, _ := json.Marshal(colMap)
+		cfg := &model.AutoChangeConfig{
+			PointIOA: m.IOA, Strategy: model.StrategyCSV, Enabled: true,
+			Params: model.StrategyParams{
+				CSVFileName:  fileName,
+				TimeFormat:   "relative",
+				TimeUnit:     "ms",
+				CSVColumnMap: string(colMapJSON),
+			},
+		}
+		if err := h.engine.StartOrUpdate(cfg); err != nil {
+			return fmt.Errorf("IOA %d: %w", m.IOA, err)
+		}
+	}
+	return nil
+}
+
+// ─── Metrics ───
+
+func (h *DetailHandler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
+	defer h.recoverPanic(w)
+
+	pEDC := 0.0
+	count := 0
+	cmd := 0.0
+	pulseStatus := "INACTIVE"
+
+	if h.store != nil {
+		if p, ok := h.store.Get(16385); ok { pEDC = p.Value }
+		if p, ok := h.store.Get(16386); ok { count = int(p.Value) }
+		if p, ok := h.store.Get(16387); ok { cmd = p.Value }
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"p_edc":        pEDC,
+		"count":        count,
+		"cmd":          cmd,
+		"pulse_status": pulseStatus,
+	})
+}
+
+func (h *DetailHandler) collectMetrics() map[string]interface{} {
+	pEDC := 0.0; count := 0; cmd := 0.0; pulseStatus := "IDLE_PERIOD"
+	if h.store != nil {
+		if p, ok := h.store.Get(16385); ok { pEDC = p.Value }
+		if p, ok := h.store.Get(16386); ok { count = int(p.Value) }
+		if p, ok := h.store.Get(16387); ok { cmd = p.Value }
+	}
+	return map[string]interface{}{"p_edc": pEDC, "count": count, "cmd": cmd, "pulse_status": pulseStatus}
 }

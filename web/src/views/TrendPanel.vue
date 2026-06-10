@@ -80,7 +80,9 @@ const lastUpdate = ref('--')
 
 const chartRef = ref<HTMLElement | null>(null)
 let chartInstance: echarts.ECharts | null = null
+let resizeObserver: ResizeObserver | null = null
 let pollTimer: ReturnType<typeof setInterval> | null = null
+let disposed = false
 
 // Reconcile traces when props.traces changes (template switch / add trace from parent)
 watch(() => props.traces, (newConfigs) => {
@@ -118,6 +120,10 @@ function initChart() {
   if (!chartRef.value) return
   if (chartInstance) chartInstance.dispose()
   chartInstance = echarts.init(chartRef.value, undefined, { renderer: 'canvas' })
+  // B2: ResizeObserver for responsive chart
+  if (resizeObserver) resizeObserver.disconnect()
+  resizeObserver = new ResizeObserver(() => { chartInstance?.resize() })
+  resizeObserver.observe(chartRef.value)
   updateChart()
 }
 
@@ -175,15 +181,14 @@ function updateChart() {
 function trimData() {
   const cutoff = Date.now() - props.timeRange * 60 * 1000
   panelTraces.value.forEach(t => {
-    while (t.data.length > 0 && t.data[0][0] < cutoff) {
-      t.data.shift()
-    }
+    if (t.data.length === 0 || t.data[0][0] >= cutoff) return
+    const idx = t.data.findIndex(d => d[0] >= cutoff)
+    t.data = idx === -1 ? [] : t.data.slice(idx)
   })
 }
 
 async function fetchAllPoints() {
-  if (panelTraces.value.length === 0) return
-  if (paused.value) return
+  if (panelTraces.value.length === 0 || paused.value || disposed) return
   const byInstance = new Map<string, number[]>()
   panelTraces.value.forEach(t => {
     if (!byInstance.has(t.instId)) byInstance.set(t.instId, [])
@@ -199,10 +204,17 @@ async function fetchAllPoints() {
         let v = pt.value
         if (pt.point_type === 'DI' || pt.point_type === 'DO') v = pt.bool_value ? 1 : 0
         else if (pt.point_type === 'PI') v = pt.int_value
-        trace.data.push([ts, v])
+        // Deduplicate: skip if same timestamp as last point
+        const last = trace.data[trace.data.length - 1]
+        if (last && last[0] === ts) {
+          last[1] = v // update value if changed
+        } else {
+          trace.data.push([ts, v])
+        }
       }
     } catch { /* instance may have stopped */ }
   }
+  if (disposed) return
   lastUpdate.value = new Date().toLocaleTimeString()
   trimData()
   updateChart()
@@ -211,6 +223,7 @@ async function fetchAllPoints() {
 function restartTimer() {
   if (pollTimer) clearInterval(pollTimer)
   if (!paused.value) {
+    fetchAllPoints()
     pollTimer = setInterval(fetchAllPoints, localInterval.value)
   }
 }
@@ -242,9 +255,12 @@ function removeTrace(i: number) {
 function downloadCSV() {
   const MAX_POINTS = 50000
   const tsSet = new Set<number>()
-  panelTraces.value.forEach(t => {
+  // O2: Build lookup maps for O(1) access instead of O(n) find per timestamp
+  const traceMaps = panelTraces.value.map(t => {
+    const map = new Map<number, number>()
     const slice = t.data.length > MAX_POINTS ? t.data.slice(-MAX_POINTS) : t.data
-    slice.forEach(d => tsSet.add(d[0]))
+    slice.forEach(d => { tsSet.add(d[0]); map.set(d[0], d[1]) })
+    return map
   })
   const timestamps = Array.from(tsSet).sort((a, b) => a - b)
 
@@ -256,9 +272,9 @@ function downloadCSV() {
     const d = new Date(ts)
     const tStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}.${String(d.getMilliseconds()).padStart(3,'0')}`
     const row = [tStr]
-    panelTraces.value.forEach(t => {
-      const pt = t.data.find(d => d[0] === ts)
-      row.push(pt !== undefined ? String(pt[1]) : '')
+    traceMaps.forEach(map => {
+      const v = map.get(ts)
+      row.push(v !== undefined ? String(v) : '')
     })
     rows.push(row)
   })
@@ -278,6 +294,7 @@ function downloadCSV() {
 }
 
 function startPolling() {
+  if (pollTimer) clearInterval(pollTimer)
   pollTimer = setInterval(fetchAllPoints, localInterval.value)
 }
 
@@ -294,7 +311,9 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  disposed = true
   if (pollTimer) clearInterval(pollTimer)
+  if (resizeObserver) resizeObserver.disconnect()
   if (chartInstance) chartInstance.dispose()
 })
 </script>

@@ -1,0 +1,391 @@
+{
+  "info": {
+    "_postman_id": "gridsim-builtin-001",
+    "name": "GridSim 内置 API",
+    "description": "IEC104 模拟器内置 API 集合 — 部署后自动导入，支持通过 {{base_url}} 引用本机地址，{{token}} 引用登录返回的 JWT。",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "0. 认证",
+      "item": [
+        {
+          "name": "login - 登录获取 token",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Pre-Script 示例：发送前生成动态值",
+                  "vars.request_id = $uuid();",
+                  "vars.request_time = $formatTime('yyyy-MM-dd HH:mm:ss');",
+                  "console.log('准备登录, request_id=', vars.request_id);"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Post-Script 示例：登录成功后自动将 token 写入环境变量 {{token}}",
+                  "var data = pm.response.json();",
+                  "if (data.token) {",
+                  "  pm.environment.set('token', data.token);",
+                  "  console.log('token 已保存:', data.token.substring(0, 20) + '...');",
+                  "}",
+                  "pm.expect(pm.response.code).to.equal(200);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/auth/login", "host": ["{{base_url}}"], "path": ["api", "v1", "auth", "login"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. 全局",
+      "item": [
+        {
+          "name": "GET /status - 全局状态",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/v1/status", "host": ["{{base_url}}"], "path": ["api", "v1", "status"] }
+          }
+        },
+        {
+          "name": "GET /protocols - 支持的协议列表",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/v1/protocols", "host": ["{{base_url}}"], "path": ["api", "v1", "protocols"] }
+          }
+        },
+        {
+          "name": "GET /files - 已上传文件列表",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/v1/files", "host": ["{{base_url}}"], "path": ["api", "v1", "files"] }
+          }
+        },
+        {
+          "name": "POST /upload - 上传 xlsx 点表",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": { "mode": "file", "file": { "src": "" } },
+            "url": { "raw": "{{base_url}}/api/v1/upload", "host": ["{{base_url}}"], "path": ["api", "v1", "upload"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. 实例管理",
+      "item": [
+        {
+          "name": "GET /instances - 列出所有实例",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/v1/instances", "host": ["{{base_url}}"], "path": ["api", "v1", "instances"] }
+          }
+        },
+        {
+          "name": "POST /instances - 创建实例",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{instance_name}}\",\n  \"iec104_port\": 2404,\n  \"xlsx_file\": \"point.xlsx\",\n  \"enabled\": true,\n  \"http_enabled\": true,\n  \"http_port\": 8080,\n  \"protocol\": \"iec104\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/instances", "host": ["{{base_url}}"], "path": ["api", "v1", "instances"] }
+          }
+        },
+        {
+          "name": "GET /instances/{id} - 获取实例详情",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/v1/instances/{{instance_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "instances", "{{instance_id}}"] }
+          }
+        },
+        {
+          "name": "PUT /instances/{id} - 更新实例",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{instance_name}}\",\n  \"iec104_port\": 2404,\n  \"xlsx_file\": \"point.xlsx\",\n  \"enabled\": true\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/instances/{{instance_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "instances", "{{instance_id}}"] }
+          }
+        },
+        {
+          "name": "DELETE /instances/{id} - 删除实例",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/v1/instances/{{instance_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "instances", "{{instance_id}}"] }
+          }
+        },
+        {
+          "name": "POST /instances/{id}/start - 启动实例",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/v1/instances/{{instance_id}}/start", "host": ["{{base_url}}"], "path": ["api", "v1", "instances", "{{instance_id}}", "start"] }
+          }
+        },
+        {
+          "name": "POST /instances/{id}/stop - 停止实例",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/v1/instances/{{instance_id}}/stop", "host": ["{{base_url}}"], "path": ["api", "v1", "instances", "{{instance_id}}", "stop"] }
+          }
+        },
+        {
+          "name": "POST /instances/{id}/restart - 重启实例",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/v1/instances/{{instance_id}}/restart", "host": ["{{base_url}}"], "path": ["api", "v1", "instances", "{{instance_id}}", "restart"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. 测点操作 (v2.1)",
+      "item": [
+        {
+          "name": "GET /instances/{id}/points - 获取所有测点快照",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/v1/instances/{{instance_id}}/points", "host": ["{{base_url}}"], "path": ["api", "v1", "instances", "{{instance_id}}", "points"] }
+          }
+        },
+        {
+          "name": "GET /instances/{id}/points/batch - 批量读取",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/instances/{{instance_id}}/points/batch?ioas={{ioa_list}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "instances", "{{instance_id}}", "points", "batch"],
+              "query": [{ "key": "ioas", "value": "{{ioa_list}}" }]
+            }
+          }
+        },
+        {
+          "name": "GET /instances/{id}/points/{ioa} - 读取单点",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/v1/instances/{{instance_id}}/points/{{ioa}}", "host": ["{{base_url}}"], "path": ["api", "v1", "instances", "{{instance_id}}", "points", "{{ioa}}"] }
+          }
+        },
+        {
+          "name": "PUT /instances/{id}/points/{ioa} - 置数 (AI)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"value\": 235.5\n}" },
+            "url": { "raw": "{{base_url}}/api/v1/instances/{{instance_id}}/points/{{ioa}}", "host": ["{{base_url}}"], "path": ["api", "v1", "instances", "{{instance_id}}", "points", "{{ioa}}"] }
+          }
+        },
+        {
+          "name": "PUT /instances/{id}/points/{ioa} - 置数 (DI bool)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"bool_value\": true\n}" },
+            "url": { "raw": "{{base_url}}/api/v1/instances/{{instance_id}}/points/{{ioa}}", "host": ["{{base_url}}"], "path": ["api", "v1", "instances", "{{instance_id}}", "points", "{{ioa}}"] }
+          }
+        },
+        {
+          "name": "GET /instances/{id}/points/auto-change/{ioa} - 读取自动变化配置",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/v1/instances/{{instance_id}}/points/auto-change/{{ioa}}", "host": ["{{base_url}}"], "path": ["api", "v1", "instances", "{{instance_id}}", "points", "auto-change", "{{ioa}}"] }
+          }
+        },
+        {
+          "name": "PUT /instances/{id}/points/auto-change/{ioa} - 配置自动变化 (递增)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"strategy\": \"increment\",\n  \"enabled\": true,\n  \"params\": {\n    \"start_value\": 0,\n    \"step\": 1,\n    \"period_ms\": 1000,\n    \"max_value\": 100\n  }\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/instances/{{instance_id}}/points/auto-change/{{ioa}}", "host": ["{{base_url}}"], "path": ["api", "v1", "instances", "{{instance_id}}", "points", "auto-change", "{{ioa}}"] }
+          }
+        },
+        {
+          "name": "DELETE /instances/{id}/points/auto-change/{ioa} - 删除自动变化",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/v1/instances/{{instance_id}}/points/auto-change/{{ioa}}", "host": ["{{base_url}}"], "path": ["api", "v1", "instances", "{{instance_id}}", "points", "auto-change", "{{ioa}}"] }
+          }
+        },
+        {
+          "name": "GET /instances/{id}/points/export - 导出测点 CSV",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/v1/instances/{{instance_id}}/points/export", "host": ["{{base_url}}"], "path": ["api", "v1", "instances", "{{instance_id}}", "points", "export"] }
+          }
+        },
+        {
+          "name": "GET /instances/{id}/points/auto-change/export - 导出自动变化配置",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/v1/instances/{{instance_id}}/points/auto-change/export", "host": ["{{base_url}}"], "path": ["api", "v1", "instances", "{{instance_id}}", "points", "auto-change", "export"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. CSV 回放 (v2.5)",
+      "item": [
+        {
+          "name": "GET /instances/{id}/csv-files - 列出 CSV 文件",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/v1/instances/{{instance_id}}/csv-files", "host": ["{{base_url}}"], "path": ["api", "v1", "instances", "{{instance_id}}", "csv-files"] }
+          }
+        },
+        {
+          "name": "POST /instances/{id}/upload-csv - 上传 CSV",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "body": { "mode": "file", "file": { "src": "" } },
+            "url": { "raw": "{{base_url}}/api/v1/instances/{{instance_id}}/upload-csv", "host": ["{{base_url}}"], "path": ["api", "v1", "instances", "{{instance_id}}", "upload-csv"] }
+          }
+        },
+        {
+          "name": "POST /instances/{id}/csv-replay - 配置 CSV 回放",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"csv_file\": \"point.csv\",\n  \"time_format\": \"relative\",\n  \"time_unit\": \"ms\",\n  \"mappings\": [\n    { \"column\": 1, \"ioa\": 1 },\n    { \"column\": 2, \"ioa\": 2 }\n  ]\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/instances/{{instance_id}}/csv-replay", "host": ["{{base_url}}"], "path": ["api", "v1", "instances", "{{instance_id}}", "csv-replay"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. 微电网 (v2.5)",
+      "item": [
+        {
+          "name": "GET /microgrid/{id}/topology - 获取拓扑",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/v1/microgrid/{{instance_id}}/topology", "host": ["{{base_url}}"], "path": ["api", "v1", "microgrid", "{{instance_id}}", "topology"] }
+          }
+        },
+        {
+          "name": "PUT /microgrid/{id}/topology - 保存拓扑",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": { "raw": "{{base_url}}/api/v1/microgrid/{{instance_id}}/topology", "host": ["{{base_url}}"], "path": ["api", "v1", "microgrid", "{{instance_id}}", "topology"] }
+          }
+        },
+        {
+          "name": "GET /microgrid/{id}/dashboard - 实时仪表盘",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/v1/microgrid/{{instance_id}}/dashboard", "host": ["{{base_url}}"], "path": ["api", "v1", "microgrid", "{{instance_id}}", "dashboard"] }
+          }
+        },
+        {
+          "name": "GET /microgrid/{id}/points - 微电网测点",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/v1/microgrid/{{instance_id}}/points", "host": ["{{base_url}}"], "path": ["api", "v1", "microgrid", "{{instance_id}}", "points"] }
+          }
+        },
+        {
+          "name": "POST /microgrid/{id}/device - 添加设备",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"type\": \"pv\",\n  \"name\": \"PV-1\",\n  \"params\": { \"rated_power_kw\": 100 }\n}" },
+            "url": { "raw": "{{base_url}}/api/v1/microgrid/{{instance_id}}/device", "host": ["{{base_url}}"], "path": ["api", "v1", "microgrid", "{{instance_id}}", "device"] }
+          }
+        },
+        {
+          "name": "POST /microgrid/{id}/control/{devId} - 控制开关",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/microgrid/{{instance_id}}/control/{{device_id}}?closed=true",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "microgrid", "{{instance_id}}", "control", "{{device_id}}"],
+              "query": [{ "key": "closed", "value": "true" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. 旧版直连 API (传统模式)",
+      "item": [
+        {
+          "name": "GET /api/points - 列出所有测点 (旧)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/points", "host": ["{{base_url}}"], "path": ["api", "points"] }
+          }
+        },
+        {
+          "name": "GET /api/points/{ioa} - 读取单点 (旧)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/points/{{ioa}}", "host": ["{{base_url}}"], "path": ["api", "points", "{{ioa}}"] }
+          }
+        },
+        {
+          "name": "PUT /api/points/{ioa} - 置数 (旧)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"value\": 235.5\n}" },
+            "url": { "raw": "{{base_url}}/api/points/{{ioa}}", "host": ["{{base_url}}"], "path": ["api", "points", "{{ioa}}"] }
+          }
+        }
+      ]
+    }
+  ]
+}

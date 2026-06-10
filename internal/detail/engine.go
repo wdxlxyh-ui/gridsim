@@ -112,6 +112,17 @@ func (e *Engine) AllConfigs() map[uint32]*model.AutoChangeConfig {
 	return e.acStore.All(e.instanceID)
 }
 
+func (e *Engine) GetActiveIOAs() []uint32 {
+	configs := e.acStore.All(e.instanceID)
+	var result []uint32
+	for ioa, cfg := range configs {
+		if cfg.Enabled {
+			result = append(result, ioa)
+		}
+	}
+	return result
+}
+
 func (e *Engine) SaveAll(configs map[uint32]*model.AutoChangeConfig) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()

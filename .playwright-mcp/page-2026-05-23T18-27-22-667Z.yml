@@ -1,0 +1,13 @@
+- generic [ref=e4]:
+  - generic [ref=e5]:
+    - heading "IEC104 模拟器管理" [level=2] [ref=e7]
+    - paragraph [ref=e8]: 请登录以继续
+  - generic [ref=e9]:
+    - generic [ref=e13]:
+      - img [ref=e16]
+      - textbox "用户名" [ref=e18]
+    - generic [ref=e22]:
+      - img [ref=e25]
+      - textbox "密码" [ref=e28]
+    - button "登 录" [ref=e31] [cursor=pointer]:
+      - generic [ref=e32]: 登 录

@@ -29,7 +29,7 @@ GET /api/v1/status
 **响应 200：**
 ```json
 {
-  "version": "2.2.0",
+  "version": "3.0.0",
   "mode": "serve",
   "configured": 2,
   "running": 1,
@@ -220,7 +220,172 @@ file: <选择 .xlsx 文件>
 }
 ```
 
-### 1.11 获取已上传文件列表
+### 1.11 接口测试（Proxy）API
+
+#### 1.11.1 执行 HTTP 代理请求
+
+```
+POST /api/v1/proxy
+Content-Type: application/json
+
+{
+  "method": "GET",
+  "url": "https://api.example.com/data",
+  "headers": {"Authorization": "Bearer token123"},
+  "body": "",
+  "timeout": 30
+}
+```
+
+**响应 200：**
+```json
+{
+  "status": 200,
+  "status_text": "OK",
+  "headers": {"Content-Type": "application/json"},
+  "body": "{\"data\": \"...\"}",
+  "time_ms": 123,
+  "size": 456
+}
+```
+
+#### 1.11.2 获取接口集合列表
+
+```
+GET /api/v1/proxy/collections
+```
+
+**响应 200：**
+```json
+{
+  "collections": [
+    {
+      "id": "req-xxx",
+      "name": "电力系统API",
+      "type": "folder",
+      "children": [
+        {
+          "id": "req-yyy",
+          "name": "获取实时数据",
+          "type": "request",
+          "method": "GET",
+          "url": "{{base_url}}/api/realtime",
+          "headers": {"Content-Type": "application/json"},
+          "body": "",
+          "pre_script": "",
+          "test_script": ""
+        }
+      ]
+    }
+  ]
+}
+```
+
+#### 1.11.3 创建/更新接口集合
+
+```
+POST /api/v1/proxy/collections
+Content-Type: application/json
+
+{
+  "id": "req-xxx",
+  "name": "获取实时数据",
+  "type": "request",
+  "method": "GET",
+  "url": "{{base_url}}/api/realtime",
+  "headers": {"Content-Type": "application/json"},
+  "body": "",
+  "pre_script": "// 前置脚本",
+  "test_script": "// 后置脚本",
+  "children": []
+}
+```
+
+**说明**：POST 为 upsert（存在相同 ID 则更新，否则创建）。`type` 为 `request`（接口）或 `folder`（文件夹）。
+
+**响应 200：** 返回创建/更新后的完整对象
+
+#### 1.11.4 删除接口集合
+
+```
+DELETE /api/v1/proxy/collections/{id}
+```
+
+**响应 200：**
+```json
+{
+  "status": "deleted"
+}
+```
+
+#### 1.11.5 获取环境变量列表
+
+```
+GET /api/v1/proxy/environments
+```
+
+**响应 200：**
+```json
+{
+  "environments": [
+    {
+      "id": "env-xxx",
+      "name": "测试环境",
+      "variables": {
+        "base_url": "http://localhost:8989",
+        "token": "dev-token"
+      }
+    }
+  ],
+  "active_id": "env-xxx"
+}
+```
+
+#### 1.11.6 创建/更新环境变量
+
+```
+POST /api/v1/proxy/environments
+Content-Type: application/json
+
+{
+  "id": "env-xxx",
+  "name": "测试环境",
+  "variables": {
+    "base_url": "http://localhost:8989",
+    "token": "dev-token"
+  }
+}
+```
+
+**说明**：POST 为 upsert（存在相同 ID 则更新，否则创建）。
+
+#### 1.11.7 激活环境
+
+```
+POST /api/v1/proxy/environments/{id}/activate
+```
+
+**响应 200：**
+```json
+{
+  "status": "ok"
+}
+```
+
+#### 1.11.8 删除环境
+
+```
+DELETE /api/v1/proxy/environments/{id}
+```
+
+**响应 200：**
+```json
+{
+  "status": "deleted"
+}
+```
+
+### 1.12 获取已上传文件列表
 
 ```
 GET /api/v1/files

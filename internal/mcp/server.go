@@ -495,6 +495,86 @@ func NewDataInterfaceServer(client *SimulatorClient) *server.MCPServer {
 	return s
 }
 
+// NewProxyServer creates an MCP server exposing proxy/API tester tools.
+func NewProxyServer(client *SimulatorClient) *server.MCPServer {
+	s := server.NewMCPServer(
+		"IEC104 API Tester",
+		"1.0.0",
+		server.WithLogging(),
+	)
+
+	s.AddTool(mcp.NewTool("proxy_request",
+		mcp.WithDescription("发送 HTTP 代理请求。支持 GET/POST/PUT/DELETE/PATCH，可自定义 Headers 和 Body，变量会在发送前自动替换。"),
+		mcp.WithString("method", mcp.Description("HTTP 方法: GET/POST/PUT/DELETE/PATCH"), mcp.Required()),
+		mcp.WithString("url", mcp.Description("目标 URL"), mcp.Required()),
+		mcp.WithString("headers", mcp.Description("Headers JSON 字符串，如 {\"Authorization\":\"Bearer xxx\",\"Content-Type\":\"application/json\"}")),
+		mcp.WithString("body", mcp.Description("请求体内容（JSON 或文本）")),
+		mcp.WithNumber("timeout", mcp.Description("超时秒数，默认 30")),
+	), toolHandler(client, func(c *SimulatorClient, args map[string]any) (any, error) {
+		method := getStringArg(args, "method")
+		url := getStringArg(args, "url")
+		headers := getStringArg(args, "headers")
+		body := getStringArg(args, "body")
+		timeout := int(getFloatArg(args, "timeout"))
+		return c.ProxyRequest(method, url, headers, body, timeout)
+	}))
+
+	s.AddTool(mcp.NewTool("get_collections",
+		mcp.WithDescription("获取接口测试中的所有请求集合和文件夹"),
+	), toolHandler(client, func(c *SimulatorClient, args map[string]any) (any, error) {
+		return c.GetCollections()
+	}))
+
+	s.AddTool(mcp.NewTool("save_collection",
+		mcp.WithDescription("保存/更新一个请求或文件夹。类型为 request 或 folder。"),
+		mcp.WithString("item", mcp.Description("请求/文件夹的 JSON 字符串，包含 id, name, type(request/folder), method, url, headers, body, pre_script, test_script, children 等字段"), mcp.Required()),
+	), toolHandler(client, func(c *SimulatorClient, args map[string]any) (any, error) {
+		return c.SaveCollection(getStringArg(args, "item"))
+	}))
+
+	s.AddTool(mcp.NewTool("delete_collection",
+		mcp.WithDescription("删除一个请求或文件夹"),
+		mcp.WithString("id", mcp.Description("请求或文件夹的 ID"), mcp.Required()),
+	), toolHandler(client, func(c *SimulatorClient, args map[string]any) (any, error) {
+		return c.DeleteCollection(getStringArg(args, "id"))
+	}))
+
+	s.AddTool(mcp.NewTool("get_environments",
+		mcp.WithDescription("获取所有环境变量环境列表和当前活跃环境"),
+	), toolHandler(client, func(c *SimulatorClient, args map[string]any) (any, error) {
+		return c.GetEnvironments()
+	}))
+
+	s.AddTool(mcp.NewTool("save_environment",
+		mcp.WithDescription("保存/更新一个环境变量环境。包含 id, name, variables(键值对)。"),
+		mcp.WithString("env", mcp.Description("环境的 JSON 字符串，如 {\"id\":\"xxx\",\"name\":\"生产环境\",\"variables\":{\"base_url\":\"https://api.prod.com\"}}"), mcp.Required()),
+	), toolHandler(client, func(c *SimulatorClient, args map[string]any) (any, error) {
+		return c.SaveEnvironment(getStringArg(args, "env"))
+	}))
+
+	s.AddTool(mcp.NewTool("delete_environment",
+		mcp.WithDescription("删除一个环境变量环境"),
+		mcp.WithString("id", mcp.Description("环境的 ID"), mcp.Required()),
+	), toolHandler(client, func(c *SimulatorClient, args map[string]any) (any, error) {
+		return c.DeleteEnvironment(getStringArg(args, "id"))
+	}))
+
+	s.AddTool(mcp.NewTool("activate_environment",
+		mcp.WithDescription("激活一个环境变量环境，使其成为当前使用的环境"),
+		mcp.WithString("id", mcp.Description("要激活的环境 ID"), mcp.Required()),
+	), toolHandler(client, func(c *SimulatorClient, args map[string]any) (any, error) {
+		return c.ActivateEnvironment(getStringArg(args, "id"))
+	}))
+
+	s.AddTool(mcp.NewTool("export_proxy_config",
+		mcp.WithDescription("导出全部接口测试配置（请求集合 + 环境变量）为 JSON 格式"),
+	), toolHandler(client, func(c *SimulatorClient, args map[string]any) (any, error) {
+		return c.ExportProxyConfig()
+	}))
+
+	return s
+}
+
 func toolHandler(client *SimulatorClient, fn func(*SimulatorClient, map[string]any) (any, error)) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		args := req.GetArguments()

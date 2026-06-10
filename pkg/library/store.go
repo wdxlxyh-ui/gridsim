@@ -72,6 +72,20 @@ func (s *Store) SnapshotByType(pt config.PointType) []*config.Point {
 	return snap
 }
 
+// AddPoint 向 store 添加一个新测点（线程安全）
+// Returns error if IOA already exists
+func (s *Store) AddPoint(p *config.Point) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.points[p.IOA]; ok {
+		return fmt.Errorf("IOA %d already exists in store", p.IOA)
+	}
+	cp := *p
+	s.points[p.IOA] = &cp
+	s.byType[p.PointType] = append(s.byType[p.PointType], &cp)
+	return nil
+}
+
 func (s *Store) SetValue(ioa uint32, value float64) (*config.Point, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -86,6 +100,7 @@ func (s *Store) SetValue(ioa uint32, value float64) (*config.Point, error) {
 		p.Value = value
 	case config.TypeDI, config.TypeDO:
 		p.BoolValue = int64(value) != 0
+		p.Value = value // Also set float64 for consistent API read
 	case config.TypePI:
 		p.IntValue = int32(value)
 	}

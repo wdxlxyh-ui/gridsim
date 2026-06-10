@@ -10,8 +10,17 @@ type InstanceConfig struct {
 	HttpEnabled bool   `json:"http_enabled"`
 	HttpPort    int    `json:"http_port"`
 
-	Protocol     string                `json:"protocol,omitempty"`
-	ModbusConfig *ModbusInstanceConfig `json:"modbus_config,omitempty"`
+	Protocol        string                   `json:"protocol,omitempty"`
+	ModbusConfig    *ModbusInstanceConfig    `json:"modbus_config,omitempty"`
+	MicrogridConfig *MicrogridInstanceConfig `json:"microgrid_config,omitempty"`
+}
+
+// MicrogridInstanceConfig 微电网实例配置
+type MicrogridInstanceConfig struct {
+	TopologyJSON string  `json:"topology_json,omitempty"`
+	PointsJSON   string  `json:"points_json,omitempty"`
+	TickMs       int     `json:"tick_ms,omitempty"`
+	SpeedFactor  float64 `json:"speed_factor,omitempty"`
 }
 
 type ModbusInstanceConfig struct {

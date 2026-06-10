@@ -1,0 +1,18 @@
+- generic [ref=e6]:
+  - generic [ref=e7]:
+    - generic [ref=e8]: AI
+    - heading "AI 工具集" [level=1] [ref=e9]
+    - paragraph [ref=e10]: 边缘计算管理平台
+  - generic [ref=e11]:
+    - generic [ref=e12]:
+      - generic [ref=e13]: 用户名
+      - textbox "请输入用户名" [ref=e14]: admin
+    - generic [ref=e15]:
+      - generic [ref=e16]: 密码
+      - textbox "请输入密码" [ref=e17]
+    - generic [ref=e18]:
+      - button "登 录" [ref=e19] [cursor=pointer]
+      - link "注册账号" [ref=e20] [cursor=pointer]:
+        - /url: /register
+  - link "注册账号" [ref=e22] [cursor=pointer]:
+    - /url: /register

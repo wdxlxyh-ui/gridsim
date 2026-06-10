@@ -25,6 +25,8 @@ func New(cfg model.InstanceConfig) (Protocol, error) {
 			}
 		}
 		return modbus.NewTCPServer(port, slaveID, byteOrder), nil
+	case "microgrid":
+		return NewIEC104Wrapper(cfg.IEC104Port), nil
 	case "", "iec104":
 		return NewIEC104Wrapper(cfg.IEC104Port), nil
 	default:
@@ -33,5 +35,5 @@ func New(cfg model.InstanceConfig) (Protocol, error) {
 }
 
 func SupportedProtocols() []string {
-	return []string{"iec104", "modbus_tcp"}
+	return []string{"iec104", "modbus_tcp", "microgrid"}
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -18,6 +19,7 @@ import (
 
 	"gridsim/internal/detail"
 	"gridsim/internal/manager"
+	"gridsim/internal/microgrid"
 	"gridsim/internal/model"
 	"gridsim/internal/storage"
 	"gridsim/pkg/api"
@@ -31,6 +33,9 @@ import (
 	"github.com/spf13/pflag"
 	"golang.org/x/crypto/bcrypt"
 )
+
+//go:embed resources/*.json
+var builtinResources embed.FS
 
 var (
 	version    = "dev"
@@ -120,10 +125,12 @@ func runLegacyMode() {
 // ─── Server Mode (web management) ──────────────────────────────────────────
 
 type webServer struct {
-	mgr        *manager.Manager
-	httpSrv    *http.Server
-	cfgDir     string
-	userConfig *model.UserConfig
+	mgr          *manager.Manager
+	httpSrv      *http.Server
+	cfgDir       string
+	userConfig   *model.UserConfig
+	proxyStore   *api.ProxyStore
+	proxyHandler *api.ProxyHandler
 }
 
 func runServerMode() {
@@ -153,10 +160,18 @@ func runServerMode() {
 
 	mgr := manager.New(cfgStore, configDir)
 
+	proxyStore := api.NewProxyStore(configDir)
+	if err := proxyStore.Load(); err != nil {
+		slog.Warn("加载代理配置失败", "error", err)
+	}
+	if err := seedBuiltinProxyData(proxyStore); err != nil {
+		slog.Warn("写入内置 API 集合失败", "error", err)
+	}
+
 	// Build HTTP mux
 	mux := http.NewServeMux()
 	userCfg := loadUserConfig(configDir)
-	ws := &webServer{mgr: mgr, cfgDir: configDir, userConfig: userCfg}
+	ws := &webServer{mgr: mgr, cfgDir: configDir, userConfig: userCfg, proxyStore: proxyStore}
 	ws.registerRoutes(mux, configDir)
 
 	if p := parsePort(httpAddr); p > 0 {
@@ -197,12 +212,48 @@ func (ws *webServer) registerRoutes(mux *http.ServeMux, configDir string) {
 	mux.HandleFunc("/api/v1/files", ws.handleFiles)
 	mux.HandleFunc("/api/v1/protocols", ws.handleProtocols)
 
+	// Proxy API Tester routes
+	ws.proxyHandler = api.NewProxyHandler()
+	ws.proxyHandler.Register(mux)
+	mux.HandleFunc("/api/v1/proxy/collections", ws.handleCollections)
+	mux.HandleFunc("/api/v1/proxy/collections/", ws.handleCollectionByID)
+	mux.HandleFunc("/api/v1/proxy/environments", ws.handleEnvironments)
+	mux.HandleFunc("/api/v1/proxy/environments/", ws.handleEnvironmentByID)
+	mux.HandleFunc("/api/v1/proxy/export", ws.handleExport)
+
+	// Microgrid management routes
+	ws.registerMicrogridRoutes(mux)
+
 	// Serve static frontend if built
 	if _, err := os.Stat(webDir); err == nil {
 		mux.Handle("/", http.FileServer(http.Dir(webDir)))
 	} else {
 		slog.Warn("前端构建目录不存在，Web UI 不可用", "path", webDir)
 	}
+}
+
+func (ws *webServer) registerMicrogridRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("/api/v1/microgrid/", func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		switch {
+		case strings.Contains(path, "/topology"):
+			microgrid.HandleMicrogridTopology(ws.mgr)(w, r)
+		case strings.Contains(path, "/control"):
+			microgrid.HandleMicrogridControl(ws.mgr)(w, r)
+		case strings.Contains(path, "/device"):
+			microgrid.HandleMicrogridDevice(ws.mgr)(w, r)
+		case strings.Contains(path, "/dashboard"):
+			microgrid.HandleMicrogridDashboard(ws.mgr)(w, r)
+		case strings.Contains(path, "/formulas"):
+			microgrid.HandleMicrogridFormulas(ws.mgr)(w, r)
+		case strings.Contains(path, "/export-xlsx"):
+			microgrid.HandleMicrogridExportXLSX(ws.mgr)(w, r)
+		case strings.Contains(path, "/points"):
+			microgrid.HandleMicrogridPoints(ws.mgr)(w, r)
+		default:
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "unknown microgrid endpoint"})
+		}
+	})
 }
 
 // ─── Management API Handlers ───────────────────────────────────────────────
@@ -271,6 +322,10 @@ func (ws *webServer) handleInstanceByID(w http.ResponseWriter, r *http.Request) 
 			ws.withDetailHandler(w, r, id, func(dh *detail.DetailHandler) { dh.HandleReadCSVHeaders(w, r) })
 		case "csv-replay":
 			ws.withDetailHandler(w, r, id, func(dh *detail.DetailHandler) { dh.HandleConfigCSVReplay(w, r) })
+		case "batch-replay":
+			ws.withDetailHandler(w, r, id, func(dh *detail.DetailHandler) { dh.HandleBatchReplay(w, r) })
+		case "metrics":
+			ws.withDetailHandler(w, r, id, func(dh *detail.DetailHandler) { dh.HandleMetrics(w, r) })
 		default:
 			writeError(w, http.StatusBadRequest, "unknown action: "+parts[1])
 		}
@@ -306,9 +361,12 @@ func (ws *webServer) handleInstanceByID(w http.ResponseWriter, r *http.Request) 
 			if req.Protocol == "" {
 				req.Protocol = existing.Protocol
 			}
-			if !req.HttpEnabled && req.HttpPort == 0 {
-				req.HttpPort = existing.HttpPort
-			}
+		if !req.HttpEnabled && req.HttpPort == 0 {
+			req.HttpPort = existing.HttpPort
+		}
+		if req.Protocol == "microgrid" && req.MicrogridConfig == nil {
+			req.MicrogridConfig = existing.MicrogridConfig
+		}
 		}
 		if err := ws.mgr.UpdateConfig(req); err != nil {
 			writeError(w, http.StatusNotFound, err.Error())
@@ -553,6 +611,97 @@ func (ws *webServer) handleProtocols(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{"protocols": protocol.SupportedProtocols()})
 }
 
+// ─── Proxy API Tester Handlers ─────────────────────────────────────────────
+
+func (ws *webServer) handleCollections(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	switch r.Method {
+	case http.MethodGet:
+		writeJSON(w, http.StatusOK, map[string]interface{}{"collections": ws.proxyStore.GetCollections()})
+	case http.MethodPost:
+		var item api.CollectionItem
+		if err := json.NewDecoder(r.Body).Decode(&item); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid JSON")
+			return
+		}
+		if err := ws.proxyStore.SaveCollection(&item); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, item)
+	default:
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
+func (ws *webServer) handleCollectionByID(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	id := strings.TrimPrefix(r.URL.Path, "/api/v1/proxy/collections/")
+	switch r.Method {
+	case http.MethodDelete:
+		if err := ws.proxyStore.DeleteCollection(id); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+	default:
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
+func (ws *webServer) handleEnvironments(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	switch r.Method {
+	case http.MethodGet:
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"environments": ws.proxyStore.GetEnvironments(),
+			"active_id":    ws.proxyStore.ActiveEnvID,
+		})
+	case http.MethodPost:
+		var env api.Environment
+		if err := json.NewDecoder(r.Body).Decode(&env); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid JSON")
+			return
+		}
+		if err := ws.proxyStore.SaveEnvironment(&env); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, env)
+	default:
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
+func (ws *webServer) handleEnvironmentByID(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	path := strings.TrimPrefix(r.URL.Path, "/api/v1/proxy/environments/")
+	parts := strings.SplitN(path, "/", 2)
+	id := parts[0]
+
+	if len(parts) == 2 && parts[1] == "activate" {
+		if r.Method == http.MethodPost {
+			if err := ws.proxyStore.SetActiveEnv(id); err != nil {
+				writeError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+			return
+		}
+	}
+
+	switch r.Method {
+	case http.MethodDelete:
+		if err := ws.proxyStore.DeleteEnvironment(id); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+	default:
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 func instanceStateToMap(s *model.InstanceState) map[string]interface{} {
@@ -568,8 +717,11 @@ func instanceStateToMap(s *model.InstanceState) map[string]interface{} {
 		"enabled":      s.Config.Enabled,
 		"http_enabled": s.Config.HttpEnabled,
 		"http_port":    s.Config.HttpPort,
-		"protocol":     proto,
-		"status":       string(s.Status),
+		"protocol":        proto,
+		"status":          string(s.Status),
+	}
+	if s.Config.MicrogridConfig != nil {
+		m["microgrid_config"] = s.Config.MicrogridConfig
 	}
 	if s.Status == model.StatusRunning {
 		m["stats"] = map[string]interface{}{
@@ -602,7 +754,7 @@ func validateConfig(cfg model.InstanceConfig) error {
 	if port < 1 || port > 65535 {
 		return fmt.Errorf("port must be 1-65535")
 	}
-	if cfg.XLSXFile == "" {
+	if cfg.Protocol != "microgrid" && cfg.XLSXFile == "" {
 		return fmt.Errorf("xlsx_file is required")
 	}
 	if cfg.HttpEnabled && (cfg.HttpPort < 1 || cfg.HttpPort > 65535) {
@@ -763,4 +915,225 @@ func sanitizeFilename(name string) string {
 	}, name)
 	name = strings.ReplaceAll(name, "..", "")
 	return name
+}
+
+func (ws *webServer) handleExport(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"version":  "gridsim-proxy-export-v1",
+		"exported_at": time.Now().UTC().Format(time.RFC3339),
+		"collections": ws.proxyStore.GetCollections(),
+		"environments": ws.proxyStore.GetEnvironments(),
+		"active_env_id": ws.proxyStore.ActiveEnvID,
+	})
+}
+
+var builtinCollectionIDs = map[string]bool{}
+var builtinEnvIDs = map[string]bool{}
+
+func init() {
+	if data, err := builtinResources.ReadFile("resources/gridsim-builtin.postman_collection.json"); err == nil {
+		var pm struct {
+			Item []map[string]any `json:"item"`
+		}
+		if json.Unmarshal(data, &pm) == nil {
+			collectIDs(pm.Item, builtinCollectionIDs)
+		}
+	}
+	if data, err := builtinResources.ReadFile("resources/gridsim-builtin.env.json"); err == nil {
+		var envFile struct {
+			Environments []*api.Environment `json:"environments"`
+		}
+		if json.Unmarshal(data, &envFile) == nil {
+			for _, e := range envFile.Environments {
+				builtinEnvIDs[e.ID] = true
+			}
+		}
+	}
+}
+
+func collectIDs(items []map[string]any, out map[string]bool) {
+	for _, item := range items {
+		if id, ok := item["id"].(string); ok && id != "" {
+			out[id] = true
+		}
+		if child, ok := item["item"].([]any); ok {
+			for _, c := range child {
+				if m, ok := c.(map[string]any); ok {
+					if id, ok := m["id"].(string); ok && id != "" {
+						out[id] = true
+					}
+					if sub, ok := m["item"].([]any); ok {
+						inner := make([]map[string]any, 0, len(sub))
+						for _, s := range sub {
+							if mm, ok := s.(map[string]any); ok {
+								inner = append(inner, mm)
+							}
+						}
+						collectIDs(inner, out)
+					}
+				}
+			}
+		}
+	}
+}
+
+func seedBuiltinProxyData(store *api.ProxyStore) error {
+	if data, err := builtinResources.ReadFile("resources/gridsim-builtin.env.json"); err == nil {
+		var envFile struct {
+			Environments []*api.Environment `json:"environments"`
+			ActiveEnvID  string              `json:"active_env_id"`
+		}
+		if json.Unmarshal(data, &envFile) == nil {
+			existing := store.GetEnvironments()
+			have := map[string]bool{}
+			for _, e := range existing {
+				have[e.ID] = true
+			}
+			for _, e := range envFile.Environments {
+				if !have[e.ID] {
+					if err := store.SaveEnvironment(e); err != nil {
+						return fmt.Errorf("save env: %w", err)
+					}
+				}
+			}
+			if envFile.ActiveEnvID != "" {
+				_ = store.SetActiveEnv(envFile.ActiveEnvID)
+			}
+		}
+	}
+
+	if data, err := builtinResources.ReadFile("resources/gridsim-builtin.postman_collection.json"); err == nil {
+		var pm struct {
+			Item []map[string]any `json:"item"`
+		}
+		if json.Unmarshal(data, &pm) == nil {
+			existing := store.GetCollections()
+			have := map[string]bool{}
+			for _, c := range existing {
+				have[c.ID] = true
+			}
+			added := 0
+			for _, item := range pm.Item {
+				root := postmanItemToCollection(item)
+				if root != nil && !have[root.ID] {
+					if err := store.SaveCollection(root); err != nil {
+						return fmt.Errorf("save collection: %w", err)
+					}
+					added++
+				}
+			}
+			if added > 0 {
+				slog.Info("已写入内置 API 集合", "folders", added)
+			}
+		}
+	}
+	return nil
+}
+
+func postmanItemToCollection(item map[string]any) *api.CollectionItem {
+	name, _ := item["name"].(string)
+	id, _ := item["id"].(string)
+	if id == "" {
+		id = genBuiltinID(name)
+	}
+	node := &api.CollectionItem{
+		ID:   id,
+		Name: name,
+		Type: "folder",
+	}
+	if req, ok := item["request"].(map[string]any); ok {
+		node.Type = "request"
+		node.Method, _ = req["method"].(string)
+		if u, ok := req["url"].(map[string]any); ok {
+			if raw, ok := u["raw"].(string); ok {
+				node.URL = raw
+			}
+		} else if u, ok := req["url"].(string); ok {
+			node.URL = u
+		}
+		headers := map[string]string{}
+		if hs, ok := req["header"].([]any); ok {
+			for _, h := range hs {
+				if hm, ok := h.(map[string]any); ok {
+					k, _ := hm["key"].(string)
+					v, _ := hm["value"].(string)
+					if k != "" {
+						headers[k] = v
+					}
+				}
+			}
+		}
+		if len(headers) > 0 {
+			node.Headers = headers
+		}
+		if body, ok := req["body"].(map[string]any); ok {
+			if raw, ok := body["raw"].(string); ok {
+				node.Body = raw
+			}
+		}
+		if evts, ok := item["event"].([]any); ok {
+			var pre, post string
+			for _, e := range evts {
+				em, _ := e.(map[string]any)
+				listen, _ := em["listen"].(string)
+				if script, ok := em["script"].(map[string]any); ok {
+					if exec, ok := script["exec"].([]any); ok {
+						lines := make([]string, 0, len(exec))
+						for _, l := range exec {
+							if s, ok := l.(string); ok {
+								lines = append(lines, s)
+							}
+						}
+						body := joinLines(lines)
+						if listen == "prerequest" {
+							pre = body
+						} else if listen == "test" {
+							post = body
+						}
+					}
+				}
+			}
+			if pre != "" {
+				node.PreScript = pre
+			}
+			if post != "" {
+				node.TestScript = post
+			}
+		}
+	}
+	if child, ok := item["item"].([]any); ok {
+		for _, c := range child {
+			cm, _ := c.(map[string]any)
+			converted := postmanItemToCollection(cm)
+			if converted != nil {
+				node.Children = append(node.Children, converted)
+			}
+		}
+	}
+	return node
+}
+
+func joinLines(lines []string) string {
+	out := ""
+	for i, l := range lines {
+		if i > 0 {
+			out += "\n"
+		}
+		out += l
+	}
+	return out
+}
+
+func genBuiltinID(name string) string {
+	h := uint32(2166136261)
+	for i := 0; i < len(name); i++ {
+		h ^= uint32(name[i])
+		h *= 16777619
+	}
+	return fmt.Sprintf("builtin-%08x", h)
 }

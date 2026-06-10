@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	"gridsim/internal/detail"
+	"gridsim/internal/microgrid"
 	"gridsim/internal/model"
 	"gridsim/internal/storage"
 	"gridsim/pkg/api"
@@ -36,6 +37,7 @@ type Instance struct {
 	HTTPServer *http.Server
 	AutoEngine *detail.Engine
 	Logger     *InstanceLogger
+	Microgrid  *microgrid.Engine // non-nil only for microgrid instances
 }
 
 // MaxInstances is the maximum number of concurrent instances allowed.
@@ -106,6 +108,12 @@ func (m *Manager) CreateConfig(cfg model.InstanceConfig) (model.InstanceConfig, 
 }
 
 func (m *Manager) StartInstance(id string) error {
+	// Microgrid instances use a different startup path
+	cfg, ok := m.store.Get(id)
+	if ok && cfg.Protocol == "microgrid" {
+		return m.startMicrogrid(id)
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -113,7 +121,7 @@ func (m *Manager) StartInstance(id string) error {
 		return fmt.Errorf("instance %s already running", id)
 	}
 
-	cfg, ok := m.store.Get(id)
+	cfg, ok = m.store.Get(id)
 	if !ok {
 		return fmt.Errorf("instance %s not found", id)
 	}
@@ -214,6 +222,20 @@ func (m *Manager) StartInstance(id string) error {
 }
 
 // UpdateConfig updates an instance configuration, stopping it if running.
+// GetAutoChangeActiveIOAs returns IOAs with active auto-change strategies
+func (m *Manager) GetAutoChangeActiveIOAs(id string) []uint32 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if inst, ok := m.instances[id]; ok && inst.AutoEngine != nil {
+		return inst.AutoEngine.GetActiveIOAs()
+	}
+	return nil
+}
+
+func (m *Manager) SaveConfigOnly(cfg model.InstanceConfig) error {
+	return m.store.Update(cfg)
+}
+
 func (m *Manager) UpdateConfig(cfg model.InstanceConfig) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -278,6 +300,9 @@ func (m *Manager) StopInstance(id string) error {
 		return fmt.Errorf("instance %s not running", id)
 	}
 
+	if inst.Microgrid != nil {
+		inst.Microgrid.Stop()
+	}
 	inst.Protocol.Stop()
 	if inst.AutoEngine != nil {
 		inst.AutoEngine.StopAll()
@@ -409,6 +434,9 @@ func (m *Manager) StopAll() {
 	defer m.mu.Unlock()
 
 	for id, inst := range m.instances {
+		if inst.Microgrid != nil {
+			inst.Microgrid.Stop()
+		}
 		inst.Protocol.Stop()
 		if inst.AutoEngine != nil {
 			inst.AutoEngine.StopAll()
@@ -416,4 +444,137 @@ func (m *Manager) StopAll() {
 		delete(m.instances, id)
 		slog.Info("实例已停止", "id", id, "name", inst.Config.Name)
 	}
+}
+
+// ─── Microgrid Support ───
+
+func (m *Manager) startMicrogrid(id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, ok := m.instances[id]; ok {
+		return fmt.Errorf("instance %s already running", id)
+	}
+
+	cfg, ok := m.store.Get(id)
+	if !ok {
+		return fmt.Errorf("instance %s not found", id)
+	}
+
+	if cfg.MicrogridConfig == nil || cfg.MicrogridConfig.TopologyJSON == "" {
+		return fmt.Errorf("microgrid topology not configured")
+	}
+
+	var topo microgrid.Topology
+	if err := topo.FromJSON(cfg.MicrogridConfig.TopologyJSON); err != nil {
+		return fmt.Errorf("invalid topology: %w", err)
+	}
+	if err := topo.Validate(); err != nil {
+		return fmt.Errorf("topology validation failed: %w", err)
+	}
+
+	// Port availability check
+	for _, inst := range m.instances {
+		if inst.Config.IEC104Port == cfg.IEC104Port {
+			return fmt.Errorf("port %d already in use", cfg.IEC104Port)
+		}
+	}
+	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.IEC104Port))
+	if err != nil {
+		return fmt.Errorf("port %d not available: %w", cfg.IEC104Port, err)
+	}
+	ln.Close()
+
+	store := topo.StoreFromTopology()
+	proto, err := protocol.New(cfg)
+	if err != nil {
+		return fmt.Errorf("create protocol: %w", err)
+	}
+	proto.SetStore(store)
+	if err := proto.Start(); err != nil {
+		return fmt.Errorf("start protocol: %w", err)
+	}
+
+	tickMs := 1000
+	speed := 1.0
+	if cfg.MicrogridConfig.TickMs > 0 {
+		tickMs = cfg.MicrogridConfig.TickMs
+	}
+	if cfg.MicrogridConfig.SpeedFactor > 0 {
+		speed = cfg.MicrogridConfig.SpeedFactor
+	}
+
+	eng := microgrid.NewEngine(&topo, store, microgrid.InstanceConfig{
+		TickMs:      tickMs,
+		SpeedFactor: speed,
+		ConfigDir:   m.cfgDir,
+		PointsJSON:  cfg.MicrogridConfig.PointsJSON,
+	})
+	eng.SetPublisher(proto)
+	if err := eng.Start(); err != nil {
+		proto.Stop()
+		return fmt.Errorf("start microgrid engine: %w", err)
+	}
+
+	// Start auto-change detail engine for strategy evaluation
+	acStore := detail.NewAutoChangeStore(m.cfgDir)
+	autoEng := detail.NewEngine(id, store, proto, acStore, m.cfgDir, m)
+	if err := autoEng.LoadAndStart(); err != nil {
+		slog.Warn("auto-change engine start failed", "id", id, "error", err)
+	}
+
+	inst := &Instance{
+		Config:     cfg,
+		Protocol:   proto,
+		Store:      store,
+		Microgrid:  eng,
+		AutoEngine: autoEng,
+	}
+
+	if cfg.HttpEnabled && cfg.HttpPort > 0 {
+		ln, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.HttpPort))
+		if err != nil {
+			proto.Stop()
+			eng.Stop()
+			return fmt.Errorf("http port %d not available: %w", cfg.HttpPort, err)
+		}
+		ln.Close()
+		apiHandler := api.NewHandler(store, proto, proto)
+		detailHandler := detail.NewDetailHandler(cfg.ID, store, autoEng, m.cfgDir)
+		httpMux := http.NewServeMux()
+		apiHandler.Register(httpMux)
+		detailHandler.Register(httpMux)
+		httpSrv := &http.Server{Addr: fmt.Sprintf(":%d", cfg.HttpPort), Handler: httpMux}
+		go func() {
+			slog.Info("微电网实例HTTP API已启动", "id", id, "port", cfg.HttpPort)
+			if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				slog.Error("微电网实例HTTP API失败", "id", id, "error", err)
+			}
+		}()
+		inst.HTTPServer = httpSrv
+		firewall.EnsurePort(cfg.HttpPort, "gridsim-microgrid")
+	}
+
+	m.instances[id] = inst
+	firewall.EnsurePort(cfg.IEC104Port, "gridsim-microgrid")
+	slog.Info("微电网实例已启动", "id", id, "devices", len(topo.Devices))
+	return nil
+}
+
+// GetMicrogridEngine 获取微电网引擎
+func (m *Manager) GetMicrogridEngine(id string) *microgrid.Engine {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if inst, ok := m.instances[id]; ok {
+		return inst.Microgrid
+	}
+	return nil
+}
+
+// RegisterMicrogridInstance 注册微电网实例 (用于外部创建)
+func (m *Manager) RegisterMicrogridInstance(id string, inst *Instance, eng *microgrid.Engine) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	inst.Microgrid = eng
+	m.instances[id] = inst
 }

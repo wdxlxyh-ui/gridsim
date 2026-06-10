@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IEC104 模拟器 — 接口测试工具 设计稿</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg-primary: #0a0e17;
+  --bg-secondary: #111827;
+  --bg-tertiary: #1a1f2e;
+  --bg-input: #0d1117;
+  --border: #1e293b;
+  --border-focus: #f59e0b;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --accent: #f59e0b;
+  --accent-hover: #fbbf24;
+  --accent-dim: rgba(245, 158, 11, 0.12);
+  --success: #22c55e;
+  --error: #ef4444;
+  --warning: #f59e0b;
+  --info: #3b82f6;
+  --method-get: #22c55e;
+  --method-post: #f59e0b;
+  --method-put: #3b82f6;
+  --method-delete: #ef4444;
+  --method-patch: #a855f7;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ===== Header ===== */
+.app-header {
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border);
+}
+.app-header h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.app-header h2 .badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+/* ===== Layout ===== */
+.layout {
+  display: flex;
+  height: calc(100vh - 52px);
+}
+
+/* ===== Sidebar ===== */
+.sidebar {
+  width: 200px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  padding: 12px 0;
+  flex-shrink: 0;
+}
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+  border-left: 3px solid transparent;
+}
+.sidebar-item:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+.sidebar-item.active {
+  color: var(--accent);
+  background: var(--accent-dim);
+  border-left-color: var(--accent);
+}
+.sidebar-item .icon {
+  width: 18px;
+  text-align: center;
+  font-size: 15px;
+}
+
+/* ===== Main Content ===== */
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ===== Request Bar ===== */
+.request-bar {
+  display: flex;
+  gap: 8px;
+  padding: 16px 20px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.method-select {
+  position: relative;
+}
+.method-select select {
+  appearance: none;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--method-get);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 36px 10px 14px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  min-width: 100px;
+}
+.method-select select:focus {
+  outline: none;
+  border-color: var(--border-focus);
+}
+.method-select::after {
+  content: '▾';
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-size: 12px;
+  pointer-events: none;
+}
+.method-select.get select { color: var(--method-get); }
+.method-select.post select { color: var(--method-post); }
+.method-select.put select { color: var(--method-put); }
+.method-select.delete select { color: var(--method-delete); }
+.method-select.patch select { color: var(--method-patch); }
+
+.url-input {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  padding: 10px 14px;
+  transition: border-color 0.2s;
+}
+.url-input:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+.url-input::placeholder {
+  color: var(--text-muted);
+  font-family: 'Inter', sans-serif;
+}
+
+.send-btn {
+  background: var(--accent);
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 28px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.send-btn:hover {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+}
+.send-btn:active {
+  transform: translateY(0);
+}
+.send-btn .icon { font-size: 16px; }
+
+.save-btn, .history-btn {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.save-btn:hover, .history-btn:hover {
+  background: var(--border);
+  color: var(--text-primary);
+}
+
+/* ===== Tabs ===== */
+.tabs-area {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+  padding: 0 20px;
+}
+.tab {
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+.tab:hover { color: var(--text-secondary); }
+.tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* ===== Content Split ===== */
+.content-split {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ===== Request Panel ===== */
+.request-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+.panel-header {
+  padding: 10px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+}
+
+/* ===== Key-Value Editor ===== */
+.kv-editor {
+  width: 100%;
+}
+.kv-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+  align-items: center;
+}
+.kv-row input {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  padding: 8px 10px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.kv-row input:focus {
+  outline: none;
+  border-color: var(--border-focus);
+}
+.kv-row input::placeholder {
+  color: var(--text-muted);
+  font-family: 'Inter', sans-serif;
+}
+.kv-row .kv-check {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.kv-row .kv-delete {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+.kv-row .kv-delete:hover {
+  color: var(--error);
+  background: rgba(239, 68, 68, 0.1);
+}
+.add-row-btn {
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 4px;
+}
+.add-row-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ===== Body Editor ===== */
+.body-type-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.body-type {
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.body-type input[type="radio"] {
+  accent-color: var(--accent);
+}
+.body-type.active {
+  color: var(--accent);
+}
+
+.body-editor {
+  width: 100%;
+  min-height: 180px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 12px;
+  resize: vertical;
+}
+.body-editor:focus {
+  outline: none;
+  border-color: var(--border-focus);
+}
+
+/* ===== Pre-Script ===== */
+.script-editor {
+  width: 100%;
+  min-height: 120px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: #7dd3fc;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 12px;
+  resize: vertical;
+}
+.script-editor:focus {
+  outline: none;
+  border-color: var(--border-focus);
+}
+
+.var-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 8px;
+  line-height: 1.6;
+}
+.var-hint code {
+  background: var(--bg-tertiary);
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: var(--accent);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+}
+
+/* ===== Response Panel ===== */
+.response-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.response-status {
+  display: flex;
+  gap: 16px;
+  padding: 8px 16px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+}
+.status-chip {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.status-chip.success { background: rgba(34, 197, 94, 0.15); color: var(--success); }
+.status-chip.error { background: rgba(239, 68, 68, 0.15); color: var(--error); }
+.status-chip.info { background: rgba(59, 130, 246, 0.1); color: var(--info); }
+
+.response-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+.json-view {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.json-key { color: #93c5fd; }
+.json-string { color: #86efac; }
+.json-number { color: #fbbf24; }
+.json-bool { color: #c084fc; }
+.json-null { color: #64748b; }
+.json-bracket { color: var(--text-secondary); }
+
+/* ===== History Panel ===== */
+.history-panel {
+  position: fixed;
+  right: -380px;
+  top: 52px;
+  width: 380px;
+  height: calc(100vh - 52px);
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border);
+  box-shadow: -4px 0 24px rgba(0,0,0,0.4);
+  transition: right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+}
+.history-panel.open { right: 0; }
+
+.history-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.history-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+}
+.history-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+}
+.history-close:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.history-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+.history-item {
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+  margin-bottom: 4px;
+}
+.history-item:hover {
+  background: var(--bg-tertiary);
+}
+.history-method {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-right: 8px;
+}
+.history-method.GET { background: rgba(34,197,94,0.15); color: var(--method-get); }
+.history-method.POST { background: rgba(245,158,11,0.15); color: var(--method-post); }
+.history-method.PUT { background: rgba(59,130,246,0.15); color: var(--method-put); }
+.history-method.DELETE { background: rgba(239,68,68,0.15); color: var(--method-delete); }
+.history-url {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text-secondary);
+  display: inline;
+  word-break: break-all;
+}
+.history-meta {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex;
+  gap: 12px;
+}
+
+/* ===== Overlay ===== */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 99;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+.overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ===== Save Modal ===== */
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+.modal-mask.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+.modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  width: 420px;
+  box-shadow: 0 24px 48px rgba(0,0,0,0.4);
+}
+.modal h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+.modal label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  display: block;
+  margin-bottom: 6px;
+}
+.modal input {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+}
+.modal input:focus {
+  outline: none;
+  border-color: var(--border-focus);
+}
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.modal-actions button {
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  transition: all 0.2s;
+}
+.modal-actions .cancel {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+.modal-actions .confirm {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+.modal-actions .confirm:hover {
+  background: var(--accent-hover);
+}
+
+/* ===== Empty State ===== */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+  gap: 12px;
+}
+.empty-state .icon { font-size: 48px; opacity: 0.3; }
+.empty-state p { font-size: 13px; }
+
+/* ===== Loading ===== */
+.sending-indicator {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  color: var(--accent);
+  font-size: 13px;
+}
+.sending-indicator.show { display: flex; }
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ===== Scrollbar ===== */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ===== Responsive hint ===== */
+.design-badge {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  background: var(--accent);
+  color: #000;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  z-index: 300;
+  letter-spacing: 0.3px;
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="app-header">
+  <h2>IEC104 模拟器管理系统 <span class="badge">v2.6.0-design</span></h2>
+  <div style="display: flex; align-items: center; gap: 12px;">
+    <span style="font-size: 13px; color: var(--text-secondary);">admin</span>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-item" onclick="showHint('配置管理')">
+      <span class="icon">⚙</span> 配置管理
+    </div>
+    <div class="sidebar-item" onclick="showHint('运行监控')">
+      <span class="icon">📊</span> 运行监控
+    </div>
+    <div class="sidebar-item" onclick="showHint('实时趋势')">
+      <span class="icon">📈</span> 实时趋势
+    </div>
+    <div class="sidebar-item active">
+      <span class="icon">🔌</span> 接口测试
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <main class="main">
+    <!-- Request Bar -->
+    <div class="request-bar">
+      <div class="method-select get" id="methodSelect">
+        <select id="method" onchange="updateMethodColor()">
+          <option value="GET">GET</option>
+          <option value="POST">POST</option>
+          <option value="PUT">PUT</option>
+          <option value="DELETE">DELETE</option>
+          <option value="PATCH">PATCH</option>
+        </select>
+      </div>
+      <input type="text" class="url-input" id="urlInput"
+        placeholder="输入请求 URL，支持 {{variable}} 变量"
+        value="http://localhost:8989/api/v1/status">
+      <button class="send-btn" onclick="sendRequest()">
+        <span class="icon">▶</span> 发送
+      </button>
+      <button class="save-btn" onclick="openSaveModal()">
+        <span>💾</span> 保存
+      </button>
+      <button class="history-btn" onclick="toggleHistory()">
+        <span>🕐</span> 历史
+      </button>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs-area">
+      <div class="tab active" data-tab="headers" onclick="switchTab(this)">Headers</div>
+      <div class="tab" data-tab="body" onclick="switchTab(this)">Body</div>
+      <div class="tab" data-tab="prescript" onclick="switchTab(this)">Pre-Script</div>
+    </div>
+
+    <!-- Content Split -->
+    <div class="content-split">
+      <!-- Request Panel -->
+      <div class="request-panel">
+        <div class="panel-header">
+          <span>请求配置</span>
+          <span id="headerCount" style="color: var(--accent);">2 个 Header</span>
+        </div>
+        <div class="panel-body">
+          <!-- Headers Tab -->
+          <div id="tab-headers" class="tab-content">
+            <div class="kv-editor" id="headersEditor">
+              <div class="kv-row">
+                <input type="checkbox" class="kv-check" checked>
+                <input type="text" placeholder="Key" value="Content-Type">
+                <input type="text" placeholder="Value" value="application/json">
+                <button class="kv-delete" onclick="deleteRow(this)">×</button>
+              </div>
+              <div class="kv-row">
+                <input type="checkbox" class="kv-check" checked>
+                <input type="text" placeholder="Key" value="Authorization">
+                <input type="text" placeholder="Value" value="Bearer {{token}}">
+                <button class="kv-delete" onclick="deleteRow(this)">×</button>
+              </div>
+              <div class="kv-row">
+                <input type="checkbox" class="kv-check">
+                <input type="text" placeholder="Key">
+                <input type="text" placeholder="Value">
+                <button class="kv-delete" onclick="deleteRow(this)">×</button>
+              </div>
+            </div>
+            <button class="add-row-btn" onclick="addHeaderRow()">+ 添加 Header</button>
+          </div>
+
+          <!-- Body Tab -->
+          <div id="tab-body" class="tab-content" style="display:none;">
+            <div class="body-type-bar">
+              <label class="body-type active"><input type="radio" name="bodyType" value="json" checked> JSON</label>
+              <label class="body-type"><input type="radio" name="bodyType" value="text"> Text</label>
+              <label class="body-type"><input type="radio" name="bodyType" value="none"> None</label>
+            </div>
+            <textarea class="body-editor" id="bodyEditor" spellcheck="false">{
+  "name": "test-instance",
+  "iec104_port": 2404,
+  "xlsx_file": "samples/point.xlsx"
+}</textarea>
+          </div>
+
+          <!-- Pre-Script Tab -->
+          <div id="tab-prescript" class="tab-content" style="display:none;">
+            <textarea class="script-editor" id="scriptEditor" spellcheck="false">// 环境变量定义（发送前自动替换 URL / Headers / Body 中的 {{变量名}}）
+{
+  "base_url": "http://localhost:8989",
+  "token": "eyJhbGciOiJIUzI1NiIs...",
+  "instance_id": "a1b2c3d4e5f6"
+}</textarea>
+            <div class="var-hint">
+              在 URL、Headers、Body 中使用 <code>{{变量名}}</code> 引用变量。<br>
+              点击「发送」时自动替换后发起请求。
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Response Panel -->
+      <div class="response-panel">
+        <div class="panel-header">
+          <span>响应结果</span>
+        </div>
+        <div class="response-status" id="responseStatus" style="display:none;">
+          <span class="status-chip success" id="statusChip">● 200 OK</span>
+          <span class="status-chip info">⏱ <span id="responseTime">123</span> ms</span>
+          <span class="status-chip info">📦 <span id="responseSize">456</span> B</span>
+        </div>
+        <div class="sending-indicator" id="sendingIndicator">
+          <div class="spinner"></div> 请求发送中...
+        </div>
+        <div class="response-body" id="responseBody">
+          <div class="empty-state">
+            <div class="icon">📡</div>
+            <p>点击「发送」按钮发起请求</p>
+            <p style="font-size: 12px;">响应结果将显示在这里</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- History Panel -->
+<div class="overlay" id="overlay" onclick="toggleHistory()"></div>
+<div class="history-panel" id="historyPanel">
+  <div class="history-header">
+    <h3>🕐 请求历史</h3>
+    <button class="history-close" onclick="toggleHistory()">×</button>
+  </div>
+  <div class="history-list" id="historyList"></div>
+</div>
+
+<!-- Save Modal -->
+<div class="modal-mask" id="saveModal">
+  <div class="modal">
+    <h3>💾 保存请求</h3>
+    <label>请求名称</label>
+    <input type="text" id="saveName" placeholder="例如：获取实例状态">
+    <label>保存到 Collection（可选）</label>
+    <input type="text" id="saveCollection" placeholder="例如：实例管理">
+    <div class="modal-actions">
+      <button class="cancel" onclick="closeSaveModal()">取消</button>
+      <button class="confirm" onclick="saveRequest()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Design Badge -->
+<div class="design-badge">🎨 设计稿 — 可交互原型</div>
+
+<script>
+// ===== Tab Switching =====
+function switchTab(el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+  document.getElementById('tab-' + el.dataset.tab).style.display = '';
+}
+
+// ===== Method Color =====
+function updateMethodColor() {
+  const select = document.getElementById('methodSelect');
+  const method = document.getElementById('method').value;
+  select.className = 'method-select ' + method.toLowerCase();
+}
+
+// ===== Header Editor =====
+function addHeaderRow() {
+  const editor = document.getElementById('headersEditor');
+  const row = document.createElement('div');
+  row.className = 'kv-row';
+  row.innerHTML = `
+    <input type="checkbox" class="kv-check" checked>
+    <input type="text" placeholder="Key">
+    <input type="text" placeholder="Value">
+    <button class="kv-delete" onclick="deleteRow(this)">×</button>
+  `;
+  editor.appendChild(row);
+  updateHeaderCount();
+}
+function deleteRow(btn) {
+  btn.closest('.kv-row').remove();
+  updateHeaderCount();
+}
+function updateHeaderCount() {
+  const count = document.querySelectorAll('#headersEditor .kv-row').length;
+  document.getElementById('headerCount').textContent = count + ' 个 Header';
+}
+
+// ===== History =====
+let historyData = JSON.parse(localStorage.getItem('proxy_history') || '[]');
+function toggleHistory() {
+  document.getElementById('historyPanel').classList.toggle('open');
+  document.getElementById('overlay').classList.toggle('open');
+  renderHistory();
+}
+function renderHistory() {
+  const list = document.getElementById('historyList');
+  if (historyData.length === 0) {
+    list.innerHTML = '<div class="empty-state" style="height:200px;"><p>暂无请求历史</p></div>';
+    return;
+  }
+  list.innerHTML = historyData.map((h, i) => `
+    <div class="history-item" onclick="loadHistory(${i})">
+      <span class="history-method ${h.method}">${h.method}</span>
+      <span class="history-url">${h.url}</span>
+      <div class="history-meta">
+        <span style="color: ${h.status < 400 ? 'var(--success)' : 'var(--error)'}">● ${h.status}</span>
+        <span>${h.time}ms</span>
+        <span>${h.timestamp}</span>
+      </div>
+    </div>
+  `).join('');
+}
+function loadHistory(i) {
+  const h = historyData[i];
+  document.getElementById('method').value = h.method;
+  updateMethodColor();
+  document.getElementById('urlInput').value = h.url;
+  toggleHistory();
+  showResponse(h.status, h.statusText, h.time, h.size, h.body);
+}
+function addToHistory(method, url, status, statusText, time, size, body) {
+  const now = new Date();
+  const timestamp = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  historyData.unshift({ method, url, status, statusText, time, size, body, timestamp });
+  if (historyData.length > 50) historyData.pop();
+  localStorage.setItem('proxy_history', JSON.stringify(historyData));
+}
+
+// ===== Send Request (Simulated) =====
+function sendRequest() {
+  const method = document.getElementById('method').value;
+  const url = document.getElementById('urlInput').value;
+  if (!url) return;
+
+  document.getElementById('sendingIndicator').classList.add('show');
+  document.getElementById('responseStatus').style.display = 'none';
+  document.getElementById('responseBody').innerHTML = '';
+
+  // Simulate request
+  setTimeout(() => {
+    document.getElementById('sendingIndicator').classList.remove('show');
+
+    // Mock response
+    const mockResponses = {
+      'GET /api/v1/status': {
+        status: 200, statusText: 'OK', time: 47, size: 186,
+        body: {
+          version: "2.5.3",
+          mode: "serve",
+          configured: 3,
+          running: 1,
+          stopped: 2,
+          max_instances: 1000
+        }
+      },
+      'POST /api/v1/instances': {
+        status: 201, statusText: 'Created', time: 123, size: 94,
+        body: {
+          id: "a1b2c3d4e5f6",
+          name: "test-instance",
+          iec104_port: 2404,
+          status: "stopped"
+        }
+      },
+      'default': {
+        status: 200, statusText: 'OK', time: 89, size: 52,
+        body: { message: "模拟响应 — 实际部署后由后端代理返回真实结果" }
+      }
+    };
+
+    const key = method + ' ' + url.replace(/.*localhost:\d+/, '');
+    const mock = mockResponses[key] || mockResponses['default'];
+    showResponse(mock.status, mock.statusText, mock.time, mock.size, mock.body);
+    addToHistory(method, url, mock.status, mock.statusText, mock.time, mock.size, mock.body);
+  }, 600 + Math.random() * 400);
+}
+
+function showResponse(status, statusText, time, size, body) {
+  document.getElementById('statusChip').textContent = '● ' + status + ' ' + statusText;
+  document.getElementById('statusChip').className = 'status-chip ' + (status < 400 ? 'success' : 'error');
+  document.getElementById('responseTime').textContent = time;
+  document.getElementById('responseSize').textContent = size;
+  document.getElementById('responseStatus').style.display = 'flex';
+
+  const formatted = syntaxHighlight(JSON.stringify(body, null, 2));
+  document.getElementById('responseBody').innerHTML =
+    '<div class="json-view">' + formatted + '</div>';
+}
+
+function syntaxHighlight(json) {
+  json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return json.replace(
+    /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g,
+    function (match) {
+      let cls = 'json-number';
+      if (/^"/.test(match)) {
+        if (/:$/.test(match)) {
+          cls = 'json-key';
+        } else {
+          cls = 'json-string';
+        }
+      } else if (/true|false/.test(match)) {
+        cls = 'json-bool';
+      } else if (/null/.test(match)) {
+        cls = 'json-null';
+      }
+      return '<span class="' + cls + '">' + match + '</span>';
+    }
+  );
+}
+
+// ===== Save Modal =====
+function openSaveModal() {
+  document.getElementById('saveModal').classList.add('open');
+}
+function closeSaveModal() {
+  document.getElementById('saveModal').classList.remove('open');
+}
+function saveRequest() {
+  const name = document.getElementById('saveName').value || '未命名请求';
+  const method = document.getElementById('method').value;
+  const url = document.getElementById('urlInput').value;
+  // In real app, would save to backend
+  alert('✅ 已保存: ' + name + '\n\n' + method + ' ' + url);
+  closeSaveModal();
+}
+
+// ===== Hint =====
+function showHint(name) {
+  // In real app, would navigate
+}
+
+// ===== Init =====
+updateMethodColor();
+</script>
+</body>
+</html>
