@@ -29,9 +29,9 @@ MCP (Model Context Protocol) 服务器提供 GridSim 模拟器的程序化控制
 |------|----------|------|
 | 实例管理 | 9 个 | 创建/启停/删除/查询实例 |
 | 数据接口 | 15 个 | 测点读写、策略配置、CSV 回放 |
-| 接口测试 (Proxy) | 8 个 | HTTP 代理请求、集合/环境管理 |
-| 全局工具 | 2 个 | 文件列表、协议查询 |
-| **总计** | **34 个** | |
+| 接口测试 (Proxy) | 9 个 | HTTP 代理请求、集合/环境管理、配置导出 |
+| 全局工具 | 4 个 | 文件列表、协议查询、OpenAPI 规范、全局状态 |
+| **总计** | **37 个** | |
 
 ---
 
@@ -835,6 +835,47 @@ save_environment(
 }
 ```
 
+### 6.3 `get_openapi_spec` (v3.0.1 新增)
+
+获取 GridSim REST API 的 OpenAPI 3.0 规范。AI Agent 可据此自动发现和理解所有接口、请求参数、响应格式。
+
+**参数：** 无
+
+**返回示例：**
+```json
+{
+  "openapi": "3.0.0",
+  "info": { "title": "GridSim API", "version": "3.0.1" },
+  "paths": { ... },
+  "components": { "schemas": { ... } }
+}
+```
+
+### 6.4 `get_state` (v3.0.1 新增)
+
+获取全局统一状态快照。一次调用返回全部实例的运行状态和测点概要，避免多次轮询。
+
+**参数：** 无
+
+**返回示例：**
+```json
+{
+  "instances": [
+    {
+      "id": "inst-001",
+      "name": "变电站A",
+      "status": "running",
+      "port": 2404,
+      "protocol": "iec104",
+      "point_count": 100,
+      "client_connected": true
+    }
+  ],
+  "total_instances": 1,
+  "running_instances": 1
+}
+```
+
 ---
 
 ## 7. 自动变化策略详解
@@ -1169,6 +1210,6 @@ AO/DO 类型测点不支持自动变化策略。只能为 AI、DI、PI 类型配
 
 | 组件 | 版本 |
 |------|------|
-| GridSim | 3.0.0+ |
-| MCP Server | 1.3.0 |
-| 工具总数 | 34 (实例管理 9 + 数据接口 15 + 接口测试 8 + 全局 2) |
+| GridSim | 3.0.1+ |
+| MCP Server | 1.4.0 |
+| 工具总数 | 37 (实例管理 9 + 数据接口 15 + 接口测试 9 + 全局 4) |

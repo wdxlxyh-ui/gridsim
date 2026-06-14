@@ -1,6 +1,6 @@
 # GridSim API 完整使用文档
 
-> 版本: v3.0.0 | 更新日期: 2026-06-10  
+> 版本: v3.0.1 | 更新日期: 2026-06-14  
 > Base URL: `http://localhost:8989`
 
 ---
@@ -20,6 +20,7 @@
 11. [点表接口 (Legacy Mode)](#11-点表接口-legacy-mode)
 12. [数据类型](#12-数据类型)
 13. [错误处理](#13-错误处理)
+14. [AI 友好接口 (v3.0.1 新增)](#14-ai-友好接口-v301-新增)
 
 ---
 
@@ -1372,11 +1373,29 @@ GET /api/status
 
 ## 13. 错误处理
 
+> **v3.0.1 更新**: 错误响应升级为结构化格式，包含错误码、修复建议和候选值。
+
 所有错误响应使用统一的 JSON 格式：
 
 ```json
-{ "error": "错误描述信息" }
+{
+  "error": {
+    "code": "INSTANCE_NOT_RUNNING",
+    "message": "instance is not running",
+    "hint": "start the instance first using POST /api/v1/instances/{id}/start",
+    "candidates": ["instance-001", "instance-002"]
+  }
+}
 ```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `error.code` | string | 大写蛇形错误码（如 `INSTANCE_NOT_FOUND`） |
+| `error.message` | string | 人类可读的错误描述 |
+| `error.hint` | string | 修复建议（可选） |
+| `error.candidates` | string[] | 候选值列表，辅助 AI Agent 自动修复（可选） |
+
+> **兼容性**: v3.0.1 仍兼容旧格式 `{ "error": "错误描述" }`，前端自动适配两种格式。
 
 ### HTTP 状态码说明
 
@@ -1402,3 +1421,110 @@ GET /api/status
 | 端口冲突 | `port 2404 already in use` | 更换端口 |
 | IOA 不存在 | `point not found` | 检查点表配置 |
 | 自定义公式参数不足 | `custom formula requires at least 2 associated IOAs` | 至少关联 2 个测点 |
+
+---
+
+## 14. AI 友好接口 (v3.0.1 新增)
+
+v3.0.1 新增一系列面向 AI Agent 的接口，让 AI 助手更高效地自主操作 GridSim。
+
+### 14.1 OpenAPI 3.0 规范
+
+```
+GET /openapi.json
+```
+
+返回完整的 OpenAPI 3.0 JSON 文档，包含所有路径、请求/响应 Schema、错误码定义。AI Agent 可据此自动发现和理解接口。
+
+**响应示例:**
+
+```json
+{
+  "openapi": "3.0.0",
+  "info": { "title": "GridSim API", "version": "3.0.1" },
+  "paths": { ... },
+  "components": { "schemas": { ... } }
+}
+```
+
+### 14.2 全局统一状态快照
+
+```
+GET /api/v1/state
+```
+
+一次调用获取全部实例 + 测点运行状态，避免 N 次轮询。适用于 AI Agent 快速感知全局。
+
+**响应示例:**
+
+```json
+{
+  "instances": [
+    {
+      "id": "inst-001",
+      "name": "变电站A",
+      "status": "running",
+      "port": 2404,
+      "protocol": "iec104",
+      "point_count": 100,
+      "client_connected": true
+    }
+  ],
+  "total_instances": 1,
+  "running_instances": 1
+}
+```
+
+### 14.3 SSE 事件推送
+
+```
+GET /api/v1/events
+```
+
+Server-Sent Events 流，实时推送实例状态变化、测点变化事件。
+
+**事件类型:**
+
+| event | 说明 |
+|-------|------|
+| `instance.started` | 实例启动 |
+| `instance.stopped` | 实例停止 |
+| `point.changed` | 测点值变化 |
+
+**使用示例:**
+
+```bash
+curl -N http://localhost:8989/api/v1/events
+```
+
+### 14.4 场景录制
+
+```
+GET  /api/v1/recordings          # 获取录制列表
+POST /api/v1/recordings          # 开始/停止录制
+POST /api/v1/recordings/{id}/play # 回放录制
+```
+
+记录操作序列（创建实例、启停、置数、策略配置等），支持回放复现。适用于测试场景固化与自动化回归。
+
+**开始录制:**
+
+```bash
+curl -X POST http://localhost:8989/api/v1/recordings \
+  -H 'Content-Type: application/json' \
+  -d '{"action": "start", "name": "test-scenario-1"}'
+```
+
+### 14.5 幂等性支持
+
+所有写操作（POST/PUT/DELETE）支持 `Idempotency-Key` 请求头：
+
+```bash
+curl -X POST http://localhost:8989/api/v1/instances \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: my-unique-key-001' \
+  -d '{"name": "变电站A", "port": 2404}'
+```
+
+- 相同 `Idempotency-Key` 的请求在 24h 内返回缓存的首次响应
+- AI Agent 可安全重试网络失败的操作，避免重复创建

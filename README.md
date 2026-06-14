@@ -11,6 +11,7 @@
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v3.0.1** | 2026-06-14 | **AI 友好接口 + 部署指南** — OpenAPI 3.0 规范 (`/openapi.json`)；结构化错误响应（统一 `{error:{code,message,hint,candidates}}` 格式）；全局统一状态快照 (`GET /api/v1/state`)；幂等性支持 (`Idempotency-Key` 头)；SSE 事件推送 (`GET /api/v1/events`)；场景录制回放 (`GET/POST /api/v1/recordings`)；MCP 新增 `get_state` + `get_openapi_spec` 工具（共 37 个）；发行包含 `GUIDE.md` 部署指南 |
 | **v3.0.0** | 2026-06-10 | **大版本: 微电网仿真 + 接口测试 + 全新 UI** — 微电网拓扑编辑器（光伏/储能/负荷/充电桩）、实时仿真引擎、SVG 拓扑图、IOA 自动分配与冲突检测、按设备/完整点表导出；内置 Postman 风格接口测试工具（环境变量、前置/后置脚本、集合管理）；UI 全面升级（侧边栏、动画组件、品牌重塑）；项目全面重命名为 GridSim |
 | **v2.5.4** | 2026-06-04 | **接口测试菜单 MCP 工具 + API 文档** — 新增 10 个 MCP 工具覆盖接口测试全流程（创建/修改/删除接口、管理环境变量、执行代理请求、修改 URL/请求体/前置后置脚本）；更新 MCP.md、API.md、GRIDSIM.md 文档 |
 | **v2.5.3** | 2026-05-22 | **ECharts 实时趋势重构 + 批量读取 API** — TrendPage 全面改用 ECharts（时间轴基于真实时间戳、缩放拖拽、十字准线 tooltip）；新增 `GET /points/batch` 批量读取接口（N 次请求→1 次）；修复 goroutine nil pointer 崩溃；发行包预置 users.json + VERSION 文件 |
@@ -26,6 +27,18 @@
 | v2.0.1 | 2026-05 | HTTP 开关控制、API 文档、iptables 防火墙自动管理 |
 | v2.0 | 2026-05 | 多实例管理模式（serve 子命令）、Vue 3 Web 管理界面 |
 | v1.0 | - | 传统单实例模式 |
+
+### v3.0.1 新特性
+
+- **AI 友好接口** — 全面优化 API 设计，让 AI Agent 高效自主操作
+  - **OpenAPI 3.0 规范** — `GET /openapi.json` 返回完整 OpenAPI 3.0 文档，AI Agent 可自动发现和理解所有接口
+  - **结构化错误** — 统一 `{error:{code, message, hint, candidates}}` 格式，包含错误码、修复建议和候选值
+  - **全局状态快照** — `GET /api/v1/state` 一次调用获取全部实例 + 测点状态，减少 N 次轮询
+  - **幂等性支持** — 写操作支持 `Idempotency-Key` 请求头，24h 内重复请求安全重试
+  - **SSE 事件推送** — `GET /api/v1/events` 实时推送实例状态变化、测点变化事件
+  - **场景录制** — `GET/POST /api/v1/recordings` 记录操作序列，支持回放复现
+- **MCP 工具同步** — 新增 `get_state`、`get_openapi_spec` 共 2 个工具，工具总数 37
+- **部署指南** — 发行包含 `GUIDE.md`，涵盖 API、MCP、GUI 全部操作方式
 
 ### v3.0.0 新特性
 
@@ -135,8 +148,9 @@
 - **跨平台编译** — Linux amd64/arm64、Windows amd64、`.deb` 打包
 - **自动变更策略** — 11种内置策略，后台独立 goroutine 调度，实例启停自动管理
 - **多规约支持** — IEC 104 + Modbus TCP 并行运行
-- **MCP Server** — 提供 GridSim MCP 工具，支持 AI 助手直接控制模拟器
+- **MCP Server** — 提供 37 个 GridSim MCP 工具，支持 AI 助手直接控制模拟器
 - **接口测试 (API Proxy)** — 内置 Postman 风格的接口测试工具，支持环境变量、前置/后置脚本、集合管理
+- **AI 友好接口** — OpenAPI 3.0 规范、结构化错误、幂等性、SSE 事件、场景录制，让 AI Agent 高效自主操作
 
 ---
 
@@ -158,10 +172,11 @@
 ### 方式一：下载压缩包（推荐）
 
 ```bash
-tar xzf gridsim-v2.5.1.tar.gz
-cd gridsim-v2.5.1
-./start.sh
+tar xzf gridsim-v3.0.1-linux-amd64.tar.gz
+cd gridsim-v3.0.1-linux-amd64
+./bin/start.sh
 # 浏览器访问 http://localhost:8989
+# 部署指南：cat GUIDE.md
 ```
 
 ### 方式二：源码构建
@@ -259,6 +274,11 @@ go build -o bin/gridsim ./cmd/gridsim/
 | `POST` | `/api/v1/instances/{id}/restart` | 重启实例 |
 | `GET` | `/api/v1/status` | 全局服务状态 |
 | `POST` | `/api/v1/upload` | 上传 `.xlsx` 点表文件 |
+| `GET` | `/openapi.json` | OpenAPI 3.0 规范 (v3.0.1) |
+| `GET` | `/api/v1/state` | 全局统一状态快照 (v3.0.1) |
+| `GET` | `/api/v1/events` | SSE 事件推送 (v3.0.1) |
+| `GET` | `/api/v1/recordings` | 获取场景录制列表 (v3.0.1) |
+| `POST` | `/api/v1/recordings` | 启动/停止场景录制 (v3.0.1) |
 
 ### 详情页 API（v2.1 新增）
 
@@ -337,12 +357,17 @@ curl -X PUT http://localhost:8989/api/v1/instances/{id}/points/auto-change/16385
 │   ├── manager/           多实例生命周期管理（最多1000个）
 │   ├── model/             数据模型（实例配置/状态/详情）
 │   ├── storage/           JSON 配置持久化
-│   └── mcp/               MCP Server（GridSim MCP）
+│   └── mcp/               MCP Server（37 个 GridSim MCP 工具）
 ├── pkg/
 │   ├── api/               HTTP API 处理器
 │   ├── config/            Excel 加载器 + 测点数据模型
+│   ├── errors/            统一结构化错误 (v3.0.1)
+│   ├── events/            SSE 事件总线 (v3.0.1)
 │   ├── iec104/            IEC 104 服务端
 │   ├── library/           并发安全内存点表
+│   ├── middleware/        幂等性中间件 (v3.0.1)
+│   ├── openapi/           OpenAPI 3.0 规范生成 (v3.0.1)
+│   ├── recording/         场景录制器 (v3.0.1)
 │   ├── protocol/          多规约协议支持
 │   │   ├── protocol.go    协议接口定义
 │   │   ├── factory.go     协议工厂
@@ -350,7 +375,7 @@ curl -X PUT http://localhost:8989/api/v1/instances/{id}/points/auto-change/16385
 │   │   └── modbus/        Modbus TCP 协议实现
 │   │       ├── tcp_server.go  Modbus TCP 服务端
 │   │       └── converter.go   数据类型转换
-│   └── middleware/        HTTP 中间件（恢复、认证等）
+│   └── middleware/        HTTP 中间件（恢复、认证、幂等性等）
 ├── web/                   Vue 3 + Element Plus 前端
 │   ├── src/views/
 │   │   ├── ConfigPage.vue     配置管理（含实例容量显示）
@@ -394,6 +419,9 @@ make deb-amd64    # 或 deb-arm64
 
 # UPX 压缩（减少约 60% 体积）
 make compress
+
+# 三平台发行包（含 GUIDE.md）
+make dist
 ```
 
 ---
