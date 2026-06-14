@@ -93,6 +93,7 @@ dist: web-build build-all
 	cp config/users.json $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-amd64/config/users.json
 	touch $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-amd64/logs/.gitkeep
 	touch $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-amd64/resources/.gitkeep
+	cp GUIDE.md $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-amd64/GUIDE.md
 	@if [ -d web/dist ]; then \
 		mkdir -p $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-amd64/web/dist && \
 		cp -r web/dist/* $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-amd64/web/dist/; \
@@ -114,6 +115,7 @@ dist: web-build build-all
 	cp config/users.json $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-arm64/config/users.json
 	touch $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-arm64/logs/.gitkeep
 	touch $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-arm64/resources/.gitkeep
+	cp GUIDE.md $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-arm64/GUIDE.md
 	@if [ -d web/dist ]; then \
 		mkdir -p $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-arm64/web/dist && \
 		cp -r web/dist/* $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-linux-arm64/web/dist/; \
@@ -135,6 +137,7 @@ dist: web-build build-all
 	cp config/users.json $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-windows-amd64/config/users.json
 	touch $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-windows-amd64/logs/.gitkeep
 	touch $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-windows-amd64/resources/.gitkeep
+	cp GUIDE.md $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-windows-amd64/GUIDE.md
 	@if [ -d web/dist ]; then \
 		mkdir -p $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-windows-amd64/web/dist && \
 		cp -r web/dist/* $(DIST_DIR)/$(PROJECT)-v$(DIST_VERSION)-windows-amd64/web/dist/; \
