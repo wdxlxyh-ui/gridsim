@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"gridsim/internal/model"
+	apierrors "gridsim/pkg/errors"
 	"gridsim/pkg/config"
 	"gridsim/pkg/library"
 )
@@ -1140,6 +1141,17 @@ func codeToStrategy(code string) model.StrategyType {
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
+	if m, ok := v.(map[string]string); ok {
+		if msg, exists := m["error"]; exists {
+			json.NewEncoder(w).Encode(apierrors.Response{
+				Error: apierrors.APIError{
+					Code:    apierrors.CodeFromMessage(msg),
+					Message: msg,
+				},
+			})
+			return
+		}
+	}
 	json.NewEncoder(w).Encode(v)
 }
 

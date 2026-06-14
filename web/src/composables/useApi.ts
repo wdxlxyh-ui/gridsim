@@ -11,7 +11,8 @@ export function useApi() {
    * @param fallbackMsg - 备用错误消息
    */
   function handleError(error: any, fallbackMsg = '操作失败'): string {
-    const msg = error?.response?.data?.error || error?.message || fallbackMsg
+    const errData = error?.response?.data?.error
+    const msg = typeof errData === 'string' ? errData : errData?.message || error?.message || fallbackMsg
     ElMessage.error(msg)
     return msg
   }
@@ -21,7 +22,8 @@ export function useApi() {
    */
   function handleErrorSilent(error: any): string | null {
     if (!error) return null
-    const msg = error?.response?.data?.error || error?.message || null
+    const errData = error?.response?.data?.error
+    const msg = typeof errData === 'string' ? errData : errData?.message || error?.message || null
     return msg
   }
 

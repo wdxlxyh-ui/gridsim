@@ -68,6 +68,14 @@ func (c *SimulatorClient) GetServerStatus() (json.RawMessage, error) {
 	return c.get("/api/v1/status")
 }
 
+func (c *SimulatorClient) GetState() (json.RawMessage, error) {
+	return c.get("/api/v1/state")
+}
+
+func (c *SimulatorClient) GetOpenAPISpec() (json.RawMessage, error) {
+	return c.get("/openapi.json")
+}
+
 // ---- Data Operations ----
 
 func (c *SimulatorClient) ListPoints(instID string) (json.RawMessage, error) {
@@ -314,6 +322,27 @@ func (c *SimulatorClient) readResponse(resp *http.Response) (json.RawMessage, er
 		return nil, fmt.Errorf("read body: %w", err)
 	}
 	if resp.StatusCode >= 400 {
+		var errResp struct {
+			Error struct {
+				Code       string   `json:"code"`
+				Message    string   `json:"message"`
+				Hint       string   `json:"hint"`
+				Candidates []string `json:"candidates"`
+			} `json:"error"`
+		}
+		if json.Unmarshal(raw, &errResp) == nil && errResp.Error.Message != "" {
+			msg := errResp.Error.Message
+			if errResp.Error.Code != "" {
+				msg = fmt.Sprintf("[%s] %s", errResp.Error.Code, msg)
+			}
+			if errResp.Error.Hint != "" {
+				msg += " — hint: " + errResp.Error.Hint
+			}
+			if len(errResp.Error.Candidates) > 0 {
+				msg += " (candidates: " + strings.Join(errResp.Error.Candidates, ", ") + ")"
+			}
+			return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, msg)
+		}
 		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(raw))
 	}
 	return raw, nil

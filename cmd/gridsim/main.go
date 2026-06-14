@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -24,11 +25,15 @@ import (
 	"gridsim/internal/storage"
 	"gridsim/pkg/api"
 	"gridsim/pkg/config"
+	apierrors "gridsim/pkg/errors"
+	"gridsim/pkg/events"
 	"gridsim/pkg/firewall"
 	"gridsim/pkg/iec104"
 	"gridsim/pkg/library"
 	"gridsim/pkg/middleware"
+	"gridsim/pkg/openapi"
 	"gridsim/pkg/protocol"
+	"gridsim/pkg/recording"
 
 	"github.com/spf13/pflag"
 	"golang.org/x/crypto/bcrypt"
@@ -131,6 +136,8 @@ type webServer struct {
 	userConfig   *model.UserConfig
 	proxyStore   *api.ProxyStore
 	proxyHandler *api.ProxyHandler
+	eventBus     *events.Bus
+	recorder     *recording.Recorder
 }
 
 func runServerMode() {
@@ -171,15 +178,24 @@ func runServerMode() {
 	// Build HTTP mux
 	mux := http.NewServeMux()
 	userCfg := loadUserConfig(configDir)
-	ws := &webServer{mgr: mgr, cfgDir: configDir, userConfig: userCfg, proxyStore: proxyStore}
-	ws.registerRoutes(mux, configDir)
+	ws := &webServer{mgr: mgr, cfgDir: configDir, userConfig: userCfg, proxyStore: proxyStore, eventBus: events.NewBus(), recorder: recording.NewRecorder(filepath.Join(configDir, "recordings"))}
+	ws.registerRoutes(mux, configDir, httpAddr)
 
 	if p := parsePort(httpAddr); p > 0 {
 		firewall.EnsurePort(p, "iec104-sim-http")
 	}
 
 	// Start HTTP server
-	httpSrv := newHTTPServer(httpAddr, mux)
+	recordingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if ws.recorder.IsActive() && (r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodPatch || r.Method == http.MethodDelete) {
+			body, _ := io.ReadAll(r.Body)
+			r.Body.Close()
+			r.Body = io.NopCloser(bytes.NewReader(body))
+			ws.recorder.Record(r.Method, r.URL.Path, body)
+		}
+		mux.ServeHTTP(w, r)
+	})
+	httpSrv := newHTTPServer(httpAddr, middleware.IdempotencyMiddleware(recordingHandler))
 	go func() {
 		slog.Info("管理服务已启动", "http", httpAddr, "configDir", configDir)
 		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -198,7 +214,7 @@ func runServerMode() {
 	slog.Info("管理服务已关闭")
 }
 
-func (ws *webServer) registerRoutes(mux *http.ServeMux, configDir string) {
+func (ws *webServer) registerRoutes(mux *http.ServeMux, configDir string, httpAddr string) {
 	// Resolve web/dist relative to executable path.
 	exePath, _ := os.Executable()
 	webDir := filepath.Join(filepath.Dir(exePath), "..", "web", "dist")
@@ -208,6 +224,7 @@ func (ws *webServer) registerRoutes(mux *http.ServeMux, configDir string) {
 	mux.HandleFunc("/api/v1/instances", ws.handleInstances)
 	mux.HandleFunc("/api/v1/instances/", ws.handleInstanceByID)
 	mux.HandleFunc("/api/v1/status", ws.handleStatus)
+	mux.HandleFunc("/api/v1/state", ws.handleState)
 	mux.HandleFunc("/api/v1/upload", ws.handleUpload)
 	mux.HandleFunc("/api/v1/files", ws.handleFiles)
 	mux.HandleFunc("/api/v1/protocols", ws.handleProtocols)
@@ -223,6 +240,15 @@ func (ws *webServer) registerRoutes(mux *http.ServeMux, configDir string) {
 
 	// Microgrid management routes
 	ws.registerMicrogridRoutes(mux)
+
+	mux.Handle("/openapi.json", openapi.New(strings.TrimPrefix(httpAddr, ":")))
+	mux.HandleFunc("/api/v1/events", func(w http.ResponseWriter, r *http.Request) {
+		ws.eventBus.ServeSSE(w, r)
+	})
+	mux.HandleFunc("/api/v1/recordings", ws.handleRecordings)
+	mux.HandleFunc("/api/v1/openapi.json", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/openapi.json", http.StatusMovedPermanently)
+	})
 
 	// Serve static frontend if built
 	if _, err := os.Stat(webDir); err == nil {
@@ -488,6 +514,123 @@ func (ws *webServer) handleStatus(w http.ResponseWriter, r *http.Request) {
 		"stopped":    stopped,
 		"max":        manager.MaxInstances,
 	})
+}
+
+func (ws *webServer) handleState(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	states := ws.mgr.ListStates()
+	configs := ws.mgr.ListConfigs()
+
+	configMap := make(map[string]model.InstanceConfig, len(configs))
+	for _, c := range configs {
+		configMap[c.ID] = c
+	}
+
+	running, stopped := 0, 0
+	items := make([]map[string]interface{}, 0, len(states))
+
+	for _, s := range states {
+		if s.Status == model.StatusRunning {
+			running++
+		} else {
+			stopped++
+		}
+
+		cfg := s.Config
+		if c, ok := configMap[s.Config.ID]; ok {
+			cfg = c
+		}
+
+		port := cfg.IEC104Port
+		if cfg.Protocol == "modbus" && cfg.ModbusConfig != nil {
+			port = cfg.ModbusConfig.Port
+		}
+
+		item := map[string]interface{}{
+			"id":               cfg.ID,
+			"name":             cfg.Name,
+			"port":             port,
+			"protocol":         cfg.Protocol,
+			"status":           s.Status,
+			"point_count":      s.TotalPoints,
+			"client_connected": s.ClientConnected,
+			"uptime_seconds":   s.UptimeSeconds,
+		}
+		if s.Error != "" {
+			item["error"] = s.Error
+		}
+		items = append(items, item)
+	}
+
+	resp := map[string]interface{}{
+		"version": version,
+		"summary": map[string]interface{}{
+			"configured": len(states),
+			"running":    running,
+			"stopped":    stopped,
+			"max":        manager.MaxInstances,
+		},
+		"instances": items,
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (ws *webServer) handleRecordings(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		names, err := recording.ListRecordings(filepath.Join(ws.cfgDir, "recordings"))
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"recordings":    names,
+			"is_recording":  ws.recorder.IsActive(),
+			"recordings_dir": filepath.Join(ws.cfgDir, "recordings"),
+		})
+
+	case http.MethodPost:
+		var req struct {
+			Action string `json:"action"`
+			Name   string `json:"name"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid JSON")
+			return
+		}
+		switch req.Action {
+		case "start":
+			if req.Name == "" {
+				req.Name = "recording-" + time.Now().Format("20060102-150405")
+			}
+			if ws.recorder.Start(req.Name) {
+				writeJSON(w, http.StatusOK, map[string]interface{}{"started": true, "name": req.Name})
+			} else {
+				writeError(w, http.StatusConflict, "recording already in progress")
+			}
+		case "stop":
+			rec, err := ws.recorder.Stop()
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			if rec == nil {
+				writeError(w, http.StatusBadRequest, "no recording in progress")
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]interface{}{"stopped": true, "name": rec.Name, "operations": len(rec.Operations)})
+		default:
+			writeError(w, http.StatusBadRequest, "unknown action, use 'start' or 'stop'")
+		}
+
+	default:
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
 }
 
 var (
@@ -899,11 +1042,22 @@ func countByType(points []*config.Point) map[string]int {
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
+	if m, ok := data.(map[string]string); ok {
+		if msg, exists := m["error"]; exists {
+			json.NewEncoder(w).Encode(apierrors.Response{
+				Error: apierrors.APIError{
+					Code:    apierrors.CodeFromMessage(msg),
+					Message: msg,
+				},
+			})
+			return
+		}
+	}
 	json.NewEncoder(w).Encode(data)
 }
 
 func writeError(w http.ResponseWriter, status int, msg string) {
-	writeJSON(w, status, map[string]string{"error": msg})
+	apierrors.RespondSimple(w, status, msg)
 }
 
 func sanitizeFilename(name string) string {

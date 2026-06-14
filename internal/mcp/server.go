@@ -492,10 +492,21 @@ func NewDataInterfaceServer(client *SimulatorClient) *server.MCPServer {
 		return c.UpdateQDS(ioa, raw)
 	}))
 
+	s.AddTool(mcp.NewTool("get_openapi_spec",
+		mcp.WithDescription("Get the OpenAPI 3.0 specification for all GridSim REST API endpoints. Use this to discover available endpoints, parameters, request/response schemas, and error codes."),
+	), toolHandler(client, func(c *SimulatorClient, args map[string]any) (any, error) {
+		return c.GetOpenAPISpec()
+	}))
+
+	s.AddTool(mcp.NewTool("get_state",
+		mcp.WithDescription("Get unified system state in a single call: all instances with their status, port, protocol, point count, client connection, and uptime. Much more efficient than calling list_instances + get_status separately."),
+	), toolHandler(client, func(c *SimulatorClient, args map[string]any) (any, error) {
+		return c.GetState()
+	}))
+
 	return s
 }
 
-// NewProxyServer creates an MCP server exposing proxy/API tester tools.
 func NewProxyServer(client *SimulatorClient) *server.MCPServer {
 	s := server.NewMCPServer(
 		"IEC104 API Tester",
@@ -580,7 +591,7 @@ func toolHandler(client *SimulatorClient, fn func(*SimulatorClient, map[string]a
 		args := req.GetArguments()
 		result, err := fn(client, args)
 		if err != nil {
-			return mcp.NewToolResultText(fmt.Sprintf("错误: %v", err)), nil
+			return mcp.NewToolResultText(fmt.Sprintf("Error: %v", err)), nil
 		}
 		var pretty bytes.Buffer
 		if raw, ok := result.(json.RawMessage); ok {
