@@ -74,7 +74,7 @@ const currentRoute = computed(() => {
 })
 const isLoginPage = computed(() => route.path === '/login')
 const status = ref<GlobalStatus | null>(null)
-const version = ref('2.5.2')
+const version = ref('3.0.1')
 const username = ref('')
 
 // Menu items for custom nav
