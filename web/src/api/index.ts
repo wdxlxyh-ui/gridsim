@@ -101,10 +101,10 @@ export async function restartInstance(id: string): Promise<void> {
 }
 
 // File upload
-export async function uploadExcel(file: File): Promise<string> {
+export async function uploadExcel(file: File, overwrite = false): Promise<string> {
   const form = new FormData()
   form.append('file', file)
-  const res = await http.post('/upload', form, {
+  const res = await http.post(`/upload?overwrite=${overwrite}`, form, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
   return res.data.filename

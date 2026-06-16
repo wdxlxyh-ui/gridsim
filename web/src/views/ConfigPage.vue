@@ -116,14 +116,12 @@
         </el-form-item>
         <el-form-item label="上传新文件" v-if="form.protocol !== 'microgrid'">
           <el-upload :auto-upload="false" :show-file-list="false" accept=".xlsx" :on-change="handleFileChange">
-            <el-button type="primary">选择 Excel 文件</el-button>
-            <span v-if="selectedFile" style="margin-left: 10px; color: #67c23a">{{ selectedFile.name }}</span>
+            <el-button type="primary" :loading="uploading">{{ uploading ? '上传中...' : '选择 Excel 文件' }}</el-button>
           </el-upload>
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="showAddDialog = false">取消</el-button>
-        <el-button v-if="selectedFile" @click="handleUploadFirst" style="margin-right: 8px">先上传文件</el-button>
         <el-button type="primary" @click="handleSave" :loading="saving">{{ editing ? '保存' : '创建' }}</el-button>
       </template>
     </el-dialog>
@@ -161,6 +159,7 @@ const saving = ref(false)
 const formRef = ref<FormInstance>()
 const availableFiles = ref<{ name: string; size: number; modtime: string }[]>([])
 const selectedFile = ref<File | null>(null)
+const uploading = ref(false)
 const actionLoading = ref('')
 
 const form = ref<InstanceConfig>({
@@ -311,23 +310,17 @@ async function handleDelete(id: string) {
 }
 
 function handleFileChange(file: any) {
-  selectedFile.value = file.raw || file
-}
-
-async function handleUploadFirst() {
-  if (!selectedFile.value) return
-  saving.value = true
-  try {
-    const filename = await uploadExcel(selectedFile.value)
+  const raw = file.raw || file
+  uploading.value = true
+  uploadExcel(raw, true).then((filename) => {
     ElMessage.success('上传成功: ' + filename)
     form.value.xlsx_file = filename
-    selectedFile.value = null
-    await fetchFiles()
-  } catch (e: any) {
+    fetchFiles()
+  }).catch((e: any) => {
     ElMessage.error('上传失败: ' + (e?.response?.data?.error || e.message))
-  } finally {
-    saving.value = false
-  }
+  }).finally(() => {
+    uploading.value = false
+  })
 }
 
 function openMicrogrid(id: string) {
