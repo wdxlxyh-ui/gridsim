@@ -318,6 +318,176 @@ func (ws *webServer) handleInstances(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (ws *webServer) handlePointTableRoute(w http.ResponseWriter, r *http.Request, id string) {
+	switch r.Method {
+	case http.MethodGet:
+		ws.handlePointTableGet(w, r, id)
+	case http.MethodPut:
+		ws.handlePointTablePut(w, r, id)
+	default:
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
+func (ws *webServer) handlePointTableGet(w http.ResponseWriter, r *http.Request, id string) {
+	state, err := ws.mgr.GetState(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "instance not found")
+		return
+	}
+	if state.Status == model.StatusRunning {
+		writeError(w, http.StatusBadRequest, "cannot edit point table while instance is running")
+		return
+	}
+
+	cfg, ok := ws.mgr.GetConfig(id)
+	if !ok {
+		writeError(w, http.StatusNotFound, "instance config not found")
+		return
+	}
+
+	xlsxPath := cfg.XLSXFile
+	if !filepath.IsAbs(xlsxPath) {
+		xlsxPath = filepath.Join(ws.cfgDir, xlsxPath)
+	}
+
+	points, err := config.LoadFromXLSX(xlsxPath, cfg.Protocol)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load xlsx: "+err.Error())
+		return
+	}
+
+	type pointRow struct {
+		Name            string  `json:"name"`
+		IOA             uint32  `json:"ioa"`
+		ValueType       string  `json:"value_type"`
+		PointType       string  `json:"point_type"`
+		Efficient       float64 `json:"efficient"`
+		BaseValue       float64 `json:"base_value"`
+		Alias           string  `json:"alias"`
+		FunctionCode    uint8   `json:"function_code,omitempty"`
+		RegisterAddress uint16  `json:"register_address,omitempty"`
+	}
+
+	rows := make([]pointRow, len(points))
+	for i, p := range points {
+		rows[i] = pointRow{
+			Name: p.Name, IOA: p.IOA, ValueType: string(p.ValueType),
+			PointType: string(p.PointType), Efficient: p.Efficient,
+			BaseValue: p.BaseValue, Alias: p.Alias,
+			FunctionCode: p.FunctionCode, RegisterAddress: p.RegisterAddress,
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"xlsx_file": cfg.XLSXFile,
+		"points":    rows,
+	})
+}
+
+func (ws *webServer) handlePointTablePut(w http.ResponseWriter, r *http.Request, id string) {
+	state, err := ws.mgr.GetState(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "instance not found")
+		return
+	}
+	if state.Status == model.StatusRunning {
+		writeError(w, http.StatusBadRequest, "cannot edit point table while instance is running")
+		return
+	}
+
+	cfg, ok := ws.mgr.GetConfig(id)
+	if !ok {
+		writeError(w, http.StatusNotFound, "instance config not found")
+		return
+	}
+
+	var req struct {
+		Points []struct {
+			Name            string  `json:"name"`
+			IOA             uint32  `json:"ioa"`
+			ValueType       string  `json:"value_type"`
+			PointType       string  `json:"point_type"`
+			Efficient       float64 `json:"efficient"`
+			BaseValue       float64 `json:"base_value"`
+			Alias           string  `json:"alias"`
+			FunctionCode    uint8   `json:"function_code"`
+			RegisterAddress uint16  `json:"register_address"`
+		} `json:"points"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+
+	if len(req.Points) == 0 {
+		writeError(w, http.StatusBadRequest, "points array cannot be empty")
+		return
+	}
+
+	points := make([]*config.Point, len(req.Points))
+	seen := make(map[string]bool)
+	for i, rp := range req.Points {
+		pt := config.PointType(rp.PointType)
+		vt := config.ValueType(rp.ValueType)
+		if !isValidPointType(pt) || !isValidValueType(vt) {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid type at row %d", i+1))
+			return
+		}
+		key := string(pt) + ":" + fmt.Sprint(rp.IOA)
+		if seen[key] {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("duplicate %s IOA %d", pt, rp.IOA))
+			return
+		}
+		seen[key] = true
+
+		p := &config.Point{
+			IOA: rp.IOA, Name: rp.Name, ValueType: vt, PointType: pt,
+			Efficient: rp.Efficient, BaseValue: rp.BaseValue, Alias: rp.Alias,
+			FunctionCode: rp.FunctionCode, RegisterAddress: rp.RegisterAddress,
+		}
+		switch pt {
+		case config.TypeAI, config.TypeAO:
+			p.Value = rp.BaseValue * rp.Efficient
+		case config.TypeDI, config.TypeDO:
+			p.BoolValue = rp.BaseValue != 0
+		case config.TypePI:
+			p.IntValue = int32(rp.BaseValue)
+		}
+		points[i] = p
+	}
+
+	xlsxPath := cfg.XLSXFile
+	if !filepath.IsAbs(xlsxPath) {
+		xlsxPath = filepath.Join(ws.cfgDir, xlsxPath)
+	}
+
+	if err := config.TempSaveToXLSX(points, xlsxPath); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to save xlsx: "+err.Error())
+		return
+	}
+
+	slog.Info("点表已更新", "instance", id, "points", len(points), "xlsx", cfg.XLSXFile)
+	writeJSON(w, http.StatusOK, map[string]string{"status": "saved", "xlsx_file": cfg.XLSXFile})
+}
+
+func isValidPointType(pt config.PointType) bool {
+	switch pt {
+	case config.TypeAI, config.TypeDI, config.TypePI, config.TypeDO, config.TypeAO:
+		return true
+	}
+	return false
+}
+
+func isValidValueType(vt config.ValueType) bool {
+	switch vt {
+	case config.VTFloat, config.VTDouble, config.VTInt, config.VTBit:
+		return true
+	}
+	return false
+}
+
 func (ws *webServer) handleInstanceByID(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
@@ -352,6 +522,8 @@ func (ws *webServer) handleInstanceByID(w http.ResponseWriter, r *http.Request) 
 			ws.withDetailHandler(w, r, id, func(dh *detail.DetailHandler) { dh.HandleBatchReplay(w, r) })
 		case "metrics":
 			ws.withDetailHandler(w, r, id, func(dh *detail.DetailHandler) { dh.HandleMetrics(w, r) })
+		case "point-table":
+			ws.handlePointTableRoute(w, r, id)
 		default:
 			writeError(w, http.StatusBadRequest, "unknown action: "+parts[1])
 		}
