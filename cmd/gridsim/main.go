@@ -692,9 +692,15 @@ func (ws *webServer) handleUpload(w http.ResponseWriter, r *http.Request) {
 	safeName := sanitizeFilename(header.Filename)
 	dst := filepath.Join(ws.cfgDir, safeName)
 
+	overwrite := r.URL.Query().Get("overwrite") == "true"
+
 	if _, err := os.Stat(dst); err == nil {
-		writeError(w, http.StatusConflict, "file already exists")
-		return
+		if !overwrite {
+			writeError(w, http.StatusConflict, "file already exists")
+			return
+		}
+		os.Remove(dst)
+		slog.Info("覆盖已有文件", "filename", safeName, "uploader", r.RemoteAddr)
 	}
 
 	dstFile, err := os.Create(dst)
