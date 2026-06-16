@@ -9,6 +9,7 @@
           <el-tag v-else type="info" size="small">已停止</el-tag>
         </div>
         <div style="display: flex; align-items: center; gap: 8px">
+          <el-button v-if="instanceStatus !== 'running'" size="small" type="warning" @click="pointEditorVisible = true">编辑点表</el-button>
           <el-switch
             v-model="pollingEnabled"
             size="small"
@@ -471,6 +472,12 @@
          </div>
        </template>
     </el-dialog>
+    <PointTableEditor
+      v-model:visible="pointEditorVisible"
+      :instance-id="instanceId"
+      :protocol="instanceProtocol"
+      @saved="loadInstanceState"
+    />
   </div>
 </template>
 
@@ -479,6 +486,7 @@ import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown } from '@element-plus/icons-vue'
+import PointTableEditor from '../components/PointTableEditor.vue'
 import {
   getPoints, setPointValue, setAutoChange, getAutoChange, batchAutoChange,
   exportAutoConfig as fetchExport, importAutoConfig as fetchImport,
@@ -502,6 +510,7 @@ const setValues = reactive<Record<number, string | number>>({})
 const autoStrategies = reactive<Record<number, string>>({})
 const selectedIoas = reactive<Record<number, boolean>>({})
 const importInputRef = ref<HTMLInputElement>()
+const pointEditorVisible = ref(false)
 const csvUploadRef = ref<HTMLInputElement>()
 
 const csvMultiExpanded = ref(false)

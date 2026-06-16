@@ -53,7 +53,7 @@
             <span v-else style="color: var(--el-text-color-placeholder)">-</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="320" fixed="right">
+        <el-table-column label="操作" width="400" fixed="right">
           <template #default="{ row }">
             <el-button-group>
               <el-button v-if="row.status === 'running'" type="warning" size="small"
@@ -62,7 +62,10 @@
                 :loading="actionLoading === row.id" @click="handleStart(row.id)">启动</el-button>
               <el-button v-if="row.protocol === 'microgrid'" size="small" type="primary"
                 @click="openMicrogrid(row.id)">微电网</el-button>
-              <el-button v-else size="small" @click="router.push('/detail/' + row.id)">详情</el-button>
+              <template v-else>
+                <el-button size="small" @click="router.push('/detail/' + row.id)">详情</el-button>
+                <el-button size="small" :disabled="row.status === 'running'" @click="openPointTableEditor(row.id, row.protocol)">编辑点表</el-button>
+              </template>
               <el-button size="small" :disabled="row.status === 'running' || actionLoading === row.id" @click="handleEdit(row)">编辑</el-button>
               <el-button type="danger" size="small" :disabled="row.status === 'running' || actionLoading === row.id" @click="handleDelete(row.id)">删除</el-button>
             </el-button-group>
@@ -126,6 +129,12 @@
         <el-button type="primary" @click="handleSave" :loading="saving">{{ editing ? '保存' : '创建' }}</el-button>
       </template>
     </el-dialog>
+    <PointTableEditor
+      v-model:visible="pointEditorVisible"
+      :instance-id="pointEditorInstanceId"
+      :protocol="pointEditorProtocol"
+      @saved="fetchData"
+    />
   </div>
 </template>
 
@@ -135,6 +144,7 @@ import { useRouter } from 'vue-router'
 import { Refresh, SuccessFilled, CircleCloseFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance } from 'element-plus'
+import PointTableEditor from '../components/PointTableEditor.vue'
 import {
   listInstances,
   createInstance,
@@ -161,6 +171,9 @@ const formRef = ref<FormInstance>()
 const availableFiles = ref<{ name: string; size: number; modtime: string }[]>([])
 const selectedFile = ref<File | null>(null)
 const uploading = ref(false)
+const pointEditorVisible = ref(false)
+const pointEditorInstanceId = ref('')
+const pointEditorProtocol = ref('')
 const actionLoading = ref('')
 
 const form = ref<InstanceConfig>({
@@ -326,6 +339,12 @@ function handleFileChange(file: any) {
 
 function openMicrogrid(id: string) {
   router.push(`/microgrid/${id}`)
+}
+
+function openPointTableEditor(id: string, protocol?: string) {
+  pointEditorInstanceId.value = id
+  pointEditorProtocol.value = protocol || 'iec104'
+  pointEditorVisible.value = true
 }
 
 function resetForm() {
