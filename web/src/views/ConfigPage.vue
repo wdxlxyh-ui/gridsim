@@ -53,7 +53,7 @@
             <span v-else style="color: var(--el-text-color-placeholder)">-</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column label="操作" width="320" fixed="right">
           <template #default="{ row }">
             <el-button-group>
               <el-button v-if="row.status === 'running'" type="warning" size="small"
@@ -62,6 +62,7 @@
                 :loading="actionLoading === row.id" @click="handleStart(row.id)">启动</el-button>
               <el-button v-if="row.protocol === 'microgrid'" size="small" type="primary"
                 @click="openMicrogrid(row.id)">微电网</el-button>
+              <el-button v-else size="small" @click="router.push('/detail/' + row.id)">详情</el-button>
               <el-button size="small" :disabled="row.status === 'running' || actionLoading === row.id" @click="handleEdit(row)">编辑</el-button>
               <el-button type="danger" size="small" :disabled="row.status === 'running' || actionLoading === row.id" @click="handleDelete(row.id)">删除</el-button>
             </el-button-group>
