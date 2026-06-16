@@ -515,3 +515,31 @@ export async function exportProxyConfig(): Promise<Blob> {
   const res = await http.get('/proxy/export', { responseType: 'blob' as any })
   return res.data
 }
+
+// ─── Point Table Editor API ────────────────────────────────────────────────
+
+export interface PointTableRow {
+  name: string
+  ioa: number
+  value_type: string
+  point_type: string
+  efficient: number
+  base_value: number
+  alias: string
+  function_code?: number
+  register_address?: number
+}
+
+export interface PointTableResponse {
+  xlsx_file: string
+  points: PointTableRow[]
+}
+
+export async function getPointTable(instanceId: string): Promise<PointTableResponse> {
+  const res = await http.get(`/instances/${instanceId}/point-table`)
+  return res.data
+}
+
+export async function savePointTable(instanceId: string, points: PointTableRow[]): Promise<void> {
+  await http.put(`/instances/${instanceId}/point-table`, { points })
+}
