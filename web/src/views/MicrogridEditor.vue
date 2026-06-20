@@ -62,6 +62,14 @@
       </el-tab-pane>
     </el-tabs>
 
+    <MicrogridSnapshotPanel
+      :snapshots="snapshots"
+      :running="running"
+      @save="saveCurrentSnapshot"
+      @load="loadSnapshot"
+      @delete="deleteSnapshot"
+    />
+
     <input ref="topoImportRef" type="file" accept=".json" style="display:none" @change="onTopoFile" />
 
     <MicrogridDeviceDialogs
@@ -83,6 +91,13 @@
       @confirm-edit="handleUpdateDevice($event)"
       @confirm-strategy="confirmStrategy($event)"
     />
+
+    <MicrogridPropertyPanel
+      v-model:visible="showPropertyPanel"
+      :device="editingDevice"
+      :saving="updatingDevice"
+      @save="handlePropertyPanelSave"
+    />
   </div>
 </template>
 
@@ -100,6 +115,8 @@ import MicrogridSvgTopology from '../components/microgrid/MicrogridSvgTopology.v
 import MicrogridFormulaPreview from '../components/microgrid/MicrogridFormulaPreview.vue'
 import MicrogridPointTable from '../components/microgrid/MicrogridPointTable.vue'
 import MicrogridDeviceDialogs from '../components/microgrid/MicrogridDeviceDialogs.vue'
+import MicrogridPropertyPanel from '../components/microgrid/MicrogridPropertyPanel.vue'
+import MicrogridSnapshotPanel from '../components/microgrid/MicrogridSnapshotPanel.vue'
 
 import {
   getMicrogridTopology,
@@ -154,6 +171,70 @@ const savingStrategy = ref(false)
 const strategyPointIOA = ref(0)
 const strategyTargetName = ref('')
 const csvFileList = ref<any[]>([])
+
+// Property panel (inline side-panel, replaces dialog)
+const showPropertyPanel = ref(false)
+
+// Scene snapshots (localStorage)
+const showSnapshotPanel = ref(false)
+const snapshotNewName = ref('')
+const snapshots = ref<Array<{
+  id: string
+  name: string
+  timestamp: string
+  bus_name: string
+  bus_voltage_kv: number
+  grid_meter: { rated_capacity_kw: number; island_mode: boolean }
+  devices: any[]
+}>>([])
+
+const STORAGE_KEY = `microgrid_snapshots_${instanceId}`
+
+function loadSnapshots() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    snapshots.value = raw ? JSON.parse(raw) : []
+  } catch { snapshots.value = [] }
+}
+
+function saveSnapshots() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshots.value))
+}
+
+function saveCurrentSnapshot() {
+  const name = snapshotNewName.value.trim()
+  if (!name) return
+  const d = new Date()
+  const timestamp = d.toLocaleDateString('zh-CN') + ' ' + d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  snapshots.value.unshift({
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+    name,
+    timestamp,
+    bus_name: busName.value,
+    bus_voltage_kv: busVoltage.value,
+    grid_meter: { ...gridMeter.value },
+    devices: JSON.parse(JSON.stringify(devices.value)),
+  })
+  saveSnapshots()
+  snapshotNewName.value = ''
+  showSnapshotPanel.value = false
+  ElMessage.success(`快照 "${name}" 已保存`)
+}
+
+function loadSnapshot(snap: typeof snapshots.value[number]) {
+  busName.value = snap.bus_name
+  busVoltage.value = snap.bus_voltage_kv
+  gridMeter.value = { ...snap.grid_meter }
+  devices.value = JSON.parse(JSON.stringify(snap.devices))
+  topologyChanged.value = true
+  runIOAValidation()
+  ElMessage.success(`已加载快照 "${snap.name}"`)
+}
+
+function deleteSnapshot(id: string) {
+  snapshots.value = snapshots.value.filter(s => s.id !== id)
+  saveSnapshots()
+}
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
 let pointsTimer: ReturnType<typeof setInterval> | null = null
@@ -241,6 +322,7 @@ async function fetchPoints(reloading = false) {
 async function loadAll() {
   await Promise.all([fetchTopology(), fetchInstance(), fetchPoints(true)])
   if (running.value) await fetchDashboard()
+  loadSnapshots()
 }
 
 async function handleStart() {
@@ -334,6 +416,7 @@ async function handleAddDevice(payload: any) {
 function editDevice(dev: MicrogridDevice) {
   editingDevice.value = { ...dev, ioa_base: dev.ioa_base }
   showEditDevice.value = true
+  showPropertyPanel.value = true
 }
 
 async function handleUpdateDevice(payload: any) {
@@ -358,6 +441,15 @@ async function handleUpdateDevice(payload: any) {
   } catch (e: any) {
     ElMessage.error('更新失败: ' + (e?.response?.data?.error || e.message))
   } finally { updatingDevice.value = false }
+}
+
+function handlePropertyPanelSave(payload: { id: string; name: string; type: string; params: MicrogridDeviceParams; control_mode: 'remote' | 'local'; customPoints: MicrogridCustomPoint[] }) {
+  if (!editingDevice.value) return
+  editingDevice.value.name = payload.name
+  editingDevice.value.params = payload.params
+  editingDevice.value.control_mode = payload.control_mode
+  editingDevice.value.custom_points = payload.customPoints
+  handleUpdateDevice(payload as any)
 }
 
 async function handleDeleteDevice(devId: string) {
