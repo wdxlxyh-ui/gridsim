@@ -227,6 +227,15 @@
       </div>
     </el-card>
   </div>
+
+  <!-- Floating Action Button: Onboarding Guide -->
+  <div class="onboard-fab" @click="guideRef?.start()" title="操作引导">
+    <span class="onboard-fab-icon">❓</span>
+    <span class="onboard-fab-label">操作引导</span>
+  </div>
+
+  <!-- Onboarding Guide Overlay -->
+  <OnboardingGuide ref="guideRef" />
 </template>
 
 <script setup lang="ts">
@@ -238,6 +247,9 @@ import {
 } from '@element-plus/icons-vue'
 import { getDashboard, type DashboardData, type DashboardBriefInstance } from '../api'
 import SkeletonScreen from '../components/SkeletonScreen.vue'
+import OnboardingGuide from '../components/OnboardingGuide.vue'
+
+const guideRef = ref<InstanceType<typeof OnboardingGuide> | null>(null)
 
 const router = useRouter()
 const data = ref<DashboardData | null>(null)
@@ -853,5 +865,45 @@ onUnmounted(() => {
 @media (max-width: 640px) {
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
   .quick-actions { grid-template-columns: 1fr; }
+}
+
+/* ─── Onboarding FAB ─── */
+.onboard-fab {
+  position: fixed;
+  right: 28px;
+  bottom: 28px;
+  z-index: 7000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 18px 0 14px;
+  height: 44px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #1e40af, #3b82f6);
+  box-shadow: 0 4px 20px rgba(59, 130, 246, 0.45);
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s;
+  user-select: none;
+}
+
+.onboard-fab:hover {
+  transform: translateY(-3px) scale(1.04);
+  box-shadow: 0 8px 28px rgba(59, 130, 246, 0.6);
+}
+
+.onboard-fab:active {
+  transform: scale(0.97);
+}
+
+.onboard-fab-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.onboard-fab-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
 }
 </style>

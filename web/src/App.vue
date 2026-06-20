@@ -65,7 +65,6 @@
         </el-main>
       </el-container>
     </el-container>
-    <CommandPalette />
   </template>
 </template>
 
@@ -74,7 +73,6 @@ import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Grid, Setting, Monitor, DataLine, Fold, ArrowDown, Connection, Search } from '@element-plus/icons-vue'
 import { getStatus, clearToken, type GlobalStatus } from './api'
-import CommandPalette from './components/CommandPalette.vue'
 
 const route = useRoute()
 const router = useRouter()
