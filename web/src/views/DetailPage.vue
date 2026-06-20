@@ -640,7 +640,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown, DataLine, MoreFilled, CopyDocument } from '@element-plus/icons-vue'
@@ -1653,7 +1653,8 @@ async function loadInstanceState() {
   }
 }
 
-onMounted(async () => {
+async function initPage() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
   await loadInstanceState()
   if (instanceStatus.value === 'running') {
     await fetchPoints()
@@ -1664,7 +1665,11 @@ onMounted(async () => {
     pollingEnabled.value = false
   }
   loadCSVFileList()
-})
+}
+
+watch(instanceId, () => { initPage() })
+
+onMounted(initPage)
 
 onUnmounted(() => {
   if (pollTimer) {

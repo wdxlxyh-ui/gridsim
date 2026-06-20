@@ -499,7 +499,8 @@ function handleEdit(row: InstanceState) {
 }
 
 async function handleSave() {
-  const valid = await formRef.value?.validate().catch(() => false)
+  const ref = editing.value ? formEditRef : formRef
+  const valid = await ref.value?.validate().catch(() => false)
   if (!valid) return
 
   saving.value = true

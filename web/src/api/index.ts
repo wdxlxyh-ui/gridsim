@@ -26,7 +26,7 @@ http.interceptors.response.use(
   (error) => {
     if (error?.response?.status === 401) {
       clearToken()
-      window.location.hash = '#/login'
+      window.dispatchEvent(new CustomEvent('auth:logout'))
       return Promise.reject(error)
     }
     if (error?.code === 'ECONNABORTED' || error?.code === 'ERR_NETWORK') {

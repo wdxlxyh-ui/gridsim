@@ -59,7 +59,7 @@
         <el-main class="app-main">
           <router-view v-slot="{ Component }">
             <transition name="slide-fade" mode="out-in">
-              <component :is="Component" />
+              <component :is="Component" :key="route.path" />
             </transition>
           </router-view>
         </el-main>
@@ -131,7 +131,7 @@ function updateUserFromToken() {
     if (parts.length !== 3) return
     const payload = JSON.parse(atob(parts[1]))
     if (payload.username) username.value = payload.username
-  } catch { clearToken() }
+  } catch { /* ignore parse errors, keep token intact */ }
 }
 
 function handleUserCommand(cmd: string) {
@@ -153,15 +153,20 @@ async function refreshStatus() {
   } catch {}
 }
 
+function handleToggleSidebar() { sidebarCollapsed.value = !sidebarCollapsed.value }
+function handleAuthLogout() { username.value = ''; router.push('/login') }
+
 onMounted(async () => {
   await refreshStatus()
   statusTimer = setInterval(refreshStatus, 15000)
-  window.addEventListener('toggle-sidebar', () => { sidebarCollapsed.value = !sidebarCollapsed.value })
+  window.addEventListener('toggle-sidebar', handleToggleSidebar)
+  window.addEventListener('auth:logout', handleAuthLogout)
 })
 
 onUnmounted(() => {
   if (statusTimer) clearInterval(statusTimer)
-  window.removeEventListener('toggle-sidebar', () => {})
+  window.removeEventListener('toggle-sidebar', handleToggleSidebar)
+  window.removeEventListener('auth:logout', handleAuthLogout)
 })
 </script>
 
