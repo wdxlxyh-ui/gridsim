@@ -69,32 +69,6 @@
         </div>
         <div class="stat-glow stat-glow-stopped"></div>
       </div>
-      <div class="stat-card" :class="{ active: filterStatus === 'error' }" @click="filterStatus = 'error'">
-        <div class="stat-icon-wrap icon-error">
-          <el-icon :size="22"><WarningFilled /></el-icon>
-        </div>
-        <div class="stat-body">
-          <div class="stat-value error-text">{{ animatedError }}</div>
-          <div class="stat-label">异常</div>
-        </div>
-        <div class="stat-trend">
-          <span class="trend-text" style="color: var(--color-danger)">需处理</span>
-        </div>
-        <div class="stat-glow stat-glow-error"></div>
-      </div>
-      <div class="stat-card" @click="filterStatus = ''">
-        <div class="stat-icon-wrap icon-points">
-          <el-icon :size="22"><DataAnalysis /></el-icon>
-        </div>
-        <div class="stat-body">
-          <div class="stat-value points-text">{{ animatedPoints }}</div>
-          <div class="stat-label">测点总数</div>
-        </div>
-        <div class="stat-trend">
-          <span class="trend-text">分布式仿真</span>
-        </div>
-        <div class="stat-glow stat-glow-points"></div>
-      </div>
       <div class="stat-card" @click="filterStatus = ''">
         <div class="stat-icon-wrap icon-clients">
           <el-icon :size="22"><Connection /></el-icon>
@@ -259,7 +233,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  Grid, CaretRight, VideoPause, WarningFilled, DataAnalysis, DataLine, Connection,
+  Grid, CaretRight, VideoPause, DataLine, Connection,
   Plus, Monitor, ArrowRight, Clock, Coin, Lightning, DataBoard, Refresh,
 } from '@element-plus/icons-vue'
 import { getDashboard, type DashboardData, type DashboardBriefInstance } from '../api'
@@ -275,8 +249,6 @@ const lastRefresh = ref('')
 const animatedTotal = ref(0)
 const animatedRunning = ref(0)
 const animatedStopped = ref(0)
-const animatedError = ref(0)
-const animatedPoints = ref(0)
 const animatedClients = ref(0)
 
 let refreshTimer: ReturnType<typeof setInterval> | null = null
@@ -349,8 +321,6 @@ async function fetchDashboard() {
     animateTo(d.total_instances, animatedTotal)
     animateTo(d.running_instances, animatedRunning)
     animateTo(d.stopped_instances, animatedStopped)
-    animateTo(d.error_instances, animatedError)
-    animateTo(d.total_points, animatedPoints)
     animateTo(d.clients_connected, animatedClients)
     lastRefresh.value = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
   } catch {
@@ -461,8 +431,6 @@ onUnmounted(() => {
 .icon-total { background: rgba(var(--accent-rgb), 0.15); color: var(--accent); }
 .icon-running { background: rgba(16, 185, 129, 0.15); color: #10b981; }
 .icon-stopped { background: rgba(148, 163, 184, 0.15); color: #94a3b8; }
-.icon-error { background: rgba(245, 108, 108, 0.15); color: #f56c6c; }
-.icon-points { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
 .icon-clients { background: rgba(139, 92, 246, 0.15); color: #8b5cf6; }
 
 .stat-body { flex: 1; }
@@ -484,8 +452,6 @@ onUnmounted(() => {
 
 .running-text { color: #10b981; }
 .stopped-text { color: #94a3b8; }
-.error-text { color: #f56c6c; }
-.points-text { color: #3b82f6; }
 .clients-text { color: #8b5cf6; }
 
 .stat-label {
@@ -530,8 +496,6 @@ onUnmounted(() => {
 .stat-glow-total { background: radial-gradient(circle, var(--accent), transparent); }
 .stat-glow-running { background: radial-gradient(circle, #10b981, transparent); }
 .stat-glow-stopped { background: radial-gradient(circle, #94a3b8, transparent); }
-.stat-glow-error { background: radial-gradient(circle, #f56c6c, transparent); }
-.stat-glow-points { background: radial-gradient(circle, #3b82f6, transparent); }
 .stat-glow-clients { background: radial-gradient(circle, #8b5cf6, transparent); }
 
 /* ─── Card Header ─── */
