@@ -213,10 +213,30 @@
     </template>
 
     <!-- Auto-Change Config Dialog -->
-    <el-dialog v-model="autoDialogVisible" title="自动变化配置" width="700px" :close-on-click-modal="false">
-      <div style="margin-bottom: 12px; font-weight: 600; font-size: 14px">
-        {{ autoDialogPointName }} (IOA: {{ autoDialogIOA }})
+    <el-dialog v-model="autoDialogVisible" title="自动变化配置" width="750px" :close-on-click-modal="false">
+      <div style="margin-bottom: 12px; font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; justify-content: space-between">
+        <span>{{ autoDialogPointName }} (IOA: {{ autoDialogIOA }})</span>
+        <span style="font-size: 12px; font-weight: 400; color: var(--text-muted, #64748b)">
+          选择策略类型后配置参数，点击"确认启用"生效
+        </span>
       </div>
+
+      <!-- Strategy Template Presets -->
+      <div style="margin-bottom: 12px">
+        <div style="font-size: 12px; color: var(--text-muted, #64748b); margin-bottom: 6px">快速模板</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px">
+          <el-tag
+            v-for="tpl in strategyTemplates" :key="tpl.key"
+            :type="autoStrategyTab === tpl.key ? 'primary' : 'info'"
+            effect="plain"
+            style="cursor: pointer; padding: 2px 8px"
+            @click="applyStrategyTemplate(tpl)"
+          >
+            {{ tpl.label }}
+          </el-tag>
+        </div>
+      </div>
+
       <el-tabs v-model="autoStrategyTab" type="card">
         <el-tab-pane label="递增" name="increment">
           <el-form label-width="100px" size="small">
@@ -906,6 +926,31 @@ async function doSetValue(row: PointSnapshot, overrideVal?: number | undefined) 
   } catch (e: any) {
     ElMessage.error('置数失败: ' + (e?.response?.data?.error || e.message))
   }
+}
+
+// Strategy template presets
+const strategyTemplates = [
+  { key: 'increment', label: '📈 递增爬坡', params: { start_value: 0, step: 1, period_ms: 1000, max_value: 100 } },
+  { key: 'random', label: '🎲 随机波动', params: { min_value: 0, max_value_r: 100, period_ms: 1000, decimal_places: 1 } },
+  { key: 'random', label: '⚡ 频率波动', params: { min_value: 498, max_value_r: 502, period_ms: 200, decimal_places: 1 } },
+  { key: 'soc', label: '🔋 SOC充放循环', params: { init_soc: 50, rated_cap: 100, integral_ms: 1000 } },
+  { key: 'manual', label: '✋ 手动置数', params: {} },
+  { key: 'csv', label: '📋 CSV回放', params: { csv_loop: true, time_format: 'relative', time_unit: 'ms' } },
+]
+
+function applyStrategyTemplate(tpl: typeof strategyTemplates[0]) {
+  autoStrategyTab.value = tpl.key
+  // Reset params to template defaults
+  const defaults = {
+    start_value: 0, step: 1, period_ms: 1000, max_value: 100,
+    min_value: 0, max_value_r: 100, decimal_places: 0,
+    csv_file: '', time_format: 'absolute', time_unit: 'ms', csv_loop: true,
+    para_a: '', para_b: '',
+    init_soc: 50, rated_cap: 100, power_ioa: 16385, integral_ms: 1000,
+    init_energy: 0, stat_type: 0, energy_power_ioa: 16385, energy_period_ms: 1000,
+    follow_ao_ioa: 20, api_init_value: 0,
+  }
+  Object.assign(autoForm, defaults, tpl.params)
 }
 
 async function openAutoModal(row: PointSnapshot) {

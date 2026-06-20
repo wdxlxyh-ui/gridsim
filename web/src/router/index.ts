@@ -5,8 +5,9 @@ import LoginPage from '@/views/LoginPage.vue'
 import { getToken } from '../api'
 
 const routes = [
-  { path: '/', redirect: '/config' },
+  { path: '/', redirect: '/dashboard' },
   { path: '/login', name: 'login', component: LoginPage, meta: { title: '登录', public: true } },
+  { path: '/dashboard', name: 'dashboard', component: () => import('@/views/DashboardPage.vue'), meta: { title: '仪表盘' } },
   { path: '/config', name: 'config', component: ConfigPage, meta: { title: '配置管理' } },
   { path: '/monitor', name: 'monitor', component: MonitorPage, meta: { title: '运行监控' } },
   { path: '/trend', name: 'trend', component: () => import('@/views/TrendPage.vue'), meta: { title: '实时趋势' } },

@@ -1,0 +1,369 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>GridSim v4.0 交互设计预览</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0b1120;color:#e2e8f0;font-size:13px;line-height:1.5}
+:root{--bg:#0b1120;--bg2:#131b2d;--card:#141b2d;--hover:#1e2736;--input:#0f1623;--bd:#2d3a4e;--accent:#3b82f6;--green:#22c55e;--orange:#f59e0b;--red:#ef4444;--blue:#409eff;--txt:#e2e8f0;--txt2:#94a3b8;--txt3:#64748b;--radius:8px}
+.header{height:48px;background:var(--card);border-bottom:1px solid var(--bd);display:flex;align-items:center;padding:0 20px;position:sticky;top:0;z-index:100;gap:16px}
+.brand{font-weight:600;font-size:15px;display:flex;align-items:center;gap:8px;white-space:nowrap}
+.breadcrumb{color:var(--txt2);font-size:12px}
+.search{margin-left:auto;background:var(--input);border:1px solid var(--bd);border-radius:6px;padding:6px 12px;color:var(--txt);font-size:12px;width:200px}
+.search:focus{outline:0;border-color:var(--accent);box-shadow:0 0 0 2px rgba(59,130,246,.15)}
+.stattag{display:flex;align-items:center;gap:6px;font-size:11px;background:var(--input);padding:4px 10px;border-radius:6px;color:var(--txt2);white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%}.dot.g{background:var(--green)}.dot.gr{background:var(--txt3)}
+.layout{display:flex;min-height:calc(100vh - 48px)}
+.sidebar{width:62px;background:var(--bg2);border-right:1px solid var(--bd);padding:4px;transition:width .25s;overflow:hidden;flex-shrink:0;position:relative}
+.sidebar.open{width:192px}
+.sidebar-toggle{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);width:36px;height:36px;border-radius:50%;background:var(--accent);color:#fff;border:0;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:.3s;z-index:10}
+.sidebar-toggle:hover{transform:translateX(-50%) scale(1.1)}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px;margin:0 2px;border-radius:6px;color:var(--txt2);cursor:pointer;transition:.2s;white-space:nowrap;font-size:13px}
+.nav-item:hover{background:var(--hover);color:var(--txt)}
+.nav-item.act{background:rgba(59,130,246,.12);color:var(--accent);font-weight:500}
+.nav-item svg{flex-shrink:0;width:18px;height:18px}
+.s-divider{height:1px;background:var(--bd);margin:6px 10px}
+.content{flex:1;padding:24px;overflow-y:auto}
+h2{font-size:17px;margin-bottom:16px;font-weight:600}
+h3{font-size:14px;margin:0 0 10px 0;font-weight:500}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:20px;margin-bottom:16px;transition:.2s}
+.card:hover{border-color:var(--accent)}
+.stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:24px}
+.stat{border:1px solid var(--bd);border-radius:12px;padding:20px;text-align:center}
+.stat-ico{width:40px;height:40px;border-radius:8px;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;font-size:18px}
+.stat-ico.g{background:rgba(34,197,94,.15);color:var(--green)}
+.stat-ico.b{background:rgba(59,130,246,.15);color:var(--accent)}
+.stat-ico.r{background:rgba(239,68,68,.15);color:var(--red)}
+.stat-ico.n{background:rgba(100,116,139,.15);color:var(--txt3)}
+.stat-n{font-size:28px;font-weight:700}
+.stat-l{font-size:11px;color:var(--txt2);margin-top:4px}
+.col2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:860px){.col2{grid-template-columns:1fr}}
+.inst-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px}
+.inst{border:1px solid var(--bd);border-radius:12px;overflow:hidden;transition:.2s}
+.inst:hover{border-color:var(--accent);box-shadow:0 4px 20px rgba(0,0,0,.4)}
+.inst-h{background:var(--hover);padding:10px 16px;border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;align-items:center}
+.inst-n{font-weight:600;font-size:14px}
+.inst-b{padding:10px 16px;font-size:12px;color:var(--txt2)}
+.inst-b > div{padding:3px 0}
+.inst-f{padding:10px 16px;border-top:1px solid var(--bd);display:flex;gap:8px}
+.inst-f button{flex:1;padding:6px;border-radius:6px;border:1px solid var(--bd);background:0;color:var(--txt2);font-size:11px;cursor:pointer;transition:.2s}
+.inst-f button:hover{background:var(--hover);color:var(--txt)}
+.inst-f .p{background:var(--accent);color:#fff;border-color:var(--accent)}
+.inst-f .p:hover{opacity:.9}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:500}
+.badge.g{background:rgba(34,197,94,.15);color:var(--green)}
+.badge.b{background:rgba(59,130,246,.15)}.badge.r{background:rgba(239,68,68,.15);color:var(--red)}
+.badge.n{background:rgba(100,116,139,.15);color:var(--txt3)}
+.tab-bar{display:flex;gap:0;margin-bottom:16px;background:var(--bg2);border-radius:8px;overflow:hidden;border:1px solid var(--bd)}
+.tab-btn{padding:9px 18px;cursor:pointer;transition:.2s;color:var(--txt2);border-right:1px solid var(--bd);font-size:12px;flex:1;text-align:center;user-select:none}
+.tab-btn:last-child{border-right:0}
+.tab-btn:hover{background:var(--hover);color:var(--txt)}
+.tab-btn.act{background:var(--accent);color:#fff}
+.panel{display:none}.panel.act{display:block}
+
+.mgrid-svg{background:var(--bg);border-radius:8px;width:100%;height:340px}
+.mgrid-lay{display:grid;grid-template-columns:2fr 1fr;gap:16px}
+@media(max-width:860px){.mgrid-lay{grid-template-columns:1fr}}
+.dash-r{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--bd);font-size:12px}
+.dash-r:last-child{border-bottom:0}
+.dash-v{font-weight:600;font-family:'JetBrains Mono',monospace}
+.dash-dev{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--txt2);padding:4px 0}
+.t-f{display:flex;gap:8px;flex-wrap:wrap}.t-f .badge{cursor:pointer}.t-f .badge.on{border:1px solid var(--accent)}
+table{width:100%;border-collapse:collapse}
+th{padding:9px 12px;text-align:left;font-weight:500;font-size:11px;color:var(--txt2);border-bottom:1px solid var(--bd);background:var(--bg2)}
+td{padding:9px 12px;border-bottom:1px solid var(--bd);font-size:12px}
+tr:hover td{background:var(--hover)}
+.pxy-lay{display:grid;grid-template-columns:240px 1fr;gap:16px;height:420px}
+@media(max-width:860px){.pxy-lay{grid-template-columns:1fr}}
+.pxy-tree{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;overflow-y:auto}
+.tree-it{padding:7px 8px;border-radius:6px;cursor:pointer;transition:.2s;display:flex;align-items:center;gap:8px;margin-bottom:3px;font-size:12px}
+.tree-it:hover{background:var(--hover)}
+.tree-it.act{background:rgba(59,130,246,.12);border-left:2px solid var(--accent)}
+.mth{font-size:10px;font-weight:600;padding:2px 6px;border-radius:3px}
+.mth.g{background:rgba(34,197,94,.15);color:var(--green)}
+.mth.b{background:rgba(59,130,246,.15);color:var(--accent)}
+.pxy-ed{display:flex;flex-direction:column;gap:12px}
+.url-b{display:flex;gap:8px;padding:12px;background:var(--card);border-radius:12px;border:1px solid var(--bd)}
+.url-b select{padding:5px 8px;border-radius:6px;border:1px solid var(--bd);background:var(--input);color:var(--txt);font-size:11px}
+.url-b input{flex:1;padding:5px 12px;border:1px solid var(--bd);border-radius:6px;background:var(--input);color:var(--txt);font-size:12px}
+.url-b .sd{background:var(--accent);color:#fff;border:0;padding:7px 18px;border-radius:6px;cursor:pointer;font-size:12px}
+.url-b .sd:hover{opacity:.9}
+.rsp-c{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px;flex:1;overflow:auto}
+.rsp-c pre{background:var(--bg);padding:12px;border-radius:6px;font-size:11px;font-family:'JetBrains Mono',monospace;line-height:1.6;margin:8px 0 0;overflow:auto}
+.cht{background:var(--bg);border-radius:8px;padding:20px;text-align:center;color:var(--txt2);height:200px;display:flex;flex-direction:column;justify-content:center}
+@keyframes pl{0%,100%{opacity:.5}50%{opacity:1}}
+.pw-line{stroke:var(--green);stroke-width:2.5;stroke-linecap:round;animation:pl 1.5s infinite}
+</style></head><body>
+<div class="header">
+  <div class="brand">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+    GridSim v4.0
+  </div>
+  <div class="breadcrumb" id="breadcrumb">仪表盘</div>
+  <input class="search" placeholder="搜索实例 / IOA / 测点 (Cmd+K)">
+  <div class="stattag"><span class="dot g"></span>运行 12 / 23</div>
+</div>
+
+<div class="layout">
+<div class="sidebar" id="sidebar">
+  <div class="nav">
+    <div class="nav-item act" data-page="dash" onclick="goPage('dash',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>仪表盘
+    </div>
+    <div class="nav-item" data-page="config" onclick="goPage('config',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>配置管理
+    </div>
+    <div class="nav-item" data-page="monitor" onclick="goPage('monitor',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>运行监控
+    </div>
+    <div class="nav-item" data-page="trend" onclick="goPage('trend',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>实时趋势
+    </div>
+    <div class="nav-item" data-page="proxy" onclick="goPage('proxy',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>接口测试
+    </div>
+    <div class="s-divider"></div>
+    <div class="nav-item" data-page="microgrid" onclick="goPage('microgrid',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>微电网
+    </div>
+  </div>
+  <button class="sidebar-toggle" onclick="toggleSidebar()">☰</button>
+</div>
+
+<div class="content">
+
+<div id="page-dash" class="panel act">
+  <h2>仪表盘</h2>
+  <div class="stat-row">
+    <div class="stat"><div class="stat-ico g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><polygon points="5 3 19 12 5 21 5 3"/></svg></div><div class="stat-n">12</div><div class="stat-l">运行中</div></div>
+    <div class="stat"><div class="stat-ico n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></div><div class="stat-n">5</div><div class="stat-l">已停止</div></div>
+    <div class="stat"><div class="stat-ico r"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div><div class="stat-n">0</div><div class="stat-l">错误</div></div>
+    <div class="stat"><div class="stat-ico b"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="stat-n">35</div><div class="stat-l">在线客户端</div></div>
+  </div>
+  <div class="col2">
+    <div class="card"><h3>活跃实例</h3>
+      <div class="inst" style="margin-bottom:8px"><div class="inst-h"><span class="inst-n">变电站A</span><span class="badge g">运行中</span></div><div class="inst-b"><div>IEC104 · 2404 · 运行 3h 24m</div><div>128 测点 · 客户端在线</div></div></div>
+      <div class="inst" style="margin-bottom:8px"><div class="inst-h"><span class="inst-n">微电网1区</span><span class="badge g">运行中</span></div><div class="inst-b"><div>Microgrid · 4 设备</div><div>PV+BAT+LOAD · SOC 72%</div></div></div>
+      <div class="inst"><div class="inst-h"><span class="inst-n">光伏站B</span><span class="badge n">已停止</span></div><div class="inst-b"><div>IEC104 · 2406</div><div>64 测点 · 曾运行 12h</div></div></div>
+    </div>
+    <div class="card"><h3>系统状态</h3>
+      <table><tr><td>运行时长</td><td style="text-align:right;font-weight:600">72h 15m</td></tr><tr><td>总测点数</td><td style="text-align:right;font-weight:600">8,320</td></tr><tr><td>协议分布</td><td style="text-align:right;font-weight:600">IEC104 · Modbus · Microgrid</td></tr><tr><td>微电网仿真</td><td style="text-align:right;font-weight:600;color:var(--green)">已启用</td></tr><tr><td>自动变化策略</td><td style="text-align:right;font-weight:600">11 种</td></tr></table>
+    </div>
+  </div>
+</div>
+
+<div id="page-config" class="panel">
+  <h2>配置管理</h2>
+  <div style="display:flex;gap:16px;margin-bottom:16px">
+    <div class="stat" style="padding:12px;flex:1"><div style="font-size:11px;color:var(--txt2)">已配置</div><div class="stat-n" style="font-size:20px">17 <span style="font-size:12px;color:var(--txt3)">/ 1000</span></div></div>
+    <div class="stat" style="padding:12px;flex:1"><div style="font-size:11px;color:var(--txt2)">运行中</div><div class="stat-n" style="font-size:20px;color:var(--green)">12</div></div>
+    <div class="stat" style="padding:12px;flex:1"><div style="font-size:11px;color:var(--txt2)">已停止</div><div class="stat-n" style="font-size:20px;color:var(--txt3)">5</div></div>
+  </div>
+  <div class="tab-bar" style="margin-bottom:12px">
+    <div class="tab-btn act" onclick="switchConfigView('card',this)">卡片视图</div>
+    <div class="tab-btn" onclick="switchConfigView('table',this)">表格视图</div>
+  </div>
+  <div id="config-card" class="inst-grid">
+    <div class="inst"><div class="inst-h"><span class="inst-n">变电站A</span><span class="badge g">运行中</span></div><div class="inst-b"><div>IEC104 · 端口 2404</div><div>128 测点 · 运行 3h 24m</div></div><div class="inst-f"><button class="p">停止</button><button>编辑</button><button>详情</button></div></div>
+    <div class="inst" style="border-color:var(--accent)"><div class="inst-h"><span class="inst-n">微电网1区</span><span class="badge g">运行中</span></div><div class="inst-b"><div>Microgrid · 4 设备</div><div>89 测点 · PV+BAT+LOAD</div></div><div class="inst-f"><button class="p">停止</button><button>编辑</button><button>微电网</button></div></div>
+    <div class="inst"><div class="inst-h"><span class="inst-n">光伏站B</span><span class="badge n">已停止</span></div><div class="inst-b"><div>IEC104 · 端口 2406</div><div>64 测点 · 曾运行 12h</div></div><div class="inst-f"><button class="p">启动</button><button>编辑</button><button>详情</button></div></div>
+  </div>
+  <div id="config-table" style="display:none">
+    <div class="card" style="padding:0"><table><tr><th>ID</th><th>名称</th><th>协议</th><th>端口</th><th>状态</th><th>测点数</th><th>操作</th></tr>
+    <tr><td>1</td><td>变电站A</td><td>IEC104</td><td>2404</td><td><span class="badge g">运行</span></td><td>128</td><td style="color:var(--accent);cursor:pointer">编辑</td></tr>
+    <tr><td>2</td><td>微电网1区</td><td>Microgrid</td><td>—</td><td><span class="badge g">运行</span></td><td>89</td><td style="color:var(--accent);cursor:pointer">编辑</td></tr>
+    <tr><td>3</td><td>光伏站B</td><td>IEC104</td><td>2406</td><td><span class="badge n">停止</span></td><td>64</td><td style="color:var(--accent);cursor:pointer">编辑</td></tr></table></div>
+  </div>
+  <button style="margin-top:12px;padding:10px 24px;background:var(--accent);color:#fff;border:0;border-radius:8px;font-size:13px;cursor:pointer">+ 添加实例</button>
+</div>
+
+<div id="page-microgrid" class="panel">
+  <h2>微电网编辑器</h2>
+  <div class="tab-bar">
+    <div class="tab-btn act" onclick="switchMicroTab('topo',this)">拓扑配置</div>
+    <div class="tab-btn" onclick="switchMicroTab('points',this)">测点管理</div>
+  </div>
+  <div id="micro-topo" class="panel act">
+    <div class="mgrid-lay">
+      <div class="card" style="padding:12px">
+        <svg class="mgrid-svg" viewBox="0 0 600 340">
+          <rect x="0" y="0" width="600" height="340" fill="#0b1120" rx="8"/>
+          <text x="300" y="28" fill="#64748b" font-size="10" text-anchor="middle">⚡ 电网 (外部)</text>
+          <rect x="260" y="35" width="80" height="22" rx="4" fill="#0f1623" stroke="#2d3a4e"/>
+          <text x="300" y="50" fill="#ef4444" font-size="9" text-anchor="middle">关口表 PCC</text>
+          <line x1="300" y1="57" x2="300" y2="85" stroke="#3f4e67" stroke-width="2" stroke-dasharray="4"/>
+          <text x="300" y="102" fill="#e2e8f0" font-size="11" font-weight="600" text-anchor="middle">10kV 母线</text>
+          <line x1="60" y1="118" x2="540" y2="118" stroke="#3f4e67" stroke-width="2"/>
+          <line x1="160" y1="118" x2="160" y2="145" class="pw-line"/>
+          <rect x="125" y="145" width="70" height="48" rx="6" fill="#141b2d" stroke="#22c55e" stroke-width="2"/>
+          <text x="160" y="173" fill="#fff" font-size="10" font-weight="600" text-anchor="middle">光伏</text>
+          <text x="160" y="185" fill="rgba(255,255,255,.7)" font-size="9" text-anchor="middle">PV-1</text>
+          <circle cx="160" cy="145" r="8" fill="#22c55e" opacity=".8"/>
+          <line x1="300" y1="118" x2="300" y2="145" class="pw-line" opacity=".7"/>
+          <rect x="265" y="145" width="70" height="48" rx="6" fill="#141b2d" stroke="#409eff" stroke-width="2"/>
+          <text x="300" y="173" fill="#fff" font-size="10" font-weight="600" text-anchor="middle">储能</text>
+          <text x="300" y="185" fill="rgba(255,255,255,.7)" font-size="9" text-anchor="middle">BAT-1</text>
+          <circle cx="300" cy="145" r="8" fill="#409eff" opacity=".9"/>
+          <line x1="440" y1="118" x2="440" y2="145" class="pw-line" opacity=".4"/>
+          <rect x="405" y="145" width="70" height="48" rx="6" fill="#141b2d" stroke="#f59e0b" stroke-width="2"/>
+          <text x="440" y="173" fill="#fff" font-size="10" font-weight="600" text-anchor="middle">负荷</text>
+          <text x="440" y="185" fill="rgba(255,255,255,.7)" font-size="9" text-anchor="middle">LOAD-1</text>
+          <circle cx="440" cy="145" r="8" fill="#f59e0b" opacity=".6"/>
+        </svg>
+        <div style="display:flex;gap:20px;font-size:11px;color:var(--txt2);padding:6px 4px 0">
+          <span>⚡ 电网: <strong style="color:var(--red)">-25.3 kW</strong></span>
+          <span>△ 发电: <strong style="color:var(--green)">5.2 kW</strong></span>
+          <span>□ 负荷: <strong style="color:var(--orange)">30.5 kW</strong></span>
+          <span>🔋 SOC: <strong style="color:var(--blue)">72%</strong></span>
+        </div>
+      </div>
+      <div>
+        <div class="card"><h3>实时功率</h3>
+          <div class="dash-r"><span>并网点</span><span class="dash-v" style="color:var(--red)">-25.3 kW</span></div>
+          <div class="dash-r"><span>光伏总功率</span><span class="dash-v" style="color:var(--green)">5.2 kW</span></div>
+          <div class="dash-r"><span>储能</span><span class="dash-v" style="color:var(--blue)">+12.1 kW (充)</span></div>
+          <div class="dash-r"><span>负荷</span><span class="dash-v" style="color:var(--orange)">30.5 kW</span></div>
+          <div class="dash-r"><span>电池 SOC</span><span class="dash-v" style="color:var(--blue)">72.0%</span></div>
+        </div>
+        <div class="card"><h3>设备状态</h3>
+          <div class="dash-dev"><span class="dot g" style="display:inline-block;margin-right:6px"></span>光伏 #1</div>
+          <div class="dash-dev"><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--blue);margin-right:6px"></span>储能 #1 · SOC 72%</div>
+          <div class="dash-dev"><span class="dot g" style="display:inline-block;margin-right:6px"></span>负荷 #1</div>
+        </div>
+        <div style="display:flex;gap:8px"><button style="flex:1;padding:8px;background:var(--accent);color:#fff;border:0;border-radius:6px;cursor:pointer;font-size:12px">停止仿真</button><button style="flex:1;padding:8px;background:var(--input);color:var(--txt);border:1px solid var(--bd);border-radius:6px;cursor:pointer;font-size:12px">保存拓扑</button></div>
+      </div>
+    </div>
+  </div>
+  <div id="micro-points" class="panel">
+    <div class="card" style="padding:0">
+      <div class="t-f" style="padding:8px 12px;background:var(--input);border-bottom:1px solid var(--bd)">
+        <span class="badge b on">全部 (89)</span>
+        <span class="badge b">AI 模拟量</span>
+        <span class="badge g">DI 数字量</span>
+        <span class="badge b">AO 遥调</span>
+        <span class="badge r">DO 遥控</span>
+        <span style="margin-left:auto;font-size:11px;color:var(--txt3)">刷新: 1s</span>
+      </div>
+      <table>
+        <tr><th>IOA</th><th>类型</th><th>名称</th><th>当前值</th><th>控制模式</th><th>策略</th><th>操作</th></tr>
+        <tr><td style="color:var(--accent);font-family:monospace">16385</td><td><span class="badge b">AI</span></td><td>关口表_有功功率</td><td style="font-weight:600">-25.3 kW</td><td>远方</td><td>公式</td><td style="color:var(--accent);cursor:pointer;font-size:11px">置数</td></tr>
+        <tr><td style="color:var(--accent);font-family:monospace">16386</td><td><span class="badge b">AI</span></td><td>关口表_无功功率</td><td style="font-weight:600">-3.8 kVAR</td><td>远方</td><td>公式</td><td style="color:var(--accent);cursor:pointer;font-size:11px">置数</td></tr>
+        <tr><td style="color:var(--accent);font-family:monospace">20101</td><td><span class="badge g">DI</span></td><td>光伏1_运行状态</td><td style="font-weight:600;color:var(--green)">运行</td><td>远方</td><td>自动</td><td style="color:var(--accent);cursor:pointer;font-size:11px">置数</td></tr>
+        <tr><td style="color:var(--accent);font-family:monospace">20120</td><td><span class="badge b">AO</span></td><td>光伏1_功率设定</td><td>5.0 kW</td><td>远方</td><td>手动</td><td style="color:var(--accent);cursor:pointer;font-size:11px">置数</td></tr>
+        <tr><td style="color:var(--accent);font-family:monospace">30101</td><td><span class="badge g">DI</span></td><td>储能1_运行状态</td><td style="font-weight:600;color:var(--green)">运行</td><td>远方</td><td>自动</td><td style="color:var(--accent);cursor:pointer;font-size:11px">置数</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div id="page-proxy" class="panel">
+  <h2>接口测试</h2>
+  <div class="pxy-lay">
+    <div class="pxy-tree">
+      <div style="margin-bottom:8px;display:flex;justify-content:space-between;font-size:11px;color:var(--txt3)"><span>请求列表</span><span>3 个</span></div>
+      <div class="tree-it act"><span class="mth b">GET</span><span>验证 SCADA 连接</span></div>
+      <div class="tree-it"><span class="mth b">GET</span><span>批量读取测点</span></div>
+      <div class="tree-it"><span class="mth g">POST</span><span>置数值测试</span></div>
+      <div style="margin-top:12px;display:flex;gap:4px"><button style="flex:1;padding:6px;border:1px solid var(--bd);background:var(--input);color:var(--txt);border-radius:6px;cursor:pointer;font-size:10px">+ 请求</button><button style="flex:1;padding:6px;border:1px solid var(--bd);background:var(--input);color:var(--txt);border-radius:6px;cursor:pointer;font-size:10px">📁 文件夹</button></div>
+    </div>
+    <div class="pxy-ed">
+      <div class="url-b"><select><option>GET</option><option>POST</option></select><input value="http://localhost:8989/api/v1/instances/station-a/points"><button class="sd">发送</button></div>
+      <div class="rsp-c">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--txt2);margin-bottom:8px"><span>Status: <strong style="color:#22c55e">200 OK</strong></span><span>延迟: 45ms</span></div>
+        <pre>{
+  "status": "success",
+  "instance": "station-a",
+  "count": 3,
+  "points": [
+    { "ioa": 16385, "name": "母线A电压", "value": 237.5 },
+    { "ioa": 16386, "name": "母线A电流", "value": 45.2 },
+    { "ioa": 16387, "name": "断路器状态", "value": 1 }
+  ]
+}</pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="page-monitor" class="panel">
+  <h2>运行监控</h2>
+  <p style="color:var(--txt2);margin-bottom:16px">实时实例状态与统计 · 最后刷新: 3s 前</p>
+  <div class="inst-grid">
+    <div class="inst"><div class="inst-h"><span class="inst-n">变电站A</span><span class="badge g">运行中</span></div><div class="inst-b"><div>端口 2404</div><div>客户端: <span style="color:var(--green)">已连接</span></div><div>测点 128 · 运行 3h 24m</div><div>总召 42 · 变化上送 1.2k</div></div><div class="inst-f"><button class="p">详情</button><button>重启</button><button>停止</button></div></div>
+    <div class="inst"><div class="inst-h"><span class="inst-n">微电网1区</span><span class="badge g">运行中</span></div><div class="inst-b"><div>Microgrid 仿真</div><div>4 设备 · SOC 72%</div><div>关口功率: -25.3 kW</div></div><div class="inst-f"><button class="p">微电网</button><button>重启</button><button>停止</button></div></div>
+    <div class="inst"><div class="inst-h"><span class="inst-n">光伏站B</span><span class="badge n">已停止</span></div><div class="inst-b"><div>端口 2406</div><div>客户端: <span style="color:var(--txt3)">未连接</span></div><div>曾运行 12h 05m</div></div><div class="inst-f"><button class="p">启动</button><button>编辑</button></div></div>
+  </div>
+</div>
+
+<div id="page-trend" class="panel">
+  <h2>实时趋势</h2>
+  <div class="card">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <span class="badge b" style="cursor:pointer">5m</span>
+      <span class="badge b" style="cursor:pointer">15m</span>
+      <span class="badge b on" style="cursor:pointer">30m</span>
+      <span class="badge b" style="cursor:pointer">1h</span>
+      <span class="badge b" style="cursor:pointer">2h</span>
+      <span style="margin-left:auto;font-size:11px;color:var(--txt2)">轮询: 1s · 2 面板</span>
+    </div>
+    <div class="cht">
+      <svg width="100%" height="150" viewBox="0 0 600 150">
+        <polyline points="0,120 40,100 80,110 120,80 160,90 200,70 240,50 280,60 320,40 360,55 400,35 440,45 480,30 520,40 560,20 600,30" fill="none" stroke="#22c55e" stroke-width="2" opacity=".8"/>
+        <polyline points="0,135 40,130 80,138 120,125 160,133 200,120 240,128 280,115 320,123 360,110 400,118 440,105 480,113 520,100 560,108 600,95" fill="none" stroke="#f59e0b" stroke-width="2" opacity=".6"/>
+        <line x1="0" y1="20" x2="600" y2="20" stroke="#1e293b" stroke-width=".5"/>
+        <line x1="0" y1="75" x2="600" y2="75" stroke="#1e293b" stroke-width=".5"/>
+        <line x1="0" y1="130" x2="600" y2="130" stroke="#1e293b" stroke-width=".5"/>
+        <text x="8" y="14" fill="#94a3b8" font-size="9">50</text>
+        <text x="8" y="69" fill="#94a3b8" font-size="9">25</text>
+        <text x="8" y="144" fill="#94a3b8" font-size="9">0</text>
+      </svg>
+      <div style="display:flex;gap:20px;justify-content:center;font-size:11px;margin-top:4px"><span><span style="color:var(--green)">●</span> 光伏功率</span><span><span style="color:var(--orange)">●</span> 负荷功率</span></div>
+    </div>
+  </div>
+</div>
+
+</div></div>
+<script>
+function goPage(id, el) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('act'));
+  var page = document.getElementById('page-'+id);
+  if(page) { page.classList.add('act');
+    if(id==='microgrid'){resetMicroTabs();}
+    if(id==='config'){resetConfigTabs();}
+  }
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('act'));
+  if(el) el.classList.add('act');
+  var bc = document.getElementById('breadcrumb');
+  var names = {dash:'仪表盘',config:'配置管理',monitor:'运行监控',trend:'实时趋势',proxy:'接口测试',microgrid:'微电网编辑'};
+  if(bc && names[id]) bc.textContent = names[id];
+}
+function resetMicroTabs() {
+  var t = document.getElementById('micro-topo'); if(t) t.style.display = 'grid';
+  var p = document.getElementById('micro-points'); if(p) p.style.display = 'none';
+  var btns = document.querySelectorAll('#page-microgrid .tab-btn');
+  btns.forEach(function(b){b.classList.remove('act');});
+  if(btns[0]) btns[0].classList.add('act');
+}
+function resetConfigTabs() {
+  var cc = document.getElementById('config-card'); if(cc) cc.style.display = 'grid';
+  var ct = document.getElementById('config-table'); if(ct) ct.style.display = 'none';
+  var btns = document.querySelectorAll('#page-config .tab-btn');
+  btns.forEach(function(b){b.classList.remove('act');});
+  if(btns[0]) btns[0].classList.add('act');
+}
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+}
+function switchConfigView(view, el) {
+  document.querySelectorAll('#page-config .tab-btn').forEach(t => t.classList.remove('act'));
+  if(el) el.classList.add('act');
+  document.getElementById('config-card').style.display = view === 'card' ? 'grid' : 'none';
+  document.getElementById('config-table').style.display = view === 'table' ? 'block' : 'none';
+}
+function switchMicroTab(tab, el) {
+  document.querySelectorAll('#page-microgrid .tab-btn').forEach(t => t.classList.remove('act'));
+  if(el) el.classList.add('act');
+  document.getElementById('micro-topo').style.display = tab === 'topo' ? 'grid' : 'none';
+  document.getElementById('micro-points').style.display = tab === 'points' ? 'block' : 'none';
+}
+</script>
+</body></html>

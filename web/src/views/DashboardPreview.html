@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GridSim v4.0 - UI Design Preview</title>
+  <style>
+    /* Design System - Based on approved "Professional Evolution" CLI */
+    :root {
+      --bg-primary: #0b1120;
+      --bg-secondary: #131b2d;
+      --bg-card: #141b2d;
+      --bg-hover: #1e2736;
+      --bg-input: #0f1623;
+
+      --text-primary: #e2e8f0;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --text-placeholder: #475569;
+
+      --border-color: #2d3a4e;
+      --border-light: #3f4e67;
+
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --accent-light: rgba(59, 130, 246, 0.12);
+      --accent-glow: 0 0 20px rgba(59, 130, 246, 0.15);
+
+      --照明绿: #22c55e;
+      --发电橙: #f59e0b;
+      --负载红: #ef4444;
+      --储能蓝: #409eff;
+
+      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+      --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+      --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.5);
+
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+
+      --header-height: 48px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-size: 13px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Header */
+    .app-header {
+      height: var(--header-height);
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .app-header-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      font-size: 15px;
+    }
+
+    .app-header-breadcrumb {
+      margin-left: 20px;
+      color: var(--text-secondary);
+      font-size: 12px;
+    }
+
+    .app-header-actions {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .app-header-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-secondary);
+      font-size: 12px;
+      background: var(--bg-input);
+      padding: 4px 12px 4px 8px;
+      border-radius: var(--radius-sm);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .status-dot.running { background: var(--照明绿); }
+    .status-dot.stopped { background: var(--text-muted); }
+
+    .search-input {
+      background: var(--bg-input);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      width: 240px;
+      transition: all 0.2s;
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent-light);
+    }
+
+    /* Layout */
+    .layout {
+      display: flex;
+      height: calc(100vh - var(--header-height));
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 64px;
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border-color);
+      padding: 8px 0;
+      overflow-y: auto;
+      transition: width 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .sidebar.expanded {
+      width: 200px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      margin: 2px 8px;
+      border-radius: var(--radius-sm);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .nav-item:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .nav-item.active {
+      background: var(--accent-light);
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    .nav-item svg {
+      font-size: 18px;
+    }
+
+    .sidebar.expanded .nav-label {
+      display: inline;
+    }
+
+    .nav-label {
+      display: none;
+      font-size: 14px;
+    }
+
+    /* Content */
+    .content {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      margin-bottom: 16px;
+      transition: all 0.2s;
+    }
+
+    .card:hover {
+      border-color: var(--border-light);
+      box-shadow: var(--shadow-md);
+    }
+
+    .card-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .card-title {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .card-body {
+      padding: 16px;
+    }
+
+    /* Instance Card Grid */
+    .instance-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .instance-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      transition: all 0.2s;
+    }
+
+    .instance-card:hover {
+      border-color: var(--accent);
+      box-shadow: var(--shadow-md);
+    }
+
+    .instance-card-header {
+      padding: 12px 16px;
+      background: var(--bg-hover);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .instance-name {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .instance-status-tag {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: var(--radius-sm);
+    }
+
+    .instance-status.running {
+      background: rgba(34, 197, 94, 0.15);
+      color: var(--照明绿);
+    }
+
+    .instance-status.stopped {
+      background: rgba(100, 116, 139, 0.15);
+      color: var(--text-secondary);
+    }
+
+    .instance-details {
+      padding: 12px 16px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .instance-detail-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 6px 0;
+    }
+
+    .instance-actions {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      gap: 8px;
+    }
+
+    .instance-actions .btn {
+      flex: 1;
+      padding: 6px 12px;
+      font-size: 11px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+      border: 1px solid var(--accent);
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-hover);
+    }
+
+    .btn-outline {
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-outline:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    /* Dashboard Cards */
+    .dashboard-stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      transition: all 0.2s;
+    }
+
+    .stat-card:hover {
+      border-color: var(--border-light);
+    }
+
+    .stat-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      margin-bottom: 12px;
+    }
+
+    .stat-icon.running { background: rgba(34, 197, 94, 0.15); color: var(--照明绿); }
+    .stat-icon.stopped { background: rgba(100, 116, 139, 0.15); color: var(--text-muted); }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    /* Microgrid SVG - Dark Theme */
+    .microgrid-svg-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      overflow-x: auto;
+    }
+
+    .microgrid-svg {
+      background: var(--bg-primary);
+      border-radius: var(--radius-sm);
+    }
+
+    .microdevice-box {
+      fill: var(--bg-card);
+      stroke-width: 2;
+      transition: all 0.3s;
+    }
+
+    .microdevice-box:hover {
+      stroke: var(--accent);
+      stroke-width: 3;
+    }
+
+    .powered-line {
+      stroke: var(--照明绿);
+      stroke-width: 3;
+      stroke-linecap: round;
+      animation: pulse-line 2s infinite;
+    }
+
+    @keyframes pulse-line {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    /* Buttons */
+    .btn-group {
+      display: flex;
+      gap: 8px;
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: var(--radius-sm);
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .badge-success { background: rgba(34, 197, 94, 0.15); color: var(--照明绿); }
+    .badge-warning { background: rgba(245, 158, 11, 0.15); color: var(--发电橙); }
+    .badge-danger { background: rgba(239, 68, 68, 0.15); color: var(--负载红); }
+    .badge-info { background: rgba(59, 130, 246, 0.15); color: var(--accent); }
+
+    /* Editor Tabs */
+    .editor-tabs {
+      display: flex;
+      gap: 8px;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 16px;
+    }
+
+    .editor-tab {
+      padding: 8px 16px;
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+      border-bottom: 2px solid transparent;
+    }
+
+    .editor-tab:hover {
+      color: var(--text-primary);
+    }
+
+    .editor-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    /* Floating Nav Toggle */
+    .sidebar-toggle {
+      position: fixed;
+      left: 20px;
+      bottom: 20px;
+      width: 48px;
+      height: 48px;
+      background: var(--accent);
+      border-radius: 50%;
+      border: none;
+      color: white;
+      font-size: 20px;
+      cursor: pointer;
+      box-shadow: var(--shadow-lg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s;
+    }
+
+    .sidebar-toggle:hover {
+      transform: scale(1.1);
+      box-shadow: 0 12px 40px rgba(59, 130, 246, 0.3);
+    }
+
+    /* Showcases */
+    .showcase-section {
+      margin-bottom: 40px;
+      padding-bottom: 40px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .showcase-section:last-child {
+      border-bottom: none;
+    }
+
+    .showcase-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      color: var(--text-primary);
+    }
+
+    .showcase-subtitle {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 16px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .tab {
+      padding: 6px 12px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 12px;
+    }
+
+    .tab:hover {
+      border-color: var(--border-light);
+    }
+
+    .tab.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: white;
+    }
+
+    .preview-container {
+      background: var(--bg-secondary);
+      border: 2px dashed var(--border-light);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      min-height: 300px;
+    }
+
+    /* Comparison Table */
+    .comparison-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      background: var(--bg-card);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+
+    .comparison-table th {
+      background: var(--bg-hover);
+      padding: 12px 16px;
+      text-align: left;
+      font-weight: 500;
+      font-size: 12px;
+      color: var(--text-primary);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .comparison-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-color);
+      font-size: 12px;
+    }
+
+    .comparison-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .comparison-table tr:hover class,
+    .comparison-table tr:hover td {
+      background: var(--bg-hover);
+    }
+  </style>
+</head>
+<body>
+  <div class="app-header">
+    <div class="app-header-brand">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+      </svg>
+      <span>GridSim v4.0</span>
+    </div>
+
+    <div class="app-header-breadcrumb">
+      仪表盘 / 配置管理
+    </div>
+
+    <div class="app-header-actions">
+      <div class="app-header-status">
+        <span class="status-dot running"></span>
+        运行 12 总计 23
+      </div>
+
+      <input type="text" class="search-input" placeholder="🔍 搜索实例 / IOA / 测点...">
+
+      <div style="display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 12px;">
+        <span>用户：张工</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div class="sidebar expanded" id="sidebar">
+      <div class="nav-item active" data-route="/dashboard">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7"></rect>
+          <rect x="14" y="3" width="7" height="7"></rect>
+          <rect x="14" y="14" width="7" height="7"></rect>
+          <rect x="3" y="14" width="7" height="7"></rect>
+        </svg>
+        <span class="nav-label">仪表盘</span>
+      </div>
+
+      <div class="nav-item" data-route="/config">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+          <circle cx="12" cy="12" r="3"></circle>
+        </svg>
+        <span class="nav-label">配置管理</span>
+      </div>
+
+      <div class="nav-item" data-route="/monitor">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+          <line x1="8" y1="21" x2="16" y2="21"></line>
+          <line x1="12" y1="17" x2="12" y2="21"></line>
+        </svg>
+        <span class="nav-label">运行监控</span>
+      </div>
+
+      <div class="nav-item" data-route="/trend">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+          <polyline points="17 6 23 6 23 12"></polyline>
+        </svg>
+        <span class="nav-label">实时趋势</span>
+      </div>
+
+      <div class="nav-item" data-route="/proxy">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="2" y1="12" x2="22" y2="12"></line>
+          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+        </svg>
+        <span class="nav-label">接口测试</span>
+      </div>
+
+      <div style="height: 1px; background: var(--border-color); margin: 8px 8px;"></div>
+
+      <div class="nav-item" style="gap: 12px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+        </svg>
+        <span class="nav-label">通知</span>
+      </div>
+
+      <div class="nav-item" style="gap: 12px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+        <span class="nav-label">设置</span>
+      </div>
+    </div>
+
+    <div class="content" id="content">
+      <!-- SECTION 1: DESIGN SYSTEM -->
+      <div class="showcase-section">
+        <h2 class="showcase-title">设计系统</h2>
+        <p class="showcase-subtitle">专业进化版色彩体系与间距规范</p>
+
+        <div class="dashboard-stats">
+          <div class="stat-card">
+            <div class="stat-icon running">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+            </div>
+            <div class="stat-value">运行</div>
+            <div class="stat-label">12 个实例</div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon stopped">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="6" y="4" width="4" height="16"></rect>
+                <rect x="14" y="4" width="4" height="16"></rect>
+              </svg>
+            </div>
+            <div class="stat-value">已停止</div>
+            <div class="stat-label">5 个实例</div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon" style="background: rgba(239, 68, 68, 0.15); color: var(--负载红);">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="15" y1="9" x2="9" y2="15"></line>
+                <line x1="9" y1="9" x2="15" y2="15"></line>
+              </svg>
+            </div>
+            <div class="stat-value">错误</div>
+            <div class="stat-label">0 个实例</div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon" style="background: rgba(59, 130, 246, 0.15); color: var(--accent);">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+            </div>
+            <div class="stat-value">在线</div>
+            <div class="stat-label">35 个客户端</div>
+          </div>
+        </div>
+
+        <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--text-primary);">色彩体系</h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px;">
+          <div style="background: var(--bg-primary); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+            <div style="width: 24px; height: 24px; background: var(--bg-primary); border-radius: 4px; margin-bottom: 8px;"></div>
+            <div style="font-size: 11px; color: var(--text-secondary);">背景层 primary</div>
+            <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">#0b1120</div>
+          </div>
+          <div style="background: var(--bg-secondary); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+            <div style="width: 24px; height: 24px; background: var(--bg-secondary); border-radius: 4px; margin-bottom: 8px;"></div>
+            <div style="font-size: 11px; color: var(--text-secondary);">卡片层 secondary</div>
+            <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">#131b2d</div>
+          </div>
+          <div style="background: var(--bg-card); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+            <div style="width: 24px; height: 24px; background: var(--bg-card); border-radius: 4px; margin-bottom: 8px;"></div>
+            <div style="font-size: 11px; color: var(--text-secondary);">卡片层 card</div>
+            <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">#141b2d</div>
+          </div>
+          <div style="background: var(--accent); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+            <div style="width: 24px; height: 24px; background: var(--accent); border-radius: 4px; margin-bottom: 8px;"></div>
+            <div style="font-size: 11px; color: white; font-weight: 500;">强调色 accent</div>
+            <div style="font-size: 10px; color: rgba(255,255,255,0.7); margin-top: 4px;">#3b82f6</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 2: LAYOUT -->
+      <div class="showcase-section">
+        <h2 class="showcase-title">布局与导航</h2>
+        <p class="showcase-subtitle">可折叠侧边栏、面包屑导航、全局搜索</p>
+
+        <div class="tabs">
+          <div class="tab active">布局示意</div>
+          <div class="tab">状态导航</div>
+          <div class="tab">骨架屏</div>
+        </div>
+
+        <div class="preview-container">
+          <svg width="800" height="400" viewBox="0 0 800 400" style="background: var(--bg-primary); border-radius: var(--radius-sm);">
+            <!-- Header -->
+            <rect x="0" y="0" width="800" height="48" fill="var(--bg-card)" />
+            <line x1="0" y1="48" x2="800" y2="48" stroke="var(--border-color)" stroke-width="1"/>
+            <text x="20" y="30" fill="var(--text-primary)" font-size="14" font-weight="600">🔄 React Hook Form UseFieldArray Examples</text>
+            <text x="350" y="30" fill="var(--text-secondary)" font-size="12">by frontend-example</text>
+
+            <!-- Sidebar -->
+            <rect x="0" y="48" width="64" height="352" fill="var(--bg-secondary)" />
+            <text x="12" y="75" fill="var(--text-secondary)" font-size="10">124</text>
+            <text x="12" y="90" fill="var(--text-secondary)" font-size="10">12</text>
+            <text x="12" y="105" fill="var(--text-secondary)" font-size="10">1</text>
+
+            <!-- Main Content -->
+            <rect x="64" y="48" width="736" height="352" fill="var(--bg-primary)" />
+
+            <!-- Breadcrumb -->
+            <text x="80" y="75" fill="var(--text-secondary)" font-size="11">官网首页 / Examples / React Hook Form / UseFieldArray / Basic</text>
+            <line x1="80" y1="85" x2="716" y2="85" stroke="var(--border-color)" stroke-width="0.5"/>
+
+            <!-- Card -->
+            <rect x="80" y="100" width="680" height="180" rx="8" fill="var(--bg-card)" stroke="var(--border-color)" stroke-width="1"/>
+
+            <!-- Search Bar -->
+            <rect x="80" y="310" width="240" height="40" rx="20" fill="var(--bg-input)" stroke="var(--border-color)" stroke-width="1"/>
+            <text x="100" y="336" fill="var(--text-placeholder)" font-size="11">🔍 搜索文档... (Cmd/Ctrl + K)</text>
+
+            <text x="830" y="20" fill="var(--text-secondary)" font-size="11">登录</text>
+          </svg>
+        </div>
+
+        <p style="font-size: 11px; color: var(--text-muted); margin-top: 12px;">左侧固定（64px 可选展开至 200px），右侧自适应。Header 包含面包屑指示位置。搜索框全局快捷键 Cmd+K。</p>
+      </div>
+
+      <!-- SECTION 3: MICROGRID EDITING -->
+      <div class="showcase-section">
+        <h2 class="showcase-title">微电网编辑器</h2>
+        <p class="showcase-subtitle">深色风格 SVG 拓扑图 + 能流动画</p>
+
+        <div class="tabs">
+          <div class="tab active">瀑布流布局</div>
+          <div class="tab">等离子瀑布流</div>
+          <div class="tab">胶囊包装</div>
+        </div>
+
+        <div class="preview-container">
+          <div class="editor-tabs">
+            <div class="editor-tab active">拓扑配置</div>
+            <div class="editor-tab">测点管理</div>
+            <div class="editor-tab">公式预览</div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px;">
+            <!-- Left: SVG Topology -->
+            <div style="background: var(--bg-primary); border-radius: var(--radius-sm); padding: 16px; height: 400px;">
+              <svg width="100%" height="100%" viewBox="0 0 600 350" class="microgrid-svg">
+                <!-- Power Grid -->
+                <text x="300" y="25" fill="var(--text-muted)" font-size="10" text-anchor="middle">⚡ 电网</text>
+                <rect x="260" y="32" width="80" height="24" rx="4" fill="var(--bg-input)" stroke="var(--border-color)"/>
+                <text x="300" y="48" fill="var(--负载红)" font-size="9" text-anchor="middle">PCC</text>
+
+                <!-- Connection Lines -->
+                <line x1="300" y1="56" x2="300" y2="85" stroke="var(--border-color)" stroke-width="2" stroke-dasharray="4"/>
+
+                <!-- Bus -->
+                <text x="300" y="105" fill="var(--text-primary)" font-size="11" font-weight="600" text-anchor="middle">10kV 母线</text>
+                <line x1="80" y1="120" x2="520" y2="120" stroke="var(--border-color)" stroke-width="2"/>
+
+                <!-- PV Device -->
+                <line x1="140" y1="120" x2="140" y2="150" class="powered-line" opacity="0.6"/>
+                <rect x="105" y="150" width="70" height="50" rx="6" class="microdevice-box" stroke="#22c55e"/>
+                <text x="140" y="178" fill="#fff" font-size="10" font-weight="600" text-anchor="middle">光伏</text>
+                <text x="140" y="190" fill="rgba(255,255,255,0.7)" font-size="9" text-anchor="middle">PV-1</text>
+
+                <!-- Battery Device -->
+                <line x1="300" y1="120" x2="300" y2="150" class="powered-line"/>
+                <rect x="265" y="150" width="70" height="50" rx="6" class="microdevice-box" stroke="#409eff"/>
+                <text x="300" y="178" fill="#fff" font-size="10" font-weight="600" text-anchor="middle">储能</text>
+                <text x="300" y="190" fill="rgba(255,255,255,0.7)" font-size="9" text-anchor="middle">BAT-1</text>
+
+                <!-- Load Device -->
+                <line x1="460" y1="120" x2="460" y2="150" class="powered-line" opacity="0.4"/>
+                <rect x="425" y="150" width="70" height="50" rx="6" class="microdevice-box" stroke="#f59e0b"/>
+                <text x="460" y="178" fill="#fff" font-size="10" font-weight="600" text-anchor="middle">负荷</text>
+                <text x="460" y="190" fill="rgba(255,255,255,0.7)" font-size="9" text-anchor="middle">LOAD-1</text>
+
+                <!-- Switches -->
+                <circle cx="140" cy="150" r="8" fill="#22c55e" opacity="0.8"/>
+                <circle cx="300" cy="150" r="8" fill="#409eff" opacity="0.9"/>
+                <circle cx="460" cy="150" r="8" fill="#f59e0b" opacity="0.6"/>
+              </svg>
+
+              <div style="display: flex; gap: 12px; margin-top: 12px; font-size: 11px; color: var(--text-secondary);">
+                <span>⚡ 电网: <strong style="color: var(--负载红)">-25.3 kW</strong> (并网)</span>
+                <span style="color: var(--border-color);">|</span>
+                <span>△ 总发电: <strong style="color: var(--照明绿)">5.2 kW</strong></span>
+                <span style="color: var(--border-color);">|</span>
+                <span>□ 总负荷: <strong style="color: var(--负载红)">30.5 kW</strong></span>
+              </div>
+            </div>
+
+            <!-- Right: Dashboard -->
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+              <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                  <span style="font-size: 12px; font-weight: 600; color: var(--text-primary);">实时功率</span>
+                  <span style="font-size: 10px; color: var(--text-muted);">3s 前</span>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 11px; color: var(--text-secondary);">并网点功率</span>
+                    <span style="font-size: 14px; font-weight: 600; color: var(--负载-red);">-25.3 kW</span>
+                  </div>
+
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 11px; color: var(--text-secondary);">光伏总功率</span>
+                    <span style="font-size: 14px; font-weight: 600; color: var(--照明绿);">5.2 kW</span>
+                  </div>
+
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 11px; color: var(--text-secondary);">储能状态</span>
+                    <span style="font-size: 11px; font-weight: 600; color: var(--储能蓝);">充 12.1 kW</span>
+                  </div>
+
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 11px; color: var(--text-secondary);">负荷 & 充电</span>
+                    <span style="font-size: 14px; font-weight: 600; color: var(--负载红);">30.5 kW</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 16px;">
+                <div style="font-size: 12px; font-weight: 600; margin-bottom: 12px;">设备状态</div>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 6px; height: 6px; border-radius: 50%; background: #22c55e;"></div>
+                    <span style="font-size: 11px; color: var(--text-secondary);">光伏 #1 - 运行中</span>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 6px; height: 6px; border-radius: 50%; background: #409eff;"></div>
+                    <span style="font-size: 11px; color: var(--text-secondary);">储能 #1 - 运行中 (SOC 72%)</span>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 6px; height: 6px; border-radius: 50%; background: #f59e0b;"></div>
+                    <span style="font-size: 11px; color: var(--text-secondary);">负荷 #1 - 运行中</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style="display: flex; gap: 8px;">
+                <button style="flex: 1; padding: 8px 12px; background: var(--accent); color: white; border: none; border-radius: var(--radius-sm); font-size: 11px; cursor: pointer;">⚠️ 停止仿真</button>
+                <button style="flex: 1; padding: 8px 12px; background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); font-size: 11px; cursor: pointer;">💾 保存拓扑</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p style="font-size: 11px; color: var(--text-muted); margin-top: 12px;">SVG 拓扑图支持交互点击开关、发光线条展示功率流向、设备状态实时联动。右侧仪表盘从后端 power balance 统一读取数据。</p>
+      </div>
+
+      <!-- SECTION 4: INSTANCE CONFIG -->
+      <div class="showcase-section">
+        <h2 class="showcase-title">配置管理</h2>
+        <p class="showcase-subtitle">卡片视图代替冗长表格</p>
+
+        <div class="tabs">
+          <div class="tab active">卡片网格</div>
+          <div class="tab">卡片+表格混搭</div>
+          <div class="tab">Kanban 布局</div>
+        </div>
+
+        <div class="instance-grid">
+          <div class="instance-card">
+            <div class="instance-card-header">
+              <span class="instance-name">变压器测试</span>
+              <span class="instance-status running">运行中</span>
+            </div>
+            <div class="instance-details">
+              <div class="instance-detail-row">
+                <span>🔬 协议:</span>
+                <span>IEC104</span>
+              </div>
+              <div class="instance-detail-row">
+                <span>📡 端口:</span>
+                <span>2404</span>
+              </div>
+              <div class="instance-detail-row">
+                <span>📊 测点:</span>
+                <span>128</span>
+              </div>
+              <div class="instance-detail-row">
+                <span>⏱️ 运行:</span>
+                <span>3h 24m</span>
+              </div>
+            </div>
+            <div class="instance-actions">
+              <button class="btn-primary">🛑 停止</button>
+              <button class="btn-outline">编辑</button>
+              <button class="btn-outline">详情</button>
+            </div>
+          </div>
+
+          <div class="instance-card" style="border-color: var(--accent);">
+            <div style="position: absolute; top: 12px; right: 12px; padding: 2px 8px; background: var(--accent); border-radius: var(--radius-sm); font-size: 10px; color: white;">微电网</div>
+            <div class="instance-card-header">
+              <span class="instance-name">微电网 A区</span>
+              <span class="instance-status running">运行中</span>
+            </div>
+            <div class="instance-details">
+              <div class="instance-detail-row">
+                <span>⚡ 协议:</span>
+                <span>Microgrid</span>
+              </div>
+              <div class="instance-detail-row">
+                <span>🔋 设备:</span>
+                <span>光伏 + 储能 + 负荷</span>
+              </div>
+              <div class="instance-detail-row">
+                <span>📊 测点:</span>
+                <span>89</span>
+              </div>
+              <div class="instance-detail-row">
+                <span>🚀 速度:</span>
+                <span>3x</span>
+              </div>
+            </div>
+            <div class="instance-actions">
+              <button class="btn-primary">🛑 停止</button>
+              <button class="btn-outline">编辑</button>
+              <button class="btn-outline">🆕 添加设备</button>
+            </div>
+          </div>
+
+          <div class="instance-card">
+            <div class="instance-card-header">
+              <span class="instance-name">光伏站 B区</span>
+              <span class="instance-status stopped">已停止</span>
+            </div>
+            <div class="instance-details">
+              <div class="instance-detail-row">
+                <span>🔬 协议:</span>
+                <span>IEC104</span>
+              </div>
+              <div class="instance-detail-row">
+                <span>📡 端口:</span>
+                <span>2406</span>
+              </div>
+              <div class="instance-detail-row">
+                <span>📊 测点:</span>
+                <span>64</span>
+              </div>
+              <div class="instance-detail-row">
+                <span>⏱️ 曾运行:</span>
+                <span>12h 05m</span>
+              </div>
+            </div>
+            <div class="instance-actions">
+              <button class="btn-primary">▶ 启动</button>
+              <button class="btn-outline">编辑</button>
+              <button class="btn-outline">详情</button>
+            </div>
+          </div>
+        </div>
+
+        <button style="margin-top: 16px; padding: 10px 20px; background: var(--accent); color: white; border: none; border-radius: var(--radius-sm); font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          添加实例
+        </button>
+      </div>
+
+      <!-- SECTION 5: DETAIL PAGE -->
+      <div class="showcase-section">
+        <h2 class="showcase-title">实例详情页</h2>
+        <p class="showcase-subtitle">测点表格分组过滤 + 快速过滤</p>
+
+        <div class="tabs">
+          <div class="tab active">表格分组</div>
+          <div class="tab">WASM 加密资源</div>
+          <div class="tab">富文本嵌入</div>
+        </div>
+
+        <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); overflow: hidden;">
+          <div style="padding: 12px 16px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; gap: 8px;">
+              <span style="font-size: 12px; color: var(--text-secondary);">类型:</span>
+              <span class="badge badge-info">全部</span>
+              <span class="badge badge-success">模拟量 AI</span>
+              <span class="badge badge-success">数字量 DI</span>
+              <span class="badge badge-info">遥控 DO</span>
+            </div>
+            <span style="font-size: 11px; color: var(--text-muted);">显示 128 个测点</span>
+          </div>
+
+          <div style="padding: 12px 16px; background: var(--bg-input); border-bottom: 1px solid var(--border-color);">
+            <input type="text" placeholder="🔍 过滤 IOA、名称..." style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-input); color: var(--text-primary); font-size: 12px;">
+          </div>
+
+          <table class="comparison-table">
+            <thead>
+              <tr>
+                <th style="width: 60px;">IOA</th>
+                <th style="width: 80px;">类型</th>
+                <th>名称</th>
+                <th style="width: 100px;">当前值</th>
+                <th style="width: 100px;">本地/远方</th>
+                <th style="width: 120px;">自动策略</th>
+                <th style="width: 100px;">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-bottom: 0.5px solid var(--border-color);">
+                <td style="color: var(--accent); font-family: monospace; font-size: 11px;">16385</td>
+                <td><span class="badge badge-success">AI</span></td>
+                <td style="color: var(--text-primary); font-weight: 500;">母线A电压</td>
+                <td style="color: var(--text-primary); font-weight: 600;">237.5 V</td>
+                <td style="display: flex; align-items: center; gap: 6px;">
+                  <div style="width: 6px; height: 6px; background: #22c55e; border-radius: 50%;"></div>
+                  <span style="font-size: 10px; color: var(--text-secondary);">远方</span>
+                </td>
+                <td><span class="badge badge-info">#6</span></td>
+                <td style="color: var(--text-secondary);">
+                  <span style="font-size: 10px; cursor: pointer; color: var(--accent);">置数</span>
+                  <span style="color: var(--border-color); margin: 0 4px;">|</span>
+                  <span style="font-size: 10px; cursor: pointer; color: var(--text-secondary);">策略</span>
+                </td>
+              </tr>
+              <tr style="border-bottom: 0.5px solid var(--border-color);">
+                <td style="color: var(--text-muted); font-family: monospace; font-size: 11px;">16386</td>
+                <td><span class="badge badge-success">AI</span></td>
+                <td style="color: var(--text-secondary);">母线A电流</td>
+                <td style="color: var(--text-secondary);">45.2 A</td>
+                <td style="display: flex; align-items: center; gap: 6px;">
+                  <div style="width: 6px; height: 6px; background: #22c55e; border-radius: 50%;"></div>
+                  <span style="font-size: 10px; color: var(--text-secondary);">远方</span>
+                </td>
+                <td><span class="badge badge-success">#1 恒定</span></td>
+                <td style="color: var(--text-secondary);">
+                  <span style="font-size: 10px; cursor: pointer; color: var(--accent);">置数</span>
+                  <span style="color: var(--border-color); margin: 0 4px;">|</span>
+                  <span style="font-size: 10px; cursor: pointer; color: var(--text-secondary);">策略</span>
+                </td>
+              </tr>
+              <tr style="border-bottom: 0.5px solid var(--border-color);">
+                <td style="color: var(--text-muted); font-family: monospace; font-size: 11px;">16387</td>
+                <td><span class="badge badge-info">DO</span></td>
+                <td style="color: var(--text-secondary);">断路器开关</td>
+                <td style="color: var(--text-secondary);">—</td>
+                <td style="display: flex; align-items: center; gap: 6px;">
+                  <div style="width: 6px; height: 6px; background: #ef4444; border-radius: 50%;"></div>
+                  <span style="font-size: 10px; color: var(--text-secondary);">本地</span>
+                </td>
+                <td><span class="badge badge-info">手动</span></td>
+                <td style="color: var(--text-secondary);">
+                  <span style="font-size: 10px; cursor: pointer; color: var(--accent);">置数</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div style="padding: 12px 16px; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 12px; color: var(--text-secondary);">分组:</span>
+              <span class="badge badge-success">关口表 (10)</span>
+              <span class="badge badge-success">光伏 #1 (6)</span>
+              <span class="badge badge-success">储能 #1 (6)</span>
+              <span class="badge badge-warning">负荷 #1 (6)</span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button style="padding: 6px 12px; background: transparent; color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); font-size: 11px; cursor: pointer;">导出 CSV</button>
+              <button style="padding: 6px 12px; background: transparent; color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); font-size: 11px; cursor: pointer;">导出全量</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 6: PROXY PAGE -->
+      <div class="showcase-section">
+        <h2 class="showcase-title">接口测试工具</h2>
+        <p class="showcase-subtitle">Postman 风格请求管理 + CSS 动态资源</p>
+
+        <div class="tabs">
+          <div class="tab active">PM + add member embeds</div>
+          <div class="tab">Will accept</div>
+          <div class="tab">Error handling</div>
+        </div>
+
+        <div class="preview-container">
+          <div style="display: grid; grid-template-columns: 280px 1fr; gap: 16px; height: 400px;">
+            <!-- Left: Collection Tree -->
+            <div style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 12px; display: flex; flex-direction: column;">
+              <div style="margin-bottom: 12px; font-size: 11px; color: var(--text-muted);">REQUESTS / COLLECTIONS (3)</div>
+
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <div style="padding: 8px; border-radius: var(--radius-sm); background: rgba(59, 130, 246, 0.1); border-left: 2px solid var(--accent); cursor: pointer;">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 11px; color: var(--accent); font-weight: 500;">GET</span>
+                    <span style="font-size: 10px; color: var(--text-muted);">POST /</span>
+                  </div>
+                  <div style="font-size: 12px; font-weight: 600; margin-top: 2px;">验证 SCADA 连接</div>
+                </div>
+
+                <div style="padding: 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); cursor: pointer; transition: all 0.2s;" style="padding: 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); cursor: pointer;">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 11px; color: var(--text-secondary);">GET</span>
+                    <span style="font-size: 10px; color: var(--text-muted);">POST /</span>
+                  </div>
+                  <div style="font-size: 12px; font-weight: 600; margin-top: 2px; color: var(--text-secondary);">批量读取测点</div>
+                </div>
+
+                <div style="padding: 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); cursor: pointer; transition: all 0.2s;">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 11px; color: var(--text-secondary);">POST</span>
+                    <span style="font-size: 10px; color: var(--text-muted);">POST /</span>
+                  </div>
+                  <div style="font-size: 12px; font-weight: 600; margin-top: 2px; color: var(--text-secondary);">置数值测试</div>
+                </div>
+              </div>
+
+              <div style="margin-top: 24px; font-size: 11px; color: var(--text-muted);">PRE-REQUEST SCRIPT</div>
+              <textarea style="margin-top: 8px; width: 100%; height: 80px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 8px; font-size: 10px; font-family: monospace; color: var(--text-secondary); resize: none;">// 设置随机偏移量
+pm.environment.set("random_offset", Math.floor(Math.random() * 900) + 100);</textarea>
+
+              <div style="margin-top: 12px; font-size: 11px; color: var(--text-muted);">RESPONSE</div>
+              <div style="margin-top: 8px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 12px; font-size: 10px; font-family: monospace; color: var(--text-secondary);">
+                <div style="color: var(--照明绿);">Status: 200 OK</div>
+                <div style="color: var(--accent); margin-top: 4px;">latency: 45ms</div>
+                <div style="margin-top: 8px; color: var(--text-placeholder);">
+                  {"status": "ok", "count": 3, "points": [...]}
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: Editor -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; height: 100%;">
+              <!-- URL Bar -->
+              <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 12px; display: flex; flex-direction: column;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                  <select style="padding: 6px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-primary); font-size: 11px; flex: 0 0 60px;">
+                    <option>GET</option>
+                    <option>POST</option>
+                    <option>PUT</option>
+                    <option>DELETE</option>
+                  </select>
+
+                  <input type="text" value="http://localhost:8989/api/v1/instances/station-a/points/batch" style="flex: 1; padding: 6px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-input); color: var(--text-primary); font-size: 11px;">
+                </div>
+
+                <div style="display: flex; gap: 8px;">
+                  <button style="flex: 1; padding: 10px; background: var(--accent); color: white; border: none; border-radius: var(--radius-sm); font-size: 12px; font-weight: 500; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                      <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                    发送请求
+                  </button>
+                  <button style="padding: 10px 14px; background: var(--bg-input); color: var(--accent); border: 1px solid var(--border-color); border-radius: var(--radius-sm); font-size: 12px; cursor: pointer;">
+                    💾
+                  </button>
+                  <button style="padding: 10px 14px; background: var(--bg-input); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); font-size: 12px; cursor: pointer;">
+                    📋
+                  </button>
+                </div>
+
+                <div style="margin-top: 12px; display: flex; gap: 8px;">
+                  <button style="flex: 1; padding: 8px; background: var(--bg-input); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); font-size: 11px; cursor: pointer;">导出</button>
+                  <button style="flex: 1; padding: 8px; background: var(--bg-input); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); font-size: 11px; cursor: pointer;">导入</button>
+                </div>
+              </div>
+
+              <!-- Response -->
+              <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 12px; display: flex; flex-direction: column;">
+                <div style="font-size: 12px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;">响应预览</div>
+                <pre style="flex: 1; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 12px; font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--text-secondary); overflow: auto; margin: 0;">{
+  "status": "success",
+  "instance_id": "station-a",
+  "ioas": "16385,16386,16387",
+  "points": [
+    {
+      "ioa": 16385,
+      "name": "母线A电压",
+      "value": 237.5,
+      "unit": "V"
+    }
+  ],
+  "latency_ms": 45
+}</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button class="sidebar-toggle" id="sidebarToggle" style="left: 20px; bottom: 20px;" onclick="toggleSidebar()">
+    ⚙️
+  </button>
+
+  <script>
+    function toggleSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      sidebar.classList.toggle('expanded');
+    }
+
+    // Highlight current nav item (mock)
+    const navItems = document.querySelectorAll('.nav-item');
+    navItems.forEach(item => {
+      item.addEventListener('click', () => {
+        navItems.forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
+      });
+    });
+  </script>
+</body>
+</html>

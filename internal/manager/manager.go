@@ -428,6 +428,50 @@ func (m *Manager) RunningCount() int {
 	return len(m.instances)
 }
 
+// DashboardData holds aggregated stats for the dashboard API.
+type DashboardData struct {
+	TotalInstances  int                    `json:"total_instances"`
+	RunningInstances int                   `json:"running_instances"`
+	StoppedInstances int                   `json:"stopped_instances"`
+	ErrorInstances   int                   `json:"error_instances"`
+	TotalPoints      int                   `json:"total_points"`
+	ClientsConnected int                   `json:"clients_connected"`
+	ByProtocol       map[string]int        `json:"by_protocol"`
+	Instances       []*model.InstanceState `json:"instances"`
+}
+
+// GetDashboardData returns aggregated dashboard data.
+func (m *Manager) GetDashboardData() *DashboardData {
+	data := &DashboardData{
+		ByProtocol: make(map[string]int),
+	}
+	states := m.ListStates()
+	data.Instances = states
+	data.TotalInstances = len(states)
+
+	for _, s := range states {
+		proto := s.Config.Protocol
+		if proto == "" {
+			proto = "iec104"
+		}
+		data.ByProtocol[proto]++
+
+		switch s.Status {
+		case model.StatusRunning:
+			data.RunningInstances++
+			data.TotalPoints += s.TotalPoints
+			if s.ClientConnected {
+				data.ClientsConnected++
+			}
+		case model.StatusStopped:
+			data.StoppedInstances++
+		case model.StatusError:
+			data.ErrorInstances++
+		}
+	}
+	return data
+}
+
 // StopAll stops all running instances.
 func (m *Manager) StopAll() {
 	m.mu.Lock()
