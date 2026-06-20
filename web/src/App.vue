@@ -57,9 +57,9 @@
           </nav>
         </el-aside>
         <el-main class="app-main">
-          <router-view v-slot="{ Component }">
+          <router-view :key="route.fullPath" v-slot="{ Component }">
             <transition name="slide-fade" mode="out-in">
-              <component :is="Component" :key="route.path" />
+              <component :is="Component" />
             </transition>
           </router-view>
         </el-main>
