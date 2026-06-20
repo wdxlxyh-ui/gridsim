@@ -84,29 +84,39 @@
                     <span style="font-weight: 600">{{ col }}</span>
                   </div>
                 </div>
-                <!-- Mapping rows -->
-                <div v-for="(m, idx) in csvMultiMappings" :key="idx"
-                  style="display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--el-border-color-light, #f0f0f0)">
-                  <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0">
-                    <!-- Source column badge -->
-                    <span
-                      style="flex-shrink: 0; width: 100px; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; color: #3b82f6; background: rgba(59,130,246,.1); padding: 4px 8px; border-radius: 4px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis"
-                      :title="csvMultiColNames[idx] || 'Value' + (idx+1)">
-                      {{ csvMultiColNames[idx] || 'Value' + (idx+1) }}
-                    </span>
-                    <!-- Arrow indicator -->
-                    <span style="color: #c0c4cc; flex-shrink: 0; font-size: 16px">→</span>
-                    <!-- Target IOA select -->
-                    <el-select v-model="m.ioa" placeholder="选择目标测点" filterable clearable style="flex: 1; min-width: 0">
-                      <el-option v-for="p in points" :key="p.ioa" :label="`${p.name} (IOA:${p.ioa})`" :value="p.ioa">
-                        <span style="font-weight: 500">{{ p.name }}</span>
-                        <span style="color: #909399; font-size: 11px; margin-left: 4px">IOA:{{ p.ioa }}</span>
-                        <el-tag v-if="p.point_type" size="small" effect="plain" style="margin-left: 4px">{{ p.point_type }}</el-tag>
-                      </el-option>
-                    </el-select>
-                    <!-- Match status -->
-                    <span v-if="m.ioa > 0" style="color: #10b981; flex-shrink: 0; font-size: 16px" title="已映射">✓</span>
-                  </div>
+                <!-- Mapping rows (drag-reorderable) -->
+                <div
+                  v-for="(m, idx) in csvMultiMappings" :key="idx"
+                  class="csv-mapping-row"
+                  :class="{ 'drag-over': dragOverIdx === idx }"
+                  draggable="true"
+                  @dragstart="onDragStart(idx, $event)"
+                  @dragover.prevent="onDragOver(idx)"
+                  @dragleave="onDragLeave"
+                  @drop="onDrop(idx)"
+                >
+                  <!-- Drag handle -->
+                  <span class="drag-handle" title="拖拽排序">⠿</span>
+                  <!-- Source column badge -->
+                  <span
+                    class="csv-col-badge"
+                    :title="csvMultiColNames[idx] || 'Value' + (idx+1)">
+                    {{ csvMultiColNames[idx] || 'Value' + (idx+1) }}
+                  </span>
+                  <!-- Arrow indicator -->
+                  <span style="color: #c0c4cc; flex-shrink: 0; font-size: 16px">→</span>
+                  <!-- Target IOA select -->
+                  <el-select v-model="m.ioa" placeholder="选择目标测点" filterable clearable style="flex: 1; min-width: 0">
+                    <el-option v-for="p in points" :key="p.ioa" :label="`${p.name} (IOA:${p.ioa})`" :value="p.ioa">
+                      <span style="font-weight: 500">{{ p.name }}</span>
+                      <span style="color: #909399; font-size: 11px; margin-left: 4px">IOA:{{ p.ioa }}</span>
+                      <el-tag v-if="p.point_type" size="small" effect="plain" style="margin-left: 4px">{{ p.point_type }}</el-tag>
+                    </el-option>
+                  </el-select>
+                  <!-- Match status -->
+                  <span v-if="m.ioa > 0" style="color: #10b981; flex-shrink: 0; font-size: 16px" title="已映射">✓</span>
+                  <!-- Remove button -->
+                  <el-button size="small" text type="danger" @click="removeCsvMapping(idx)" title="移除此列映射">✕</el-button>
                 </div>
                 <el-button size="small" type="primary" @click="addCsvMultiMapping" :disabled="csvMultiMappings.length >= csvMultiColCount || csvMultiMappings.length >= 10" plain>+ 添加映射列</el-button>
               </div>
@@ -279,12 +289,17 @@
                </template>
              </template>
            </el-table-column>
-           <el-table-column label="操作" width="70" fixed="right">
-             <template #default="{ row }">
-               <el-dropdown trigger="click" @command="(cmd: string) => handleRowAction(cmd, row)">
-                 <el-button size="small" text circle>
-                   <el-icon><MoreFilled /></el-icon>
-                 </el-button>
+           <el-table-column label="操作" width="100" fixed="right">
+              <template #default="{ row }">
+                <el-tooltip content="查看趋势" placement="top">
+                  <el-button size="small" text circle @click="quickTrend(row)" style="color: #3b82f6">
+                    <el-icon><DataLine /></el-icon>
+                  </el-button>
+                </el-tooltip>
+                <el-dropdown trigger="click" @command="(cmd: string) => handleRowAction(cmd, row)">
+                  <el-button size="small" text circle>
+                    <el-icon><MoreFilled /></el-icon>
+                  </el-button>
                  <template #dropdown>
                     <el-dropdown-menu>
                       <el-dropdown-item command="copyIoa">
@@ -628,7 +643,7 @@
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown } from '@element-plus/icons-vue'
+import { ArrowDown, DataLine, MoreFilled, CopyDocument } from '@element-plus/icons-vue'
 import PointTableEditor from '../components/PointTableEditor.vue'
 import {
   getPoints, setPointValue, setAutoChange, getAutoChange, batchAutoChange,
@@ -677,6 +692,34 @@ const csvMultiMappings = reactive<{ ioa: number }[]>([])
 const csvMultiIoas = ref<number[]>([])
 const csvMultiColNames = ref<string[]>([])
 const csvUploading = ref(false) // original CSV column names
+
+// Drag-drop state for CSV mapping reorder
+const dragSrcIdx = ref(-1)
+const dragOverIdx = ref(-1)
+function onDragStart(idx: number, e: DragEvent) {
+  dragSrcIdx.value = idx
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', String(idx))
+  }
+}
+function onDragOver(idx: number) {
+  dragOverIdx.value = idx
+}
+function onDragLeave() {
+  dragOverIdx.value = -1
+}
+function onDrop(idx: number) {
+  dragOverIdx.value = -1
+  const src = dragSrcIdx.value
+  if (src < 0 || src === idx) return
+  const item = csvMultiMappings.splice(src, 1)[0]
+  csvMultiMappings.splice(idx, 0, item)
+  dragSrcIdx.value = -1
+}
+function removeCsvMapping(idx: number) {
+  csvMultiMappings.splice(idx, 1)
+}
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
@@ -1025,6 +1068,22 @@ function addSelectedToTrend() {
   }))
   try {
     localStorage.setItem('trend_pending_traces', JSON.stringify(traces))
+  } catch { /* ignore */ }
+  router.push('/trend')
+}
+
+function quickTrend(row: PointSnapshot) {
+  const trace = [{
+    instId: instanceId.value,
+    inst: instanceName.value,
+    ioa: row.ioa,
+    name: row.name,
+    unit: '',
+    alias: '',
+    colorIdx: 0,
+  }]
+  try {
+    localStorage.setItem('trend_pending_traces', JSON.stringify(trace))
   } catch { /* ignore */ }
   router.push('/trend')
 }
@@ -1657,5 +1716,52 @@ onUnmounted(() => {
   color: var(--el-text-color-secondary);
   text-align: center;
   line-height: 1.3;
+}
+
+/* CSV mapping drag-reorder */
+.csv-mapping-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--el-border-color-light, #f0f0f0);
+  border-radius: 6px;
+  transition: background 0.15s, border-color 0.15s;
+  cursor: default;
+}
+.csv-mapping-row.drag-over {
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px dashed var(--el-color-primary);
+  margin: -1px 0;
+}
+.csv-mapping-row:active {
+  cursor: grabbing;
+}
+.drag-handle {
+  flex-shrink: 0;
+  font-size: 16px;
+  color: #64748b;
+  cursor: grab;
+  padding: 0 2px;
+  user-select: none;
+  line-height: 1;
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+.csv-col-badge {
+  flex-shrink: 0;
+  width: 100px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: #3b82f6;
+  background: rgba(59,130,246,.1);
+  padding: 4px 8px;
+  border-radius: 4px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>

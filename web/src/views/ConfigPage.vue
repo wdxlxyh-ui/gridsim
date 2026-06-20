@@ -690,7 +690,14 @@ onMounted(() => {
 .slide-fade-leave-to { opacity: 0; transform: translateY(-8px); }
 
 /* Wizard review section */
-.wizard-review { display: flex; flex-direction: column; gap: 10px; }
+.wizard-review {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--bg-card, #141b2d);
+  padding: 16px;
+  border-radius: var(--radius-md, 8px);
+}
 .review-section { display: flex; padding: 8px 12px; border-radius: 6px; background: var(--el-fill-color-lighter, #1e293b); }
 .review-label { width: 100px; font-size: 13px; color: var(--text-muted, #64748b); flex-shrink: 0; }
 .review-value { font-size: 13px; font-weight: 500; color: var(--text-primary); }
