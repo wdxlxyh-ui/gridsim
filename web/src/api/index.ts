@@ -148,6 +148,14 @@ export async function listFiles(): Promise<{ name: string; size: number; modtime
   return res.data.files
 }
 
+export interface QualityDescriptor {
+  invalid: boolean
+  not_topical: boolean
+  substituted: boolean
+  overflow: boolean
+  blocked: boolean
+}
+
 export interface PointSnapshot {
   ioa: number
   name: string
@@ -156,6 +164,7 @@ export interface PointSnapshot {
   bool_value: boolean
   int_value: number
   updated_at: string
+  qds?: QualityDescriptor
   unit: string
   function_code?: number
   register_address?: number
@@ -232,6 +241,11 @@ export async function readPointsBatch(instanceId: string, ioas: number[]): Promi
 
 export async function setPointValue(instanceId: string, ioa: number, value: Record<string, unknown>): Promise<PointSnapshot> {
   const res = await http.put(`/instances/${instanceId}/points/${ioa}`, value)
+  return res.data
+}
+
+export async function setPointQDS(instanceId: string, ioa: number, qds: QualityDescriptor): Promise<PointSnapshot> {
+  const res = await http.put(`/instances/${instanceId}/points/${ioa}/qds`, qds)
   return res.data
 }
 
@@ -434,6 +448,7 @@ export interface MicrogridPoint {
   bool_value: boolean
   int_value: number
   updated_at: string
+  qds?: QualityDescriptor
   unit: string
   local_mode?: boolean
   can_toggle?: boolean

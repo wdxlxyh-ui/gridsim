@@ -93,13 +93,48 @@
         </el-card>
       </el-col>
     </el-row>
+
+    <!-- SSE Event Log -->
+    <el-card shadow="never" style="margin-top: 16px">
+      <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer" @click="sseExpanded = !sseExpanded">
+        <div style="display: flex; align-items: center; gap: 8px">
+          <span style="font-size: 14px; font-weight: 600">📡 实时事件流</span>
+          <el-tag :type="sseConnected ? 'success' : 'danger'" size="small">
+            {{ sseConnected ? '已连接' : '未连接' }}
+          </el-tag>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px">
+          <el-button size="small" text @click.stop="sseClear">清空</el-button>
+          <el-button v-if="!sseConnected" size="small" text type="primary" @click.stop="sseConnect">连接</el-button>
+          <el-icon :style="{ transform: sseExpanded ? 'rotate(180deg)' : '', transition: 'transform .2s' }"><ArrowDown /></el-icon>
+        </div>
+      </div>
+      <div v-show="sseExpanded" style="margin-top: 12px">
+        <div v-if="sseEvents.length === 0" style="text-align: center; padding: 20px; color: #999; font-size: 13px">
+          暂无事件 — 连接 SSE 后测点变化将实时显示在这里
+        </div>
+        <div v-else style="max-height: 300px; overflow-y: auto; font-size: 12px; font-family: 'JetBrains Mono', monospace">
+          <div v-for="(evt, idx) in sseEvents" :key="idx"
+            style="display: flex; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--el-border-color-light, #f0f0f0); align-items: flex-start">
+            <span style="color: #909399; white-space: nowrap; flex-shrink: 0">{{ fmtEventTime(evt.ts) }}</span>
+            <span :style="{ color: eventTypeColor(evt.type), flexShrink: 0, fontWeight: 600 }">{{ evt.type }}</span>
+            <span v-if="evt.instance" style="color: #3b82f6; flex-shrink: 0">[{{ evt.instance.slice(0, 8) }}]</span>
+            <span v-if="evt.ioa" style="color: #8b5cf6; flex-shrink: 0">IOA:{{ evt.ioa }}</span>
+            <span v-if="evt.value !== undefined" style="color: var(--el-text-color-primary)">
+              → {{ typeof evt.value === 'object' ? JSON.stringify(evt.value) : evt.value }}
+            </span>
+            <span v-if="evt.progress" style="color: #10b981">{{ evt.progress.current }}/{{ evt.progress.total }}</span>
+          </div>
+        </div>
+      </div>
+    </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Refresh } from '@element-plus/icons-vue'
+import { Refresh, ArrowDown } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   listInstances,
@@ -108,6 +143,7 @@ import {
   restartInstance,
   type InstanceState,
 } from '../api'
+import { useSSE } from '../composables/useSSE'
 
 const loading = ref(false)
 const instances = ref<InstanceState[]>([])
@@ -115,6 +151,23 @@ const lastRefresh = ref('')
 const actionLoading = ref('')
 const router = useRouter()
 let timer: ReturnType<typeof setInterval> | null = null
+
+// SSE event stream
+const { events: sseEvents, connected: sseConnected, connect: sseConnect, disconnect: sseDisconnect, clearEvents: sseClear } = useSSE()
+const sseExpanded = ref(false)
+
+function fmtEventTime(ts: number): string {
+  const d = new Date(ts * 1000)
+  return d.toLocaleTimeString()
+}
+
+function eventTypeColor(type: string): string {
+  if (type.includes('alarm')) return '#ef4444'
+  if (type.includes('status')) return '#3b82f6'
+  if (type.includes('progress')) return '#10b981'
+  if (type.includes('connected')) return '#909399'
+  return 'var(--el-text-color-primary)'
+}
 
 function openInstance(inst: InstanceState) {
   if (inst.protocol === 'microgrid') {
@@ -205,12 +258,13 @@ function onCardLeave(e: MouseEvent) {
 
 onMounted(() => {
   fetchData()
-  // Auto-refresh every 5s
   timer = setInterval(fetchData, 5000)
+  sseConnect()
 })
 
 onUnmounted(() => {
   if (timer) clearInterval(timer)
+  sseDisconnect()
 })
 </script>
 

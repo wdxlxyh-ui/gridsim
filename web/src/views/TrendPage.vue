@@ -307,8 +307,34 @@ function genId(): string {
 
 onMounted(() => {
   loadTemplates()
-  loadPanels()
-  // If no panels, show tips
+  // Check for pending traces from DetailPage
+  const pendingRaw = localStorage.getItem('trend_pending_traces')
+  if (pendingRaw) {
+    try {
+      const pendingTraces: TraceConfig[] = JSON.parse(pendingRaw)
+      localStorage.removeItem('trend_pending_traces')
+      if (pendingTraces.length > 0) {
+        // Create or reuse first panel
+        if (panels.value.length === 0) {
+          panels.value.push({ id: genId(), templateId: '', traceConfigs: [] })
+        }
+        const panel = panels.value[0]
+        for (const trace of pendingTraces) {
+          if (!panel.traceConfigs.some(t => t.instId === trace.instId && t.ioa === trace.ioa)) {
+            trace.colorIdx = panel.traceConfigs.length % COLORS.length
+            panel.traceConfigs.push(trace)
+          }
+        }
+        ElMessage.success(`已添加 ${pendingTraces.length} 个测点趋势`)
+      }
+    } catch { /* ignore */ }
+  }
+  if (panels.value.length === 0) {
+    loadPanels()
+  }
+  if (panels.value.length === 0) {
+    // No panels, user sees empty state
+  }
 })
 
 onUnmounted(() => {
