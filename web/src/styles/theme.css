@@ -91,6 +91,7 @@
   --el-color-info: var(--color-info);
   --el-fill-color: var(--bg-input);
   --el-fill-color-light: var(--bg-hover);
+  --el-fill-color-lighter: var(--bg-hover);
   --el-fill-color-blank: var(--bg-input);
   --el-mask-color: rgba(0, 0, 0, 0.6);
   --el-box-shadow: var(--shadow-md);
