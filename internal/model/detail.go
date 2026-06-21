@@ -55,15 +55,24 @@ type AutoChangeConfig struct {
 	UpdatedAt time.Time      `json:"updated_at"`
 }
 
+type QualityDescriptor struct {
+	Invalid     bool `json:"invalid"`
+	NotTopical  bool `json:"not_topical"`
+	Substituted bool `json:"substituted"`
+	Overflow    bool `json:"overflow"`
+	Blocked     bool `json:"blocked"`
+}
+
 type PointSnapshot struct {
-	IOA       uint32    `json:"ioa"`
-	Name      string    `json:"name"`
-	PointType string    `json:"point_type"`
-	Value     float64   `json:"value"`
-	BoolValue bool      `json:"bool_value"`
-	IntValue  int32     `json:"int_value"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Unit      string    `json:"unit"`
+	IOA       uint32            `json:"ioa"`
+	Name      string            `json:"name"`
+	PointType string            `json:"point_type"`
+	Value     float64           `json:"value"`
+	BoolValue bool              `json:"bool_value"`
+	IntValue  int32             `json:"int_value"`
+	UpdatedAt time.Time         `json:"updated_at"`
+	QDS       QualityDescriptor `json:"qds"`
+	Unit      string            `json:"unit"`
 
 	FunctionCode    uint8  `json:"function_code,omitempty"`
 	RegisterAddress uint16 `json:"register_address,omitempty"`

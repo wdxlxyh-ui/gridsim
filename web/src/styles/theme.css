@@ -3,52 +3,72 @@
    ============================================================ */
 
 :root {
-  /* --- Background & Surface --- */
-  --bg-primary: #0a0e17;
-  --bg-secondary: #111827;
-  --bg-card: #1a2332;
-  --bg-hover: #1e293b;
-  --bg-input: #0f172a;
+  /* ========== Background & Surface ========== */
+  --bg-primary: #0b1120;
+  --bg-secondary: #131b2d;
+  --bg-card: #141b2d;
+  --bg-hover: #1e2736;
+  --bg-input: #0f1623;
 
-  /* --- Text --- */
+  /* ========== Text ========== */
   --text-primary: #e2e8f0;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
+  --text-placeholder: #475569;
 
-  /* --- Border --- */
-  --border-color: #1e293b;
-  --border-light: #2d3a4e;
+  /* ========== Border ========== */
+  --border-color: #2d3a4e;
+  --border-light: #3f4e67;
 
-  /* --- Accent / Primary --- */
+  /* ========== Accent / Primary ========== */
   --accent: #3b82f6;
   --accent-hover: #2563eb;
   --accent-light: rgba(59, 130, 246, 0.12);
   --accent-glow: 0 0 20px rgba(59, 130, 246, 0.15);
 
-  /* --- Success / Danger / Warning --- */
+  /* ========== Status Colors ========== */
   --color-success: #22c55e;
   --color-danger: #ef4444;
   --color-warning: #f59e0b;
   --color-info: #64748b;
 
-  /* --- Shadows --- */
+  /* ========== Shadows ========== */
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.5);
 
-  /* --- Radius --- */
+  /* ========== Radius ========== */
+  --radius-xs: 4px;
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
 
-  /* --- Sidebar --- */
+  /* ========== Spacing ========== */
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-5: 20px;
+  --spacing-6: 24px;
+
+  /* ========== Font Size Hierarchy ========== */
+  --font-h1: 18px;
+  --font-h2: 15px;
+  --font-h3: 14px;
+  --font-base: 13px;
+  --font-sm: 12px;
+  --font-xs: 11px;
+  --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+
+  /* ========== Sidebar ========== */
   --sidebar-width: 200px;
+  --sidebar-collapsed: 64px;
   --sidebar-bg: #0d1421;
   --sidebar-hover: #1a2332;
   --sidebar-active: rgba(59, 130, 246, 0.15);
 
-  /* --- Header --- */
-  --header-height: 56px;
+  /* ========== Header ========== */
+  --header-height: 48px;
   --header-bg: #0d1421;
 }
 
@@ -71,6 +91,7 @@
   --el-color-info: var(--color-info);
   --el-fill-color: var(--bg-input);
   --el-fill-color-light: var(--bg-hover);
+  --el-fill-color-lighter: var(--bg-hover);
   --el-fill-color-blank: var(--bg-input);
   --el-mask-color: rgba(0, 0, 0, 0.6);
   --el-box-shadow: var(--shadow-md);

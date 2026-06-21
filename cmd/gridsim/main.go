@@ -228,6 +228,7 @@ func (ws *webServer) registerRoutes(mux *http.ServeMux, configDir string, httpAd
 	mux.HandleFunc("/api/v1/upload", ws.handleUpload)
 	mux.HandleFunc("/api/v1/files", ws.handleFiles)
 	mux.HandleFunc("/api/v1/protocols", ws.handleProtocols)
+	mux.HandleFunc("/api/v1/dashboard", ws.handleDashboard)
 
 	// Proxy API Tester routes
 	ws.proxyHandler = api.NewProxyHandler()
@@ -657,6 +658,64 @@ func (ws *webServer) handleInstancePoints(w http.ResponseWriter, r *http.Request
 			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		}
 	}
+}
+
+func (ws *webServer) handleDashboard(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	data := ws.mgr.GetDashboardData()
+
+	// Build a lighter response: instance list without full config detail
+	type briefInstance struct {
+		ID              string `json:"id"`
+		Name            string `json:"name"`
+		Protocol        string `json:"protocol"`
+		Port            int    `json:"port"`
+		Status          string `json:"status"`
+		TotalPoints     int    `json:"total_points,omitempty"`
+		ClientConnected bool   `json:"client_connected"`
+		UptimeSeconds   int64  `json:"uptime_seconds,omitempty"`
+		Error           string `json:"error,omitempty"`
+	}
+
+	instances := make([]briefInstance, 0, len(data.Instances))
+	for _, s := range data.Instances {
+		proto := s.Config.Protocol
+		if proto == "" {
+			proto = "iec104"
+		}
+		port := s.Config.IEC104Port
+		if s.Config.ModbusConfig != nil && s.Config.ModbusConfig.Port > 0 {
+			port = s.Config.ModbusConfig.Port
+		}
+		bi := briefInstance{
+			ID:     s.Config.ID,
+			Name:   s.Config.Name,
+			Status: string(s.Status),
+			Port:   port,
+			Protocol: proto,
+			Error:  s.Error,
+		}
+		if s.Status == model.StatusRunning {
+			bi.TotalPoints = s.TotalPoints
+			bi.ClientConnected = s.ClientConnected
+			bi.UptimeSeconds = s.UptimeSeconds
+		}
+		instances = append(instances, bi)
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"total_instances":   data.TotalInstances,
+		"running_instances": data.RunningInstances,
+		"stopped_instances": data.StoppedInstances,
+		"error_instances":   data.ErrorInstances,
+		"total_points":      data.TotalPoints,
+		"clients_connected": data.ClientsConnected,
+		"by_protocol":       data.ByProtocol,
+		"instances":         instances,
+	})
 }
 
 func (ws *webServer) handleStatus(w http.ResponseWriter, r *http.Request) {

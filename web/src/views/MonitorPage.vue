@@ -93,6 +93,8 @@
         </el-card>
       </el-col>
     </el-row>
+
+
   </div>
 </template>
 
@@ -108,7 +110,6 @@ import {
   restartInstance,
   type InstanceState,
 } from '../api'
-
 const loading = ref(false)
 const instances = ref<InstanceState[]>([])
 const lastRefresh = ref('')
@@ -205,7 +206,6 @@ function onCardLeave(e: MouseEvent) {
 
 onMounted(() => {
   fetchData()
-  // Auto-refresh every 5s
   timer = setInterval(fetchData, 5000)
 })
 

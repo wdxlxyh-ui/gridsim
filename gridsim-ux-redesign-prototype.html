@@ -1,0 +1,1661 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GridSim v4.0 UX Redesign Prototype — 交互原型</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════
+   CSS Variables & Reset
+   ═══════════════════════════════════════════════ */
+:root {
+  --bg-page: #070b14;
+  --bg-surface: #0d1421;
+  --bg-card: #111b2e;
+  --bg-card-hover: #162238;
+  --bg-elevated: #1a2740;
+  --border-subtle: #1e2d4a;
+  --border: #2a3d5e;
+  --border-active: #f97316;
+  --text-primary: #e8edf5;
+  --text-secondary: #94a3b8;
+  --text-muted: #475569;
+  --accent: #f97316;
+  --accent-hover: #ea580c;
+  --accent-glow: rgba(249,115,22,0.12);
+  --accent-glow-strong: rgba(249,115,22,0.25);
+  --blue: #3b82f6;
+  --blue-glow: rgba(59,130,246,0.12);
+  --green: #22c55e;
+  --green-glow: rgba(34,197,94,0.15);
+  --red: #ef4444;
+  --red-glow: rgba(239,68,68,0.12);
+  --amber: #f59e0b;
+  --amber-glow: rgba(245,158,11,0.12);
+  --purple: #8b5cf6;
+  --radius-sm: 4px;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --shadow: 0 1px 3px rgba(0,0,0,.3);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,.5);
+  --font-sans: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --sidebar-w: 240px;
+  --header-h: 56px;
+  --transition: 200ms cubic-bezier(.4,0,.2,1);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{font-size:14px}
+body{
+  font-family:var(--font-sans);
+  background:var(--bg-page);
+  color:var(--text-primary);
+  line-height:1.5;
+  overflow:hidden;
+  height:100vh;
+}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--text-muted)}
+
+/* ═══════════════════════════════════════════════
+   App Shell
+   ═══════════════════════════════════════════════ */
+.app{display:flex;height:100vh}
+
+/* ── Sidebar ── */
+.sidebar{
+  width:var(--sidebar-w);min-width:var(--sidebar-w);
+  background:var(--bg-surface);
+  border-right:1px solid var(--border-subtle);
+  display:flex;flex-direction:column;
+  z-index:10;
+}
+.sidebar-brand{
+  padding:16px 16px 12px;
+  border-bottom:1px solid var(--border-subtle);
+  display:flex;align-items:center;gap:10px;
+}
+.sidebar-brand .logo{
+  width:32px;height:32px;border-radius:var(--radius);
+  background:linear-gradient(135deg,var(--accent),#dc2626);
+  display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:13px;color:#fff;
+}
+.sidebar-brand h1{font-size:15px;font-weight:700}
+.sidebar-brand .ver{font-size:10px;color:var(--text-muted);font-weight:400;margin-left:auto}
+.sidebar-nav{flex:1;overflow-y:auto;padding:8px}
+.nav-sect{font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text-muted);padding:12px 12px 4px;letter-spacing:.08em}
+.nav-item{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 12px;border-radius:var(--radius);
+  cursor:pointer;transition:var(--transition);
+  font-size:13px;font-weight:500;color:var(--text-secondary);
+  position:relative;
+}
+.nav-item:hover{background:var(--bg-card-hover);color:var(--text-primary)}
+.nav-item.active{
+  background:var(--accent-glow);color:var(--accent);
+}
+.nav-item.active::before{
+  content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);
+  width:3px;height:18px;border-radius:2px;background:var(--accent);
+}
+.nav-icon{width:18px;height:18px;flex-shrink:0;opacity:.7}
+.nav-item.active .nav-icon{opacity:1}
+.nav-badge{
+  margin-left:auto;font-size:10px;padding:1px 7px;
+  border-radius:10px;background:var(--accent-glow);color:var(--accent);
+}
+.sidebar-foot{
+  padding:12px 16px;border-top:1px solid var(--border-subtle);
+  font-size:11px;color:var(--text-muted);
+  display:flex;align-items:center;gap:8px;
+}
+.sidebar-foot .ava{
+  width:28px;height:28px;border-radius:50%;
+  background:linear-gradient(135deg,var(--blue),var(--purple));
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:600;color:#fff;
+}
+.sidebar-foot .uname{color:var(--text-secondary);font-weight:500;flex:1}
+
+/* ── Main ── */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.header{
+  height:var(--header-h);min-height:var(--header-h);
+  background:var(--bg-surface);
+  border-bottom:1px solid var(--border-subtle);
+  display:flex;align-items:center;padding:0 24px;gap:12px;
+}
+.header-bread{font-size:13px;color:var(--text-muted)}
+.header-bread span{cursor:pointer;transition:var(--transition)}
+.header-bread span:hover{color:var(--accent)}
+.header-bread .sep{margin:0 6px;color:var(--border)}
+.header-bread .cur{color:var(--text-secondary);font-weight:500}
+.header-actions{margin-left:auto;display:flex;align-items:center;gap:8px}
+.header-search{
+  display:flex;align-items:center;gap:6px;
+  padding:6px 12px;background:var(--bg-card);border:1px solid var(--border-subtle);
+  border-radius:var(--radius);color:var(--text-muted);font-size:12px;
+  cursor:pointer;transition:var(--transition);
+}
+.header-search:hover{border-color:var(--border);color:var(--text-secondary)}
+.header-search kbd{
+  font-family:var(--font-mono);font-size:10px;padding:1px 5px;
+  background:var(--bg-elevated);border-radius:3px;
+}
+.content{flex:1;overflow-y:auto;padding:20px 24px}
+
+/* ── Toast / Notification ── */
+.toast-container{
+  position:fixed;top:16px;right:16px;z-index:9999;
+  display:flex;flex-direction:column;gap:8px;
+}
+.toast{
+  padding:12px 16px;border-radius:var(--radius);
+  background:var(--bg-elevated);border:1px solid var(--border);
+  box-shadow:var(--shadow-lg);font-size:13px;
+  display:flex;align-items:center;gap:10px;
+  animation: toastIn 300ms ease;
+  max-width:380px;
+}
+.toast.success{border-color:var(--green);}
+.toast.error{border-color:var(--red);}
+.toast.info{border-color:var(--blue);}
+@keyframes toastIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
+
+/* ═══════════════════════════════════════════════
+   UI Components
+   ═══════════════════════════════════════════════ */
+
+/* Buttons */
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 16px;border-radius:var(--radius);
+  font-family:var(--font-sans);font-size:13px;font-weight:500;
+  border:1px solid var(--border);background:var(--bg-card);
+  color:var(--text-secondary);cursor:pointer;
+  transition:var(--transition);white-space:nowrap;
+}
+.btn:hover{background:var(--bg-card-hover);color:var(--text-primary);border-color:var(--border)}
+.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn-primary:hover{background:var(--accent-hover);box-shadow:0 0 20px var(--accent-glow-strong)}
+.btn-ghost{background:transparent;border-color:transparent}
+.btn-ghost:hover{background:var(--bg-card-hover)}
+.btn-danger{color:var(--red);border-color:var(--red)}
+.btn-danger:hover{background:var(--red-glow)}
+.btn-sm{padding:4px 10px;font-size:12px}
+.btn-xs{padding:2px 8px;font-size:11px;border-radius:var(--radius-sm)}
+.btn-icon{padding:6px;min-width:32px;justify-content:center}
+.btn-group{display:flex;gap:6px;flex-wrap:wrap}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-primary:disabled{background:var(--text-muted);border-color:var(--text-muted);box-shadow:none}
+
+/* Cards */
+.card{
+  background:var(--bg-card);border:1px solid var(--border-subtle);
+  border-radius:var(--radius-lg);overflow:hidden;
+  transition:var(--transition);
+}
+.card:hover{border-color:rgba(249,115,22,.2)}
+.card-hdr{
+  padding:14px 20px;border-bottom:1px solid var(--border-subtle);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.card-hdr h3{font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px}
+.card-hdr .dot{width:6px;height:6px;border-radius:50%}
+.card-bd{padding:16px 20px}
+.card-ftr{padding:12px 20px;border-top:1px solid var(--border-subtle);display:flex;justify-content:flex-end;gap:8px}
+
+/* Stats */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:20px}
+.stat-card{
+  background:var(--bg-card);border:1px solid var(--border-subtle);
+  border-radius:var(--radius-lg);padding:18px 20px;
+  transition:var(--transition);
+}
+.stat-card:hover{border-color:var(--accent-glow-strong)}
+.stat-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.stat-label{font-size:12px;color:var(--text-muted);font-weight:500}
+.stat-icon{width:36px;height:36px;border-radius:var(--radius);display:flex;align-items:center;justify-content:center;font-size:16px}
+.stat-value{font-size:28px;font-weight:700;letter-spacing:-.03em}
+.stat-sub{font-size:12px;color:var(--text-muted);margin-top:4px;display:flex;align-items:center;gap:6px}
+.stat-change{font-size:11px;font-weight:600}
+.stat-change.up{color:var(--green)}
+.stat-change.down{color:var(--red)}
+
+/* Tags */
+.tag{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;
+}
+.tag-running{background:var(--green-glow);color:var(--green);border:1px solid rgba(34,197,94,.2)}
+.tag-stopped{background:rgba(100,116,139,.1);color:var(--text-muted);border:1px solid rgba(100,116,139,.15)}
+.tag-error{background:var(--red-glow);color:var(--red);border:1px solid rgba(239,68,68,.2)}
+.tag-pending{background:var(--amber-glow);color:var(--amber);border:1px solid rgba(245,158,11,.2)}
+.tag-iec104{background:var(--blue-glow);color:var(--blue);border:1px solid rgba(59,130,246,.2)}
+.tag-modbus{background:rgba(139,92,246,.12);color:var(--purple);border:1px solid rgba(139,92,246,.2)}
+.tag-microgrid{background:var(--accent-glow);color:var(--accent);border:1px solid var(--accent-glow-strong)}
+
+/* Status dot */
+.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.status-dot.green{background:var(--green);box-shadow:0 0 8px var(--green-glow)}
+.status-dot.red{background:var(--red);box-shadow:0 0 8px var(--red-glow)}
+.status-dot.gray{background:var(--text-muted)}
+.status-dot.amber{background:var(--amber);box-shadow:0 0 8px var(--amber-glow)}
+
+/* Form */
+.form-group{margin-bottom:16px}
+.form-group:last-child{margin-bottom:0}
+.form-label{display:block;font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:6px}
+.form-label .req{color:var(--red);margin-left:2px}
+.form-input,.form-select{
+  width:100%;padding:8px 12px;border-radius:var(--radius);
+  border:1px solid var(--border-subtle);background:var(--bg-surface);
+  color:var(--text-primary);font-family:var(--font-sans);font-size:13px;
+  outline:none;transition:var(--transition);
+}
+.form-input:focus,.form-select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.form-input::placeholder{color:var(--text-muted)}
+.form-hint{font-size:11px;color:var(--text-muted);margin-top:4px}
+.form-row{display:flex;gap:12px}
+.form-row .form-group{flex:1}
+.form-input.error{border-color:var(--red)}
+.form-error{font-size:11px;color:var(--red);margin-top:4px}
+
+/* Table */
+.table-wrap{overflow-x:auto;border-radius:var(--radius);border:1px solid var(--border-subtle)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead{background:var(--bg-surface)}
+th{padding:10px 14px;text-align:left;font-weight:600;color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border-subtle);white-space:nowrap}
+td{padding:10px 14px;border-bottom:1px solid var(--border-subtle);color:var(--text-secondary)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--bg-card-hover)}
+td.mono{font-family:var(--font-mono);font-size:12px}
+
+/* Modal */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.7);
+  backdrop-filter:blur(4px);z-index:1000;
+  display:none;align-items:center;justify-content:center;
+}
+.modal-overlay.show{display:flex}
+.modal{
+  background:var(--bg-card);border:1px solid var(--border);
+  border-radius:var(--radius-xl);width:560px;max-height:85vh;
+  display:flex;flex-direction:column;box-shadow:var(--shadow-lg);
+}
+.modal-sm{width:440px}
+.modal-lg{width:720px}
+.modal-xl{width:900px}
+.modal-hdr{
+  padding:16px 20px;border-bottom:1px solid var(--border-subtle);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.modal-hdr h3{font-size:15px;font-weight:600}
+.modal-close{
+  width:28px;height:28px;border-radius:var(--radius);
+  border:none;background:transparent;color:var(--text-muted);
+  cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;
+  transition:var(--transition);
+}
+.modal-close:hover{background:var(--bg-card-hover);color:var(--text-primary)}
+.modal-bd{padding:20px;overflow-y:auto;flex:1}
+.modal-ftr{padding:14px 20px;border-top:1px solid var(--border-subtle);display:flex;justify-content:flex-end;gap:8px}
+
+/* Tabs */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border-subtle);margin-bottom:16px}
+.tab{
+  padding:10px 16px;font-size:13px;font-weight:500;
+  cursor:pointer;color:var(--text-muted);
+  border-bottom:2px solid transparent;margin-bottom:-1px;
+  transition:var(--transition);
+}
+.tab:hover{color:var(--text-secondary)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-content{display:none}
+.tab-content.active{display:block}
+
+/* Toggle */
+.toggle{position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0}
+.toggle .slider{
+  position:absolute;cursor:pointer;inset:0;
+  background:var(--border-subtle);border-radius:20px;transition:var(--transition);
+}
+.toggle .slider::before{
+  content:'';position:absolute;height:16px;width:16px;
+  left:2px;bottom:2px;background:var(--text-secondary);border-radius:50%;transition:var(--transition);
+}
+.toggle input:checked+.slider{background:var(--accent-glow-strong)}
+.toggle input:checked+.slider::before{background:var(--accent);transform:translateX(16px)}
+
+/* Progress bar */
+.progress{height:4px;background:var(--border-subtle);border-radius:2px;overflow:hidden}
+.progress-bar{height:100%;background:var(--accent);border-radius:2px;transition:width 500ms ease}
+
+/* Tooltip */
+[data-tip]{position:relative}
+[data-tip]::after{
+  content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;
+  transform:translateX(-50%);padding:4px 10px;border-radius:var(--radius-sm);
+  background:var(--bg-elevated);color:var(--text-primary);font-size:11px;
+  white-space:nowrap;border:1px solid var(--border);pointer-events:none;
+  opacity:0;transition:var(--transition);
+}
+[data-tip]:hover::after{opacity:1}
+
+/* Empty state */
+.empty-state{
+  display:flex;flex-direction:column;align-items:center;
+  justify-content:center;padding:60px 20px;color:var(--text-muted);gap:12px;
+  text-align:center;
+}
+.empty-state .icon{font-size:40px;opacity:.3}
+.empty-state p{font-size:14px}
+.empty-state .sub{font-size:12px;opacity:.7}
+
+/* Grid layout */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.grid-4{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+
+/* ═══════════════════════════════════════════════
+   Page-specific styles
+   ═══════════════════════════════════════════════ */
+
+/* Dashboard */
+.dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+.dash-event{
+  padding:10px 14px;display:flex;align-items:center;gap:10px;
+  border-bottom:1px solid var(--border-subtle);font-size:13px;
+  cursor:pointer;transition:var(--transition);
+}
+.dash-event:last-child{border-bottom:none}
+.dash-event:hover{background:var(--bg-card-hover)}
+.dash-event .time{font-family:var(--font-mono);font-size:11px;color:var(--text-muted);white-space:nowrap}
+.dash-event .msg{color:var(--text-secondary);flex:1}
+.dash-event .type{font-size:10px;padding:1px 6px;border-radius:3px;font-weight:500}
+
+/* Instance card */
+.inst-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.inst-card{
+  background:var(--bg-card);border:1px solid var(--border-subtle);
+  border-radius:var(--radius-lg);padding:16px 18px;
+  cursor:pointer;transition:var(--transition);
+}
+.inst-card:hover{border-color:var(--accent-glow-strong);background:var(--bg-card-hover)}
+.inst-card.selected{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.inst-top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.inst-name{font-weight:600;font-size:14px;flex:1}
+.inst-meta{display:flex;gap:12px;font-size:12px;color:var(--text-muted);flex-wrap:wrap}
+.inst-meta span{display:flex;align-items:center;gap:4px}
+.inst-actions{display:flex;gap:6px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border-subtle)}
+
+/* ── Page visibility ── */
+.page{display:none}
+.page.active{display:block}
+
+/* ═══════════════════════════════════════════════
+   Animations
+   ═══════════════════════════════════════════════ */
+[data-animate]{
+  opacity:0;transform:translateY(12px);
+  animation: fadeUp 400ms ease forwards;
+}
+[data-animate="1"]{animation-delay:.05s}
+[data-animate="2"]{animation-delay:.1s}
+[data-animate="3"]{animation-delay:.15s}
+[data-animate="4"]{animation-delay:.2s}
+[data-animate="5"]{animation-delay:.25s}
+[data-animate="6"]{animation-delay:.3s}
+
+@keyframes fadeUp{
+  to{opacity:1;transform:translateY(0)}
+}
+
+/* Value change flash */
+@keyframes flashGreen{
+  0%{background:rgba(34,197,94,.3)}
+  100%{background:transparent}
+}
+.value-flash{animation:flashGreen 600ms ease}
+
+/* Pulse */
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.pulse{animation:pulse 2s ease infinite}
+
+/* ═══════════════════════════════════════════════
+   Responsive
+   ═══════════════════════════════════════════════ */
+@media(max-width:1024px){
+  .dash-grid,.grid-2{grid-template-columns:1fr}
+  .sidebar{width:56px;min-width:56px}
+  .sidebar-brand h1,.sidebar-brand .ver,.nav-item span,.nav-sect,.sidebar-foot .uname,.sidebar-foot .status-dot{display:none}
+  .sidebar-foot .ava{width:24px;height:24px;font-size:9px}
+  .nav-item{padding:9px;justify-content:center}
+  .nav-item.active::before{display:none}
+  .nav-badge{display:none}
+  .header-search span{display:none}
+}
+@media(max-width:640px){
+  .stat-grid{grid-template-columns:1fr 1fr}
+  .inst-grid{grid-template-columns:1fr}
+  .content{padding:12px}
+  .header{padding:0 12px}
+  .header-actions .btn span{display:none}
+  .header-bread{font-size:12px}
+}
+
+/* ═══════════════════════════════════════════════
+   Wizard
+   ═══════════════════════════════════════════════ */
+.wizard-steps{display:flex;gap:0;margin-bottom:24px;counter-reset:step}
+.wiz-step{
+  flex:1;text-align:center;padding:10px 0;
+  font-size:12px;font-weight:500;color:var(--text-muted);
+  border-bottom:2px solid var(--border-subtle);
+  position:relative;
+}
+.wiz-step::before{
+  counter-increment:step;content:counter(step);
+  display:block;width:24px;height:24px;border-radius:50%;
+  background:var(--border-subtle);color:var(--text-muted);
+  margin:0 auto 6px;display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:600;
+}
+.wiz-step.active{color:var(--accent);border-bottom-color:var(--accent)}
+.wiz-step.active::before{background:var(--accent);color:#fff}
+.wiz-step.done{color:var(--green);border-bottom-color:var(--green)}
+.wiz-step.done::before{background:var(--green);color:#fff;content:'✓'}
+
+/* Strategy card */
+.strat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:16px}
+.strat-card{
+  padding:12px;border-radius:var(--radius);
+  border:1px solid var(--border-subtle);background:var(--bg-surface);
+  cursor:pointer;transition:var(--transition);text-align:center;
+}
+.strat-card:hover{border-color:var(--accent-glow-strong);background:var(--bg-card-hover)}
+.strat-card.active{border-color:var(--accent);background:var(--accent-glow)}
+.strat-card .icon{font-size:24px;margin-bottom:6px}
+.strat-card .name{font-size:12px;font-weight:500}
+.strat-card .desc{font-size:10px;color:var(--text-muted);margin-top:2px}
+
+/* CSV Mapping */
+.csv-mapping-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:center}
+.csv-col{background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius);padding:10px;cursor:grab;transition:var(--transition);text-align:center}
+.csv-col:hover{border-color:var(--accent-glow-strong)}
+.csv-col.mapped{border-color:var(--green);background:var(--green-glow)}
+.csv-arrow{text-align:center;font-size:20px;color:var(--text-muted)}
+.csv-ioa{background:var(--bg-card);border:1px solid var(--blue-glow);border-radius:var(--radius);padding:10px;text-align:center;font-family:var(--font-mono);font-size:12px;color:var(--blue)}
+
+/* Onboarding overlay */
+.onboard-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.85);
+  backdrop-filter:blur(8px);z-index:2000;
+  display:none;align-items:center;justify-content:center;
+}
+.onboard-overlay.show{display:flex}
+.onboard-card{
+  background:var(--bg-card);border:1px solid var(--border);
+  border-radius:var(--radius-xl);max-width:520px;width:90%;
+  padding:32px;text-align:center;
+}
+.onboard-card h2{font-size:20px;margin-bottom:8px}
+.onboard-card p{color:var(--text-secondary);font-size:14px;margin-bottom:20px;line-height:1.6}
+.onboard-steps{text-align:left;margin-bottom:20px}
+.onboard-step{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border-subtle);font-size:13px}
+.onboard-step:last-child{border-bottom:none}
+.onboard-step .num{width:28px;height:28px;border-radius:50%;background:var(--accent-glow);color:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;flex-shrink:0}
+
+/* Grid background pattern */
+.bg-grid-pattern{
+  background-image:
+    linear-gradient(rgba(249,115,22,.02) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(249,115,22,.02) 1px,transparent 1px);
+  background-size:40px 40px;
+}
+
+/* Quick action bar */
+.quick-bar{
+  display:flex;gap:8px;padding:12px 0;
+  border-bottom:1px solid var(--border-subtle);margin-bottom:16px;
+  flex-wrap:wrap;
+}
+
+/* Selection toolbar */
+.sel-bar{
+  display:none;align-items:center;gap:10px;
+  padding:8px 16px;background:var(--accent-glow);
+  border:1px solid var(--accent-glow-strong);border-radius:var(--radius);
+  margin-bottom:12px;font-size:13px;
+}
+.sel-bar.show{display:flex}
+.sel-bar .count{color:var(--accent);font-weight:600}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ═══ Sidebar ═══ -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="logo">GS</div>
+      <h1>GridSim</h1>
+      <span class="ver">v4.0</span>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-sect">概览</div>
+      <div class="nav-item active" data-page="dashboard" onclick="switchPage('dashboard')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        <span>仪表盘</span>
+      </div>
+      <div class="nav-sect">管理</div>
+      <div class="nav-item" data-page="instances" onclick="switchPage('instances')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
+        <span>实例管理</span>
+      </div>
+      <div class="nav-item" data-page="detail" onclick="switchPage('detail')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        <span>实例详情</span>
+      </div>
+      <div class="nav-item" data-page="microgrid" onclick="switchPage('microgrid')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v3m0 12v3M5.636 5.636l2.121 2.121m8.486 8.486l2.121 2.121M3 12h3m12 0h3M5.636 18.364l2.121-2.121m8.486-8.486l2.121-2.121"/></svg>
+        <span>微电网</span>
+      </div>
+      <div class="nav-sect">分析</div>
+      <div class="nav-item" data-page="trend" onclick="switchPage('trend')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        <span>趋势分析</span>
+      </div>
+      <div class="nav-sect">工具</div>
+      <div class="nav-item" data-page="proxy" onclick="switchPage('proxy')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        <span>接口测试</span>
+      </div>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="ava">A</div>
+      <span class="uname">admin</span>
+      <span class="status-dot green"></span>
+    </div>
+  </aside>
+
+  <!-- ═══ Main ═══ -->
+  <div class="main">
+    <header class="header">
+      <div class="header-bread">
+        <span onclick="showOnboard()">🏠</span>
+        <span class="sep">/</span>
+        <span id="breadCurrent" class="cur">仪表盘</span>
+      </div>
+      <div class="header-actions">
+        <div class="header-search" onclick="showCmdPalette()" title="全局搜索 (Ctrl+K)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <span>搜索...</span>
+          <kbd>⌘K</kbd>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="showNewInstance()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>新建实例</span>
+        </button>
+        <button class="btn btn-sm" onclick="showOnboard()" data-tip="使用引导">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+          <span>帮助</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="content bg-grid-pattern">
+      <!-- ═══ PAGE: Dashboard ═══ -->
+      <div id="page-dashboard" class="page active">
+        <h2 style="font-size:20px;font-weight:700;margin-bottom:4px" data-animate>仪表盘</h2>
+        <p style="color:var(--text-muted);margin-bottom:20px;font-size:13px" data-animate="1">系统概览与快捷操作</p>
+
+        <!-- Stats -->
+        <div class="stat-grid" data-animate="2">
+          <div class="stat-card">
+            <div class="stat-top">
+              <span class="stat-label">运行实例</span>
+              <div class="stat-icon" style="background:var(--green-glow);color:var(--green)">⚡</div>
+            </div>
+            <div class="stat-value" style="color:var(--green)">12</div>
+            <div class="stat-sub">
+              <span class="stat-change up">↑ 2</span> 较昨日
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-top">
+              <span class="stat-label">停止实例</span>
+              <div class="stat-icon" style="background:rgba(100,116,139,.1);color:var(--text-muted)">⏹</div>
+            </div>
+            <div class="stat-value" style="color:var(--text-secondary)">3</div>
+            <div class="stat-sub">总计 15 个实例</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-top">
+              <span class="stat-label">总测点数</span>
+              <div class="stat-icon" style="background:var(--blue-glow);color:var(--blue)">📊</div>
+            </div>
+            <div class="stat-value" style="color:var(--blue)">2,450</div>
+            <div class="stat-sub">今日变化 12,380 次</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-top">
+              <span class="stat-label">活动告警</span>
+              <div class="stat-icon" style="background:var(--red-glow);color:var(--red)">🔔</div>
+            </div>
+            <div class="stat-value" style="color:var(--red)">1</div>
+            <div class="stat-sub"><span class="stat-change down">⚠ 电压越限</span></div>
+          </div>
+        </div>
+
+        <!-- Quick actions -->
+        <div class="quick-bar" data-animate="3">
+          <button class="btn btn-primary btn-sm" onclick="showNewInstance()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> 新建实例</button>
+          <button class="btn btn-sm"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> 上传点表</button>
+          <button class="btn btn-sm"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> 进入监控</button>
+          <button class="btn btn-sm"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/></svg> 场景模板</button>
+        </div>
+
+        <!-- Dashboard grid -->
+        <div class="dash-grid" data-animate="4">
+          <!-- Protocol distribution -->
+          <div class="card">
+            <div class="card-hdr">
+              <h3><span class="dot" style="background:var(--blue)"></span> 协议分布</h3>
+            </div>
+            <div class="card-bd">
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span class="tag tag-iec104">IEC 104</span>
+                  <div style="flex:1"><div class="progress"><div class="progress-bar" style="width:70%;background:var(--blue)"></div></div></div>
+                  <span style="font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);min-width:40px;text-align:right">10</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span class="tag tag-modbus">Modbus</span>
+                  <div style="flex:1"><div class="progress"><div class="progress-bar" style="width:20%;background:var(--purple)"></div></div></div>
+                  <span style="font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);min-width:40px;text-align:right">3</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span class="tag tag-microgrid">微电网</span>
+                  <div style="flex:1"><div class="progress"><div class="progress-bar" style="width:14%;background:var(--accent)"></div></div></div>
+                  <span style="font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);min-width:40px;text-align:right">2</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Recent events -->
+          <div class="card">
+            <div class="card-hdr">
+              <h3><span class="dot" style="background:var(--accent)"></span> 实时事件流</h3>
+              <span class="tag tag-running pulse">LIVE</span>
+            </div>
+            <div class="card-bd" style="padding:0">
+              <div class="dash-event">
+                <span class="time">10:23:45</span>
+                <span class="msg">变电站A 遥测越限告警 — 电压 452V > 420V</span>
+                <span class="type" style="background:var(--red-glow);color:var(--red)">告警</span>
+              </div>
+              <div class="dash-event">
+                <span class="time">10:22:30</span>
+                <span class="msg">光伏电站 CSV回放完成 (共1200行)</span>
+                <span class="type" style="background:var(--green-glow);color:var(--green)">完成</span>
+              </div>
+              <div class="dash-event">
+                <span class="time">10:20:15</span>
+                <span class="msg">储能系统 实例已启动 (端口:2502)</span>
+                <span class="type" style="background:var(--blue-glow);color:var(--blue)">系统</span>
+              </div>
+              <div class="dash-event">
+                <span class="time">10:15:00</span>
+                <span class="msg">微电网#2 SOC降至30%，进入充电模式</span>
+                <span class="type" style="background:var(--amber-glow);color:var(--amber)">事件</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Instance cards -->
+        <div data-animate="5">
+          <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">运行实例</h3>
+          <div class="inst-grid">
+            <div class="inst-card" onclick="switchPage('detail')">
+              <div class="inst-top">
+                <span class="status-dot green"></span>
+                <span class="inst-name">变电站A</span>
+                <span class="tag tag-iec104">IEC104</span>
+              </div>
+              <div class="inst-meta">
+                <span>📌 2404</span>
+                <span>📊 156 测点</span>
+                <span>⏱ 运行 12h</span>
+              </div>
+              <div class="inst-actions">
+                <button class="btn btn-ghost btn-xs">停止</button>
+                <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();switchPage('detail')">详情</button>
+              </div>
+            </div>
+            <div class="inst-card" onclick="switchPage('detail')">
+              <div class="inst-top">
+                <span class="status-dot green"></span>
+                <span class="inst-name">储能系统</span>
+                <span class="tag tag-modbus">Modbus</span>
+              </div>
+              <div class="inst-meta">
+                <span>📌 2502</span>
+                <span>📊 48 测点</span>
+                <span>⏱ 运行 5h</span>
+              </div>
+              <div class="inst-actions">
+                <button class="btn btn-ghost btn-xs">停止</button>
+                <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();switchPage('detail')">详情</button>
+              </div>
+            </div>
+            <div class="inst-card" onclick="switchPage('detail')">
+              <div class="inst-top">
+                <span class="status-dot green"></span>
+                <span class="inst-name">微电网#1</span>
+                <span class="tag tag-microgrid">微电网</span>
+              </div>
+              <div class="inst-meta">
+                <span>📌 2405</span>
+                <span>📊 4 设备</span>
+                <span>⏱ 运行 2h</span>
+              </div>
+              <div class="inst-actions">
+                <button class="btn btn-ghost btn-xs">停止</button>
+                <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();switchPage('microgrid')">拓扑</button>
+              </div>
+            </div>
+            <div class="inst-card" style="border:1px dashed var(--border-subtle);background:transparent;display:flex;align-items:center;justify-content:center;padding:32px;cursor:pointer" onclick="showNewInstance()">
+              <div style="text-align:center;color:var(--text-muted)">
+                <div style="font-size:28px;margin-bottom:8px">+</div>
+                <div style="font-size:13px">新建实例</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ PAGE: Instances Management ═══ -->
+      <div id="page-instances" class="page">
+        <h2 style="font-size:20px;font-weight:700;margin-bottom:4px">实例管理</h2>
+        <p style="color:var(--text-muted);margin-bottom:16px;font-size:13px">创建、配置和管理仿真实例</p>
+
+        <!-- Selection toolbar -->
+        <div class="sel-bar" id="selBar">
+          <span>已选择 <span class="count" id="selCount">0</span> 个实例</span>
+          <div class="btn-group" style="margin-left:auto">
+            <button class="btn btn-sm btn-primary" onclick="showToast('批量启动成功','success')">批量启动</button>
+            <button class="btn btn-sm btn-danger" onclick="showToast('批量停止成功','info')">批量停止</button>
+            <button class="btn btn-sm" onclick="clearSelection()">取消选择</button>
+          </div>
+        </div>
+
+        <!-- Toolbar -->
+        <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+          <button class="btn btn-primary btn-sm" onclick="showNewInstance()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> 新建</button>
+          <button class="btn btn-sm"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> 上传点表</button>
+          <button class="btn btn-sm"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3"/><polyline points="7 8 12 3 17 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> 导入配置</button>
+          <span style="flex:1"></span>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-sm btn-ghost" onclick="document.querySelector('.inst-grid-view').style.display='grid';document.querySelector('.inst-table-view').style.display='none'" data-tip="卡片视图">⊞</button>
+            <button class="btn btn-sm btn-ghost" onclick="document.querySelector('.inst-grid-view').style.display='none';document.querySelector('.inst-table-view').style.display='block'" data-tip="列表视图">☰</button>
+          </div>
+        </div>
+
+        <!-- Grid view -->
+        <div class="inst-grid inst-grid-view" style="margin-bottom:16px">
+          <div class="inst-card" onclick="this.classList.toggle('selected');updateSelBar()">
+            <div class="inst-top"><span class="status-dot green"></span><span class="inst-name">变电站A</span><span class="tag tag-iec104">IEC104</span></div>
+            <div class="inst-meta"><span>📌 2404</span><span>📊 156 测点</span><span>⏱ 运行 12h</span></div>
+            <div class="inst-actions"><button class="btn btn-ghost btn-xs">停止</button><button class="btn btn-ghost btn-xs">详情</button></div>
+          </div>
+          <div class="inst-card" onclick="this.classList.toggle('selected');updateSelBar()">
+            <div class="inst-top"><span class="status-dot green"></span><span class="inst-name">变电站B</span><span class="tag tag-iec104">IEC104</span></div>
+            <div class="inst-meta"><span>📌 2405</span><span>📊 204 测点</span><span>⏱ 运行 8h</span></div>
+            <div class="inst-actions"><button class="btn btn-ghost btn-xs">停止</button><button class="btn btn-ghost btn-xs">详情</button></div>
+          </div>
+          <div class="inst-card" onclick="this.classList.toggle('selected');updateSelBar()">
+            <div class="inst-top"><span class="status-dot green"></span><span class="inst-name">光伏电站</span><span class="tag tag-iec104">IEC104</span></div>
+            <div class="inst-meta"><span>📌 2406</span><span>📊 89 测点</span><span>⏱ 运行 6h</span></div>
+            <div class="inst-actions"><button class="btn btn-ghost btn-xs">停止</button><button class="btn btn-ghost btn-xs">详情</button></div>
+          </div>
+          <div class="inst-card" onclick="this.classList.toggle('selected');updateSelBar()">
+            <div class="inst-top"><span class="status-dot green"></span><span class="inst-name">储能系统</span><span class="tag tag-modbus">Modbus</span></div>
+            <div class="inst-meta"><span>📌 2502</span><span>📊 48 测点</span><span>⏱ 运行 5h</span></div>
+            <div class="inst-actions"><button class="btn btn-ghost btn-xs">停止</button><button class="btn btn-ghost btn-xs">详情</button></div>
+          </div>
+          <div class="inst-card" onclick="this.classList.toggle('selected');updateSelBar()">
+            <div class="inst-top"><span class="status-dot gray"></span><span class="inst-name">旧站设备</span><span class="tag tag-iec104">IEC104</span></div>
+            <div class="inst-meta"><span>📌 2407</span><span>📊 32 测点</span><span>⏹ 已停止</span></div>
+            <div class="inst-actions"><button class="btn btn-primary btn-xs">启动</button><button class="btn btn-ghost btn-xs">详情</button></div>
+          </div>
+          <div class="inst-card" onclick="this.classList.toggle('selected');updateSelBar()">
+            <div class="inst-top"><span class="status-dot green"></span><span class="inst-name">微电网#1</span><span class="tag tag-microgrid">微电网</span></div>
+            <div class="inst-meta"><span>📌 2408</span><span>📊 4 设备</span><span>⏱ 运行 2h</span></div>
+            <div class="inst-actions"><button class="btn btn-ghost btn-xs">停止</button><button class="btn btn-ghost btn-xs">拓扑</button></div>
+          </div>
+          <div class="inst-card" onclick="this.classList.toggle('selected');updateSelBar()">
+            <div class="inst-top"><span class="status-dot green"></span><span class="inst-name">微电网#2</span><span class="tag tag-microgrid">微电网</span></div>
+            <div class="inst-meta"><span>📌 2409</span><span>📊 6 设备</span><span>⏱ 运行 1h</span></div>
+            <div class="inst-actions"><button class="btn btn-ghost btn-xs">停止</button><button class="btn btn-ghost btn-xs">拓扑</button></div>
+          </div>
+          <div class="inst-card" onclick="showNewInstance()" style="border:1px dashed var(--border-subtle);background:transparent;display:flex;align-items:center;justify-content:center;padding:32px;cursor:pointer">
+            <div style="text-align:center;color:var(--text-muted)"><div style="font-size:28px;margin-bottom:8px">+</div><div style="font-size:13px">新建实例</div></div>
+          </div>
+        </div>
+
+        <!-- Table view (hidden by default) -->
+        <div class="table-wrap inst-table-view" style="display:none">
+          <table>
+            <thead><tr><th style="width:30px"><input type="checkbox" onchange="toggleAllSel(this)"></th><th>名称</th><th>协议</th><th>端口</th><th>测点数</th><th>状态</th><th>运行时长</th><th>操作</th></tr></thead>
+            <tbody>
+              <tr><td><input type="checkbox" onchange="updateSelBar()"></td><td>变电站A</td><td><span class="tag tag-iec104">IEC104</span></td><td class="mono">2404</td><td>156</td><td><span class="tag tag-running">运行中</span></td><td>12h</td><td><button class="btn btn-ghost btn-xs">详情</button></td></tr>
+              <tr><td><input type="checkbox" onchange="updateSelBar()"></td><td>储能系统</td><td><span class="tag tag-modbus">Modbus</span></td><td class="mono">2502</td><td>48</td><td><span class="tag tag-running">运行中</span></td><td>5h</td><td><button class="btn btn-ghost btn-xs">详情</button></td></tr>
+              <tr><td><input type="checkbox" onchange="updateSelBar()"></td><td>旧站设备</td><td><span class="tag tag-iec104">IEC104</span></td><td class="mono">2407</td><td>32</td><td><span class="tag tag-stopped">已停止</span></td><td>-</td><td><button class="btn btn-primary btn-xs">启动</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ═══ PAGE: Instance Detail ═══ -->
+      <div id="page-detail" class="page">
+        <h2 style="font-size:20px;font-weight:700;margin-bottom:4px">变电站A — 详情</h2>
+        <p style="color:var(--text-muted);margin-bottom:16px;font-size:13px">IEC 104 · 端口 2404 · 运行中</p>
+
+        <!-- Instance info bar -->
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;padding:14px 18px;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg)">
+          <div><span style="color:var(--text-muted);font-size:12px">状态</span><div style="display:flex;align-items:center;gap:6px;margin-top:4px"><span class="status-dot green"></span><span style="font-weight:600;color:var(--green)">运行中</span></div></div>
+          <div><span style="color:var(--text-muted);font-size:12px">测点总数</span><div style="font-weight:600;margin-top:4px">156</div></div>
+          <div><span style="color:var(--text-muted);font-size:12px">协议</span><div style="margin-top:4px"><span class="tag tag-iec104">IEC 104</span></div></div>
+          <div><span style="color:var(--text-muted);font-size:12px">运行时长</span><div style="font-weight:600;margin-top:4px">12h 34m</div></div>
+          <div><span style="color:var(--text-muted);font-size:12px">客户端</span><div style="font-weight:600;margin-top:4px;font-family:var(--font-mono);font-size:12px;color:var(--blue)">已连接</div></div>
+          <div style="margin-left:auto;display:flex;gap:6px;align-items:flex-end">
+            <button class="btn btn-sm btn-danger">停止</button>
+            <button class="btn btn-sm">重启</button>
+          </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+          <div class="tab active" onclick="switchDetailTab(this,'d-points')">📋 测点列表</div>
+          <div class="tab" onclick="switchDetailTab(this,'d-strategy')">🎯 策略配置</div>
+          <div class="tab" onclick="switchDetailTab(this,'d-csv')">📼 CSV回放</div>
+          <div class="tab" onclick="switchDetailTab(this,'d-trend')">📈 实时趋势</div>
+        </div>
+
+        <!-- Tab: Points -->
+        <div id="d-points" class="tab-content active">
+          <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+            <input class="form-input" style="width:200px" placeholder="搜索测点 (IOA/名称)...">
+            <select class="form-select" style="width:120px"><option>全部类型</option><option>AI</option><option>DI</option><option>PI</option></select>
+            <select class="form-select" style="width:140px"><option>全部策略</option><option>已配置策略</option><option>未配置策略</option></select>
+            <span style="flex:1"></span>
+            <button class="btn btn-sm">📤 导出CSV</button>
+            <button class="btn btn-sm btn-primary" onclick="showToast('批量置数成功','success')">批量置数</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th style="width:30px"><input type="checkbox"></th><th>IOA</th><th>名称</th><th>类型</th><th>值</th><th>品质</th><th>策略</th><th>操作</th></tr></thead>
+              <tbody>
+                <tr><td><input type="checkbox"></td><td class="mono">16385</td><td>母线电压</td><td><span class="tag tag-iec104" style="font-size:10px">AI</span></td><td><span class="value-flash" style="font-family:var(--font-mono);font-weight:600;color:var(--green)">220.5</span></td><td><span style="font-size:11px;color:var(--green)">✅ 有效</span></td><td><span style="font-size:11px;color:var(--blue)">递增</span></td><td><button class="btn btn-ghost btn-xs" onclick="showSetValue()">置数</button><button class="btn btn-ghost btn-xs">策略</button></td></tr>
+                <tr><td><input type="checkbox"></td><td class="mono">16386</td><td>母线电流</td><td><span class="tag tag-iec104" style="font-size:10px">AI</span></td><td><span style="font-family:var(--font-mono);font-weight:600">5.23</span></td><td><span style="font-size:11px;color:var(--green)">✅ 有效</span></td><td><span style="font-size:11px;color:var(--blue)">随机</span></td><td><button class="btn btn-ghost btn-xs">置数</button><button class="btn btn-ghost btn-xs">策略</button></td></tr>
+                <tr><td><input type="checkbox"></td><td class="mono">16387</td><td>有功功率</td><td><span class="tag tag-iec104" style="font-size:10px">AI</span></td><td><span style="font-family:var(--font-mono);font-weight:600;color:var(--text-primary)">1,144.5</span></td><td><span style="font-size:11px;color:var(--green)">✅ 有效</span></td><td><span style="font-size:11px;color:var(--accent)">自定义</span></td><td><button class="btn btn-ghost btn-xs">置数</button><button class="btn btn-ghost btn-xs">策略</button></td></tr>
+                <tr><td><input type="checkbox"></td><td class="mono">5</td><td>断路器QF1</td><td><span class="tag tag-iec104" style="font-size:10px">DI</span></td><td><span style="font-weight:600;color:var(--green)">ON</span></td><td><span style="font-size:11px;color:var(--green)">✅ 有效</span></td><td><span style="font-size:11px;color:var(--green)">AO关联</span></td><td><button class="btn btn-ghost btn-xs" onclick="toggleDI(this)">切换</button><button class="btn btn-ghost btn-xs">策略</button></td></tr>
+                <tr><td><input type="checkbox"></td><td class="mono">10</td><td>电度表读数</td><td><span class="tag tag-iec104" style="font-size:10px">PI</span></td><td><span style="font-family:var(--font-mono);font-weight:600">42</span></td><td><span style="font-size:11px;color:var(--green)">✅ 有效</span></td><td><span style="font-size:11px;color:var(--green)">电量</span></td><td><button class="btn btn-ghost btn-xs">置数</button><button class="btn btn-ghost btn-xs">策略</button></td></tr>
+                <tr><td><input type="checkbox"></td><td class="mono">16390</td><td>变压器温度</td><td><span class="tag tag-iec104" style="font-size:10px">AI</span></td><td><span style="font-family:var(--font-mono);font-weight:600;color:var(--amber)">78.2</span></td><td><span style="font-size:11px;color:var(--red)">⚠ 越限</span></td><td><span style="font-size:11px;color:var(--text-muted)">-</span></td><td><button class="btn btn-ghost btn-xs">置数</button><button class="btn btn-ghost btn-xs">策略</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+            <span style="font-size:12px;color:var(--text-muted)">显示 1-6 / 共 156 条</span>
+            <div style="display:flex;gap:4px">
+              <button class="btn btn-ghost btn-xs">上一页</button>
+              <button class="btn btn-xs" style="background:var(--accent);color:#fff;border-color:var(--accent)">1</button>
+              <button class="btn btn-ghost btn-xs">2</button>
+              <button class="btn btn-ghost btn-xs">3</button>
+              <button class="btn btn-ghost btn-xs">下一页</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Strategy -->
+        <div id="d-strategy" class="tab-content">
+          <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
+            <span style="font-size:13px;color:var(--text-secondary)">选择策略类型：</span>
+          </div>
+          <div class="strat-grid">
+            <div class="strat-card active" onclick="selectStrat(this)"><div class="icon">📈</div><div class="name">递增</div><div class="desc">周期性增加</div></div>
+            <div class="strat-card" onclick="selectStrat(this)"><div class="icon">🎲</div><div class="name">随机</div><div class="desc">范围随机值</div></div>
+            <div class="strat-card" onclick="selectStrat(this)"><div class="icon">📼</div><div class="name">CSV回放</div><div class="desc">时序数据回放</div></div>
+            <div class="strat-card" onclick="selectStrat(this)"><div class="icon">🔋</div><div class="name">SOC</div><div class="desc">荷电状态计算</div></div>
+            <div class="strat-card" onclick="selectStrat(this)"><div class="icon">⚡</div><div class="name">电量统计</div><div class="desc">累计电量</div></div>
+            <div class="strat-card" onclick="selectStrat(this)"><div class="icon">🔗</div><div class="name">AO关联</div><div class="desc">跟随遥控值</div></div>
+            <div class="strat-card" onclick="selectStrat(this)"><div class="icon">✋</div><div class="name">手动</div><div class="desc">仅API置数</div></div>
+            <div class="strat-card" onclick="selectStrat(this)"><div class="icon">🧮</div><div class="name">自定义公式</div><div class="desc">四则运算</div></div>
+          </div>
+          <div style="background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:20px">
+            <h4 style="font-size:14px;font-weight:600;margin-bottom:12px">📈 递增策略参数</h4>
+            <div class="grid-2">
+              <div class="form-group"><label class="form-label">起始值</label><input class="form-input" value="0"></div>
+              <div class="form-group"><label class="form-label">步长</label><input class="form-input" value="1"></div>
+              <div class="form-group"><label class="form-label">周期 (ms)</label><input class="form-input" value="1000"></div>
+              <div class="form-group"><label class="form-label">最大值</label><input class="form-input" value="100"></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">值预览</label>
+              <div style="height:60px;background:var(--bg-page);border-radius:var(--radius);display:flex;align-items:flex-end;padding:8px;gap:2px">
+                <div style="flex:1;height:8px;background:var(--blue);border-radius:2px;opacity:.5"></div>
+                <div style="flex:1;height:16px;background:var(--blue);border-radius:2px;opacity:.6"></div>
+                <div style="flex:1;height:24px;background:var(--blue);border-radius:2px;opacity:.7"></div>
+                <div style="flex:1;height:32px;background:var(--blue);border-radius:2px;opacity:.8"></div>
+                <div style="flex:1;height:40px;background:var(--blue);border-radius:2px;opacity:.9"></div>
+                <div style="flex:1;height:48px;background:var(--accent);border-radius:2px"></div>
+                <div style="flex:1;height:40px;background:var(--blue);border-radius:2px;opacity:.9"></div>
+                <div style="flex:1;height:32px;background:var(--blue);border-radius:2px;opacity:.8"></div>
+                <div style="flex:1;height:24px;background:var(--blue);border-radius:2px;opacity:.7"></div>
+                <div style="flex:1;height:16px;background:var(--blue);border-radius:2px;opacity:.6"></div>
+                <div style="flex:1;height:8px;background:var(--blue);border-radius:2px;opacity:.5"></div>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:12px">
+              <button class="btn btn-primary" onclick="showToast('策略已应用','success')">应用策略</button>
+              <button class="btn">预览</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: CSV -->
+        <div id="d-csv" class="tab-content">
+          <div style="margin-bottom:16px">
+            <div class="form-group">
+              <label class="form-label">CSV文件</label>
+              <div style="display:flex;gap:8px">
+                <select class="form-select" style="flex:1"><option>realtime_data_20260617.csv</option><option>curve_typical_day.csv</option><option>fault_scenario_1.csv</option></select>
+                <button class="btn">📤 上传新文件</button>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">时间格式</label>
+                <select class="form-select"><option>相对时间 (ms)</option><option>绝对时间 (hh:mm:ss)</option></select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">时间单位</label>
+                <select class="form-select"><option>毫秒 (ms)</option><option>秒 (s)</option></select>
+              </div>
+            </div>
+          </div>
+          <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">CSV预览 — 拖拽列头到右侧测点完成映射</p>
+          <div style="background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:16px;margin-bottom:16px;overflow-x:auto">
+            <table style="min-width:500px">
+              <thead><tr><th class="csv-col-header" draggable="true" style="cursor:grab">time</th><th class="csv-col-header" draggable="true" style="cursor:grab">电压U</th><th class="csv-col-header" draggable="true" style="cursor:grab">电流I</th><th class="csv-col-header" draggable="true" style="cursor:grab">功率P</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">0</td><td class="mono">220.1</td><td class="mono">5.2</td><td class="mono">1144.5</td></tr>
+                <tr><td class="mono">1000</td><td class="mono">221.3</td><td class="mono">5.3</td><td class="mono">1172.9</td></tr>
+                <tr><td class="mono">2000</td><td class="mono">219.8</td><td class="mono">5.1</td><td class="mono">1120.9</td></tr>
+                <tr><td class="mono">3000</td><td class="mono">222.0</td><td class="mono">5.4</td><td class="mono">1198.8</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:16px">
+            <h4 style="font-size:13px;font-weight:600;margin-bottom:12px">列映射配置</h4>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;background:var(--bg-card);border-radius:var(--radius)">
+                <span style="font-weight:500;min-width:60px">电压U</span>
+                <span style="color:var(--text-muted)">→</span>
+                <span class="mono" style="color:var(--blue);font-weight:600">IOA 16385</span>
+                <span style="font-size:11px;color:var(--text-muted)">母线电压</span>
+                <span class="tag tag-running" style="margin-left:auto">已映射</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;background:var(--bg-card);border-radius:var(--radius)">
+                <span style="font-weight:500;min-width:60px">电流I</span>
+                <span style="color:var(--text-muted)">→</span>
+                <span class="mono" style="color:var(--blue);font-weight:600">IOA 16386</span>
+                <span style="font-size:11px;color:var(--text-muted)">母线电流</span>
+                <span class="tag tag-running" style="margin-left:auto">已映射</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;background:var(--bg-card);border-radius:var(--radius)">
+                <span style="font-weight:500;min-width:60px">功率P</span>
+                <span style="color:var(--text-muted)">→</span>
+                <select style="padding:4px 8px;border-radius:var(--radius-sm);border:1px solid var(--border-subtle);background:var(--bg-surface);color:var(--text-primary);font-family:var(--font-mono);font-size:12px">
+                  <option>IOA 16387 (有功功率)</option>
+                  <option>IOA 16388 (无功功率)</option>
+                  <option>IOA 16389 (视在功率)</option>
+                </select>
+                <span class="tag tag-pending" style="margin-left:auto">待映射</span>
+              </div>
+            </div>
+            <div style="margin-top:14px;display:flex;gap:8px">
+              <button class="btn btn-primary" onclick="showToast('CSV回放已启动','success')">🚀 启动回放</button>
+              <button class="btn">💾 保存配置</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Inline Trend -->
+        <div id="d-trend" class="tab-content">
+          <div style="text-align:center;padding:40px 20px;color:var(--text-muted)">
+            <div style="font-size:48px;margin-bottom:12px">📈</div>
+            <p style="font-size:14px">内嵌实时趋势图表</p>
+            <p style="font-size:12px;margin-top:4px">选择测点即可查看实时历史曲线</p>
+            <div style="height:200px;display:flex;align-items:flex-end;gap:4px;justify-content:center;margin:20px 0;padding:0 40px">
+              <div style="flex:1;height:40%;background:var(--blue);border-radius:2px;opacity:.5"></div>
+              <div style="flex:1;height:60%;background:var(--blue);border-radius:2px;opacity:.6"></div>
+              <div style="flex:1;height:80%;background:var(--blue);border-radius:2px;opacity:.7"></div>
+              <div style="flex:1;height:50%;background:var(--blue);border-radius:2px;opacity:.5"></div>
+              <div style="flex:1;height:90%;background:var(--accent);border-radius:2px"></div>
+              <div style="flex:1;height:70%;background:var(--blue);border-radius:2px;opacity:.8"></div>
+              <div style="flex:1;height:45%;background:var(--blue);border-radius:2px;opacity:.5"></div>
+              <div style="flex:1;height:75%;background:var(--blue);border-radius:2px;opacity:.7"></div>
+              <div style="flex:1;height:55%;background:var(--blue);border-radius:2px;opacity:.6"></div>
+              <div style="flex:1;height:85%;background:var(--blue);border-radius:2px;opacity:.8"></div>
+              <div style="flex:1;height:65%;background:var(--blue);border-radius:2px;opacity:.6"></div>
+              <div style="flex:1;height:95%;background:var(--accent);border-radius:2px;opacity:.9"></div>
+              <div style="flex:1;height:50%;background:var(--blue);border-radius:2px;opacity:.5"></div>
+              <div style="flex:1;height:70%;background:var(--blue);border-radius:2px;opacity:.7"></div>
+              <div style="flex:1;height:35%;background:var(--blue);border-radius:2px;opacity:.4"></div>
+            </div>
+            <button class="btn btn-primary">打开完整趋势页</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ PAGE: Microgrid ═══ -->
+      <div id="page-microgrid" class="page">
+        <h2 style="font-size:20px;font-weight:700;margin-bottom:4px">微电网#1 — 拓扑编辑</h2>
+        <p style="color:var(--text-muted);margin-bottom:16px;font-size:13px">光伏+储能+负荷 | 端口 2408 | 运行中</p>
+
+        <!-- Toolbar -->
+        <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;padding:12px 16px;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg)">
+          <button class="btn btn-sm btn-primary">➕ 添加设备</button>
+          <div style="display:flex;gap:4px;margin-left:8px">
+            <button class="btn btn-sm btn-ghost" style="background:var(--green-glow);color:var(--green);border-color:rgba(34,197,94,.2)">▶ 运行</button>
+            <button class="btn btn-sm btn-ghost">⏸ 暂停</button>
+            <button class="btn btn-sm btn-ghost">⏹ 停止</button>
+          </div>
+          <span style="flex:1"></span>
+          <span style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:6px"><span class="status-dot green"></span> 仿真运行中 · 步长 1s</span>
+          <button class="btn btn-sm">📤 导出点表</button>
+        </div>
+
+        <!-- Topology canvas -->
+        <div style="background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:16px">
+          <div style="padding:12px 16px;border-bottom:1px solid var(--border-subtle);display:flex;align-items:center;gap:8px">
+            <span style="font-size:13px;font-weight:600">🔌 拓扑画布</span>
+            <span style="font-size:11px;color:var(--text-muted)">拖拽设备可调整位置 · 点击设备查看属性</span>
+            <span style="flex:1"></span>
+            <button class="btn btn-ghost btn-xs">自动布局</button>
+            <button class="btn btn-ghost btn-xs">缩放适应</button>
+          </div>
+          <div style="height:360px;position:relative;overflow:hidden;background:radial-gradient(ellipse at center,rgba(249,115,22,.03),transparent)">
+            <!-- SVG Topology -->
+            <svg viewBox="0 0 800 320" style="width:100%;height:100%">
+              <!-- Bus -->
+              <rect x="360" y="60" width="80" height="200" rx="4" fill="rgba(249,115,22,.15)" stroke="#f97316" stroke-width="2"/>
+              <text x="400" y="165" text-anchor="middle" fill="#f97316" font-size="12" font-weight="600">10kV<br/>母线</text>
+
+              <!-- PV -->
+              <rect x="60" y="20" width="120" height="80" rx="8" fill="rgba(34,197,94,.1)" stroke="#22c55e" stroke-width="1.5"/>
+              <text x="120" y="50" text-anchor="middle" fill="#22c55e" font-size="20">☀</text>
+              <text x="120" y="72" text-anchor="middle" fill="#22c55e" font-size="11" font-weight="600">光伏 500kW</text>
+              <text x="120" y="88" text-anchor="middle" fill="#94a3b8" font-size="10">发电: 423kW</text>
+              <line x1="180" y1="60" x2="360" y2="130" stroke="#22c55e" stroke-width="1.5" stroke-dasharray="5,3"/>
+              <circle cx="270" cy="95" r="4" fill="#22c55e"/>
+
+              <!-- Battery -->
+              <rect x="60" y="130" width="120" height="80" rx="8" fill="rgba(59,130,246,.1)" stroke="#3b82f6" stroke-width="1.5"/>
+              <text x="120" y="160" text-anchor="middle" fill="#3b82f6" font-size="20">🔋</text>
+              <text x="120" y="182" text-anchor="middle" fill="#3b82f6" font-size="11" font-weight="600">储能 200kWh</text>
+              <text x="120" y="198" text-anchor="middle" fill="#94a3b8" font-size="10">SOC: 72% 充电</text>
+              <line x1="180" y1="170" x2="360" y2="150" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="5,3"/>
+              <circle cx="270" cy="160" r="4" fill="#3b82f6"/>
+
+              <!-- Load -->
+              <rect x="620" y="20" width="120" height="80" rx="8" fill="rgba(245,158,11,.1)" stroke="#f59e0b" stroke-width="1.5"/>
+              <text x="680" y="50" text-anchor="middle" fill="#f59e0b" font-size="20">🏭</text>
+              <text x="680" y="72" text-anchor="middle" fill="#f59e0b" font-size="11" font-weight="600">负荷 300kW</text>
+              <text x="680" y="88" text-anchor="middle" fill="#94a3b8" font-size="10">用电: 245kW</text>
+              <line x1="440" y1="150" x2="620" y2="60" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="5,3"/>
+              <circle cx="530" cy="105" r="4" fill="#f59e0b"/>
+
+              <!-- Charger -->
+              <rect x="620" y="130" width="120" height="80" rx="8" fill="rgba(139,92,246,.1)" stroke="#8b5cf6" stroke-width="1.5"/>
+              <text x="680" y="160" text-anchor="middle" fill="#8b5cf6" font-size="20">🚗</text>
+              <text x="680" y="182" text-anchor="middle" fill="#8b5cf6" font-size="11" font-weight="600">充电桩 120kW</text>
+              <text x="680" y="198" text-anchor="middle" fill="#94a3b8" font-size="10">充电: 60kW</text>
+              <line x1="440" y1="170" x2="620" y2="170" stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="5,3"/>
+              <circle cx="530" cy="170" r="4" fill="#8b5cf6"/>
+
+              <!-- Power flow arrows -->
+              <text x="270" y="80" fill="#22c55e" font-size="10" text-anchor="middle">→ 423kW</text>
+              <text x="270" y="145" fill="#3b82f6" font-size="10" text-anchor="middle">→ 60kW</text>
+              <text x="530" y="92" fill="#f59e0b" font-size="10" text-anchor="middle">← 245kW</text>
+              <text x="530" y="155" fill="#8b5cf6" font-size="10" text-anchor="middle">← 60kW</text>
+
+              <!-- Grid connection -->
+              <rect x="360" y="0" width="80" height="30" rx="4" fill="rgba(249,115,22,.08)" stroke="#f97316" stroke-width="1" stroke-dasharray="3,2"/>
+              <text x="400" y="19" text-anchor="middle" fill="#f97316" font-size="9">并网点</text>
+              <text x="400" y="260" text-anchor="middle" fill="#94a3b8" font-size="11">功率平衡: +178kW (向电网送电)</text>
+            </svg>
+          </div>
+          <!-- Legend -->
+          <div style="display:flex;gap:16px;padding:8px 16px;border-top:1px solid var(--border-subtle);background:var(--bg-card);font-size:11px;color:var(--text-muted);flex-wrap:wrap">
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--green)"></span> 光伏</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--blue)"></span> 储能</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--amber)"></span> 负荷</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--purple)"></span> 充电桩</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--accent)"></span> 母线</span>
+          </div>
+        </div>
+
+        <!-- Device properties -->
+        <div class="card">
+          <div class="card-hdr"><h3>📋 设备列表</h3><button class="btn btn-sm">➕ 添加</button></div>
+          <div class="card-bd" style="padding:0">
+            <table>
+              <thead><tr><th>设备</th><th>类型</th><th>容量</th><th>当前功率</th><th>状态</th><th>操作</th></tr></thead>
+              <tbody>
+                <tr><td>PV-01</td><td><span style="color:var(--green)">☀ 光伏</span></td><td>500 kW</td><td class="mono" style="color:var(--green)">+423 kW</td><td><span class="tag tag-running">运行</span></td><td><button class="btn btn-ghost btn-xs">编辑</button><button class="btn btn-ghost btn-xs">详情</button></td></tr>
+                <tr><td>BAT-01</td><td><span style="color:var(--blue)">🔋 储能</span></td><td>200 kWh</td><td class="mono" style="color:var(--blue)">+60 kW</td><td><span class="tag tag-running">充电</span></td><td><button class="btn btn-ghost btn-xs">编辑</button><button class="btn btn-ghost btn-xs">详情</button></td></tr>
+                <tr><td>LOAD-01</td><td><span style="color:var(--amber)">🏭 负荷</span></td><td>300 kW</td><td class="mono" style="color:var(--amber)">-245 kW</td><td><span class="tag tag-running">运行</span></td><td><button class="btn btn-ghost btn-xs">编辑</button><button class="btn btn-ghost btn-xs">详情</button></td></tr>
+                <tr><td>CH-01</td><td><span style="color:var(--purple)">🚗 充电桩</span></td><td>120 kW</td><td class="mono" style="color:var(--purple)">-60 kW</td><td><span class="tag tag-running">充电中</span></td><td><button class="btn btn-ghost btn-xs">编辑</button><button class="btn btn-ghost btn-xs">详情</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ PAGE: Trend ═══ -->
+      <div id="page-trend" class="page">
+        <h2 style="font-size:20px;font-weight:700;margin-bottom:4px">趋势分析</h2>
+        <p style="color:var(--text-muted);margin-bottom:16px;font-size:13px">实时和历史数据趋势对比</p>
+        <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+          <select class="form-select" style="width:160px"><option>变电站A</option><option>变电站B</option><option>光伏电站</option></select>
+          <select class="form-select" style="width:200px" multiple style="height:auto">
+            <option selected>16385 母线电压</option>
+            <option selected>16386 母线电流</option>
+            <option>16387 有功功率</option>
+          </select>
+          <select class="form-select" style="width:100px"><option>15分钟</option><option>30分钟</option><option>1小时</option></select>
+          <select class="form-select" style="width:100px"><option>1秒</option><option>2秒</option><option selected>5秒</option></select>
+          <button class="btn btn-sm btn-primary">应用</button>
+          <button class="btn btn-sm">💾 保存模板</button>
+        </div>
+        <div style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:20px;height:400px;display:flex;flex-direction:column;align-items:center;justify-content:center">
+          <div style="width:100%;height:100%;display:flex;flex-direction:column">
+            <div style="display:flex;justify-content:space-between;margin-bottom:12px">
+              <span style="font-size:13px;font-weight:600">实时趋势</span>
+              <div style="display:flex;gap:12px;font-size:11px">
+                <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:3px;background:var(--blue);border-radius:2px"></span> 母线电压</span>
+                <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:3px;background:var(--accent);border-radius:2px"></span> 母线电流</span>
+              </div>
+            </div>
+            <!-- Simulated chart -->
+            <svg viewBox="0 0 700 300" style="width:100%;flex:1">
+              <defs>
+                <linearGradient id="area1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#3b82f6" stop-opacity=".15"/><stop offset="100%" stop-color="#3b82f6" stop-opacity="0"/></linearGradient>
+                <linearGradient id="area2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f97316" stop-opacity=".15"/><stop offset="100%" stop-color="#f97316" stop-opacity="0"/></linearGradient>
+              </defs>
+              <!-- Grid -->
+              <line x1="50" y1="50" x2="680" y2="50" stroke="#1e2d4a" stroke-width=".5"/>
+              <line x1="50" y1="100" x2="680" y2="100" stroke="#1e2d4a" stroke-width=".5"/>
+              <line x1="50" y1="150" x2="680" y2="150" stroke="#1e2d4a" stroke-width=".5"/>
+              <line x1="50" y1="200" x2="680" y2="200" stroke="#1e2d4a" stroke-width=".5"/>
+              <line x1="50" y1="250" x2="680" y2="250" stroke="#1e2d4a" stroke-width=".5"/>
+              <!-- Area fills -->
+              <path d="M50 250 Q120 230 180 180 Q240 130 300 150 Q360 170 420 100 Q480 120 540 80 Q600 60 680 90 L680 250 Z" fill="url(#area1)"/>
+              <path d="M50 250 Q120 200 180 210 Q240 160 300 180 Q360 140 420 120 Q480 100 540 130 Q600 110 680 140 L680 250 Z" fill="url(#area2)"/>
+              <!-- Lines -->
+              <polyline points="50,180 120,160 180,110 240,60 300,80 360,100 420,30 480,50 540,10 600,20 680,40" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linejoin="round"/>
+              <polyline points="50,200 120,150 180,160 240,110 300,130 360,90 420,70 480,50 540,80 600,60 680,80" fill="none" stroke="#f97316" stroke-width="2" stroke-linejoin="round" stroke-dasharray="4,2"/>
+              <!-- Axes labels -->
+              <text x="50" y="270" fill="#475569" font-size="10">10:20</text>
+              <text x="180" y="270" fill="#475569" font-size="10">10:21</text>
+              <text x="310" y="270" fill="#475569" font-size="10">10:22</text>
+              <text x="440" y="270" fill="#475569" font-size="10">10:23</text>
+              <text x="570" y="270" fill="#475569" font-size="10">10:24</text>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ PAGE: Proxy ═══ -->
+      <div id="page-proxy" class="page">
+        <h2 style="font-size:20px;font-weight:700;margin-bottom:4px">接口测试</h2>
+        <p style="color:var(--text-muted);margin-bottom:16px;font-size:13px">Postman风格的HTTP接口测试工具</p>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-hdr"><h3>📂 接口集合</h3><button class="btn btn-sm">+ 新建</button></div>
+            <div class="card-bd" style="padding:0">
+              <div style="padding:12px 16px;border-bottom:1px solid var(--border-subtle);cursor:pointer;transition:var(--transition);display:flex;align-items:center;gap:8px" onclick="this.style.background='var(--bg-card-hover)'">
+                <span style="color:var(--amber)">📁</span> <span>电力系统API</span>
+                <span style="font-size:11px;color:var(--text-muted);margin-left:auto">3 个请求</span>
+              </div>
+              <div style="padding:12px 16px;border-bottom:1px solid var(--border-subtle);cursor:pointer;transition:var(--transition);display:flex;align-items:center;gap:8px" onclick="this.style.background='var(--bg-card-hover)'">
+                <span style="color:var(--blue)">📁</span> <span>GridSim内部API</span>
+                <span style="font-size:11px;color:var(--text-muted);margin-left:auto">5 个请求</span>
+              </div>
+              <div style="padding:12px 16px;cursor:pointer;transition:var(--transition);display:flex;align-items:center;gap:8px" onclick="this.style.background='var(--bg-card-hover)'">
+                <span style="color:var(--green)">📄</span> <span>GET 获取实时数据</span>
+                <span class="tag tag-iec104" style="font-size:10px">GET</span>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-hdr"><h3>🔗 请求编辑</h3><button class="btn btn-sm btn-primary" onclick="showToast('请求发送成功','success')">发送</button></div>
+            <div class="card-bd">
+              <div class="form-row">
+                <div class="form-group" style="flex:0 0 100px">
+                  <label class="form-label">方法</label>
+                  <select class="form-select"><option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option></select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">URL</label>
+                  <input class="form-input" value="{{base_url}}/api/v1/instances">
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Headers</label>
+                <textarea class="form-input" rows="2" style="font-family:var(--font-mono);font-size:12px">Content-Type: application/json
+Authorization: Bearer {{token}}</textarea>
+              </div>
+              <div class="form-group">
+                <label class="form-label">响应</label>
+                <div style="background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius);padding:12px;font-family:var(--font-mono);font-size:11px;color:var(--green);min-height:100px">{
+  "success": true,
+  "data": {
+    "instances": [...]
+  },
+  "meta": {
+    "total": 15
+  }
+}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL: New Instance Wizard ═══ -->
+<div class="modal-overlay" id="modalNewInstance">
+  <div class="modal modal-lg">
+    <div class="modal-hdr">
+      <h3>✨ 新建实例向导</h3>
+      <button class="modal-close" onclick="closeModal('modalNewInstance')">✕</button>
+    </div>
+    <div class="modal-bd">
+      <!-- Wizard steps -->
+      <div class="wizard-steps">
+        <div class="wiz-step active" id="ws1">基本信息</div>
+        <div class="wiz-step" id="ws2">点表配置</div>
+        <div class="wiz-step" id="ws3">确认创建</div>
+      </div>
+      <!-- Step 1 -->
+      <div id="wizStep1">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">实例名称 <span class="req">*</span></label>
+            <input class="form-input" placeholder="例如：220kV变电站A" value="新仿真实例">
+            <div class="form-hint">建议使用有辨识度的名称，便于后续管理</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">协议类型 <span class="req">*</span></label>
+            <select class="form-select">
+              <option>IEC 60870-5-104</option>
+              <option>Modbus TCP</option>
+              <option>微电网仿真</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">IEC104 端口 <span class="req">*</span></label>
+            <input class="form-input" value="2404" placeholder="1024-65535">
+            <div class="form-hint">确保端口未被占用</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">单客户端限制</label>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+              <label class="toggle"><input type="checkbox" checked><span class="slider"></span></label>
+              <span style="font-size:12px;color:var(--text-secondary)">启用（推荐）</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Step 2 -->
+      <div id="wizStep2" style="display:none">
+        <div class="form-group">
+          <label class="form-label">选择点表文件 <span class="req">*</span></label>
+          <div style="display:flex;gap:8px">
+            <select class="form-select" style="flex:1">
+              <option value="">-- 请选择 --</option>
+              <option>point.xlsx (156 测点)</option>
+              <option>固定验证-关口表.xlsx (32 测点)</option>
+              <option>固定验证-光伏.xlsx (48 测点)</option>
+              <option selected>IEC104Test-260510.xlsx (204 测点)</option>
+            </select>
+            <button class="btn">📤 上传新文件</button>
+          </div>
+        </div>
+        <div style="background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:16px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:12px">
+            <span style="font-weight:600;font-size:13px">📊 点表预览</span>
+            <span style="font-size:12px;color:var(--text-muted)">共 204 个测点</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px">
+            <div style="text-align:center;padding:8px;background:var(--bg-card);border-radius:var(--radius)"><span style="font-size:20px;display:block;color:var(--blue)">156</span><span style="font-size:11px;color:var(--text-muted)">AI 遥测</span></div>
+            <div style="text-align:center;padding:8px;background:var(--bg-card);border-radius:var(--radius)"><span style="font-size:20px;display:block;color:var(--green)">32</span><span style="font-size:11px;color:var(--text-muted)">DI 遥信</span></div>
+            <div style="text-align:center;padding:8px;background:var(--bg-card);border-radius:var(--radius)"><span style="font-size:20px;display:block;color:var(--amber)">12</span><span style="font-size:11px;color:var(--text-muted)">PI 遥脉</span></div>
+            <div style="text-align:center;padding:8px;background:var(--bg-card);border-radius:var(--radius)"><span style="font-size:20px;display:block;color:var(--purple)">4</span><span style="font-size:11px;color:var(--text-muted)">DO/AO 控制</span></div>
+          </div>
+          <div class="table-wrap" style="max-height:160px">
+            <table style="font-size:11px">
+              <thead><tr><th>IOA</th><th>名称</th><th>类型</th><th>系数</th><th>初始值</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">16385</td><td>母线电压</td><td>AI/FLOAT</td><td>1.0</td><td>220.0</td></tr>
+                <tr><td class="mono">16386</td><td>母线电流</td><td>AI/FLOAT</td><td>1.0</td><td>5.0</td></tr>
+                <tr><td class="mono">16387</td><td>有功功率</td><td>AI/FLOAT</td><td>1.0</td><td>1100.0</td></tr>
+                <tr><td class="mono">5</td><td>断路器QF1</td><td>DI/BIT</td><td>1.0</td><td>0</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <!-- Step 3 -->
+      <div id="wizStep3" style="display:none">
+        <div style="background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:20px">
+          <h4 style="font-size:14px;font-weight:600;margin-bottom:16px">📋 配置摘要</h4>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13px">
+            <div><span style="color:var(--text-muted)">名称</span><div style="font-weight:500">新仿真实例</div></div>
+            <div><span style="color:var(--text-muted)">协议</span><div style="font-weight:500">IEC 60870-5-104</div></div>
+            <div><span style="color:var(--text-muted)">端口</span><div style="font-family:var(--font-mono)">2404</div></div>
+            <div><span style="color:var(--text-muted)">点表文件</span><div style="font-weight:500">IEC104Test-260510.xlsx</div></div>
+            <div><span style="color:var(--text-muted)">测点总数</span><div style="font-weight:500">204</div></div>
+            <div><span style="color:var(--text-muted)">单客户端限制</span><div style="color:var(--green)">✅ 启用</div></div>
+          </div>
+        </div>
+        <div style="margin-top:16px">
+          <label class="toggle" style="display:flex;align-items:center;gap:8px">
+            <input type="checkbox" checked><span class="slider"></span>
+            <span style="font-size:13px">创建后立即启动实例</span>
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-ftr">
+      <button class="btn" id="wizPrev" onclick="wizPrev()" style="display:none">上一步</button>
+      <span style="flex:1"></span>
+      <button class="btn" onclick="closeModal('modalNewInstance')">取消</button>
+      <button class="btn btn-primary" id="wizNext" onclick="wizNext()">下一步</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL: Set Value ═══ -->
+<div class="modal-overlay" id="modalSetValue">
+  <div class="modal modal-sm">
+    <div class="modal-hdr">
+      <h3>✏️ 置数 — IOA 16385 (母线电压)</h3>
+      <button class="modal-close" onclick="closeModal('modalSetValue')">✕</button>
+    </div>
+    <div class="modal-bd">
+      <div class="form-group">
+        <label class="form-label">当前值</label>
+        <div style="font-family:var(--font-mono);font-size:24px;font-weight:700;color:var(--green)">220.5</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">新值 <span class="req">*</span></label>
+        <input class="form-input" value="235.0" style="font-size:18px;font-family:var(--font-mono);padding:10px 14px">
+        <div class="form-hint">范围: 0.0 ~ 500.0 · 类型: FLOAT</div>
+      </div>
+      <div style="background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius);padding:12px;font-size:12px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+          <span style="color:var(--text-muted)">品质描述</span>
+          <span style="color:var(--green)">✅ 有效</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+          <span style="color:var(--text-muted)">变化上送</span>
+          <span>COT=3 (自发)</span>
+        </div>
+        <div style="display:flex;justify-content:space-between">
+          <span style="color:var(--text-muted)">时间戳</span>
+          <span class="mono">2026-06-17 10:23:45.123</span>
+        </div>
+      </div>
+    </div>
+    <div class="modal-ftr">
+      <button class="btn" onclick="closeModal('modalSetValue')">取消</button>
+      <button class="btn btn-primary" onclick="closeModal('modalSetValue');showToast('置数成功 — 母线电压: 220.5 → 235.0','success')">确认置数</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL: Onboarding ═══ -->
+<div class="onboard-overlay" id="onboardOverlay">
+  <div class="onboard-card">
+    <div style="font-size:48px;margin-bottom:12px">🚀</div>
+    <h2>欢迎使用 GridSim v4.0</h2>
+    <p>多协议电网仿真平台 — 快速创建仿真场景，测试您的SCADA系统</p>
+    <div class="onboard-steps">
+      <div class="onboard-step"><span class="num">1</span> 上传点表文件 (Excel格式，定义测点和IOA)</div>
+      <div class="onboard-step"><span class="num">2</span> 创建仿真实例 (配置名称、端口和协议类型)</div>
+      <div class="onboard-step"><span class="num">3</span> 启动实例，通过IEC104或Modbus连接仿真设备</div>
+      <div class="onboard-step"><span class="num">4</span> 置数或配置自动变化策略，模拟数据变化</div>
+      <div class="onboard-step"><span class="num">5</span> 在SCADA端验证数据接收和响应</div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:center">
+      <button class="btn btn-primary" onclick="closeOnboard();showNewInstance()">开始创建实例</button>
+      <button class="btn" onclick="closeOnboard()">稍后再说</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL: Command Palette ═══ -->
+<div class="modal-overlay" id="modalCmdPalette" style="align-items:flex-start;padding-top:80px">
+  <div class="modal modal-sm" style="background:var(--bg-elevated)">
+    <div class="modal-bd" style="padding:12px">
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input class="form-input" style="border:none;background:transparent;padding:0" placeholder="输入命令或搜索..." autofocus>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;padding:0 4px">快捷操作</div>
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--radius-sm);cursor:pointer;transition:var(--transition);font-size:13px" onclick="closeModal('modalCmdPalette');showNewInstance()" onmouseover="this.style.background='var(--bg-card-hover)'" onmouseout="this.style.background='transparent'">
+          <span style="color:var(--accent)">+</span> 新建实例
+          <kbd style="margin-left:auto;font-size:10px;padding:1px 5px;background:var(--bg-surface);border-radius:3px;color:var(--text-muted)">N</kbd>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--radius-sm);cursor:pointer;transition:var(--transition);font-size:13px" onclick="closeModal('modalCmdPalette')" onmouseover="this.style.background='var(--bg-card-hover)'" onmouseout="this.style.background='transparent'">
+          <span>📤</span> 上传点表
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--radius-sm);cursor:pointer;transition:var(--transition);font-size:13px" onclick="closeModal('modalCmdPalette')" onmouseover="this.style.background='var(--bg-card-hover)'" onmouseout="this.style.background='transparent'">
+          <span>⚡</span> 批量启动实例
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--radius-sm);cursor:pointer;transition:var(--transition);font-size:13px" onclick="closeModal('modalCmdPalette')" onmouseover="this.style.background='var(--bg-card-hover)'" onmouseout="this.style.background='transparent'">
+          <span>📊</span> 查看趋势分析
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Toast Container ═══ -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+/* ═══════════════════════════════════════════════
+   Page Navigation
+   ═══════════════════════════════════════════════ */
+const pageTitles = {
+  dashboard: '仪表盘',
+  instances: '实例管理',
+  detail: '实例详情',
+  microgrid: '微电网',
+  trend: '趋势分析',
+  proxy: '接口测试',
+};
+
+function switchPage(page) {
+  // Hide all pages
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  // Show target
+  document.getElementById('page-' + page).classList.add('active');
+  // Update sidebar
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelector(`.nav-item[data-page="${page}"]`).classList.add('active');
+  // Update breadcrumb
+  document.getElementById('breadCurrent').textContent = pageTitles[page] || page;
+  // Scroll content to top
+  document.querySelector('.content').scrollTop = 0;
+  // Animate
+  document.querySelector('.content').querySelectorAll('[data-animate]').forEach(el => {
+    el.style.animation = 'none';
+    void el.offsetWidth;
+    el.style.animation = '';
+  });
+}
+
+/* ═══ Detail Tab Switching ═══ */
+function switchDetailTab(el, tabId) {
+  document.querySelectorAll('#page-detail .tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('#page-detail .tab-content').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById(tabId).classList.add('active');
+}
+
+/* ═══ Modal ═══ */
+function showModal(id) {
+  document.getElementById(id).classList.add('show');
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('show');
+}
+// Close modals on overlay click
+document.querySelectorAll('.modal-overlay').forEach(m => {
+  m.addEventListener('click', (e) => {
+    if (e.target === m) m.classList.remove('show');
+  });
+});
+// Close modals on Escape
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal-overlay.show, .onboard-overlay.show').forEach(m => m.classList.remove('show'));
+  }
+});
+
+/* ═══ Wizard ═══ */
+let wizStep = 1;
+function showNewInstance() {
+  showModal('modalNewInstance');
+  wizStep = 1;
+  updateWizard();
+}
+function updateWizard() {
+  document.querySelectorAll('[id^=wizStep]').forEach(el => el.style.display = 'none');
+  document.getElementById('wizStep' + wizStep).style.display = 'block';
+  document.querySelectorAll('.wiz-step').forEach(s => s.className = 'wiz-step');
+  for (let i = 1; i < wizStep; i++) document.getElementById('ws' + i).className = 'wiz-step done';
+  document.getElementById('ws' + wizStep).className = 'wiz-step active';
+  document.getElementById('wizPrev').style.display = wizStep > 1 ? 'inline-flex' : 'none';
+  document.getElementById('wizNext').textContent = wizStep < 3 ? '下一步' : '✅ 创建实例';
+}
+function wizNext() {
+  if (wizStep < 3) { wizStep++; updateWizard(); }
+  else {
+    closeModal('modalNewInstance');
+    showToast('实例创建成功！已自动启动','success');
+  }
+}
+function wizPrev() {
+  if (wizStep > 1) { wizStep--; updateWizard(); }
+}
+
+/* ═══ Onboarding ═══ */
+function showOnboard() {
+  document.getElementById('onboardOverlay').classList.add('show');
+}
+function closeOnboard() {
+  document.getElementById('onboardOverlay').classList.remove('show');
+}
+
+/* ═══ Command Palette ═══ */
+function showCmdPalette() {
+  showModal('modalCmdPalette');
+  setTimeout(() => document.querySelector('#modalCmdPalette input')?.focus(), 100);
+}
+document.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); showCmdPalette(); }
+});
+
+/* ═══ Toast ═══ */
+function showToast(msg, type = 'info') {
+  const container = document.getElementById('toastContainer');
+  const icons = { success: '✅', error: '❌', info: 'ℹ️' };
+  const toast = document.createElement('div');
+  toast.className = 'toast ' + type;
+  toast.innerHTML = `<span>${icons[type] || 'ℹ️'}</span> ${msg}`;
+  container.appendChild(toast);
+  setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 300ms'; setTimeout(() => toast.remove(), 300); }, 3000);
+}
+
+/* ═══ Strategy Selection ═══ */
+function selectStrat(el) {
+  document.querySelectorAll('.strat-card').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+}
+
+/* ═══ DI Toggle (demo) ═══ */
+function toggleDI(btn) {
+  const td = btn.closest('tr').querySelector('td:nth-child(5) span');
+  if (td.textContent.trim() === 'ON') { td.textContent = 'OFF'; td.style.color = 'var(--red)'; }
+  else { td.textContent = 'ON'; td.style.color = 'var(--green)'; }
+}
+
+/* ═══ Selection Bar ═══ */
+function updateSelBar() {
+  const sel = document.querySelectorAll('.inst-card.selected').length;
+  const chk = document.querySelectorAll('.inst-table-view input[type="checkbox"]:checked').length;
+  const count = sel + chk;
+  const bar = document.getElementById('selBar');
+  if (count > 0) {
+    bar.classList.add('show');
+    document.getElementById('selCount').textContent = count;
+  } else {
+    bar.classList.remove('show');
+  }
+}
+function clearSelection() {
+  document.querySelectorAll('.inst-card.selected').forEach(c => c.classList.remove('selected'));
+  document.querySelectorAll('.inst-table-view input[type="checkbox"]').forEach(c => c.checked = false);
+  updateSelBar();
+}
+function toggleAllSel(el) {
+  document.querySelectorAll('.inst-table-view input[type="checkbox"]').forEach(c => c.checked = el.checked);
+  updateSelBar();
+}
+
+/* ═══ Keyboard shortcuts ═══ */
+document.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'n') { e.preventDefault(); showNewInstance(); }
+});
+
+// Show onboarding on first visit (simulated)
+setTimeout(() => {
+  if (!localStorage.getItem('gridsim_onboarded')) {
+    showOnboard();
+    localStorage.setItem('gridsim_onboarded', 'true');
+  }
+}, 500);
+</script>
+</body>
+</html>

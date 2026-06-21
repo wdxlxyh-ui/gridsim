@@ -5,13 +5,23 @@
   <template v-else>
     <el-container style="height: 100vh; flex-direction: column">
       <header class="app-header">
-        <!-- Bottom glow line (P5) -->
         <div class="header-glow-line"></div>
         <div style="display: flex; align-items: center; gap: 12px">
           <el-button text @click="sidebarCollapsed = !sidebarCollapsed" style="font-size: 18px; padding: 4px; color: #94a3b8">
             <el-icon><Fold /></el-icon>
           </el-button>
           <h2>GridSim <span class="version-badge">v{{ version }}</span></h2>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; flex: 1; max-width: 360px; margin: 0 16px;">
+          <el-input
+            v-model="globalSearch"
+            placeholder="搜索实例..."
+            :prefix-icon="Search"
+            size="small"
+            clearable
+            @keyup.enter="handleGlobalSearch"
+            style="width: 100%"
+          />
         </div>
         <div style="display: flex; align-items: center; gap: 12px">
           <el-tag v-if="status" class="header-status-tag">
@@ -47,7 +57,7 @@
           </nav>
         </el-aside>
         <el-main class="app-main">
-          <router-view v-slot="{ Component }">
+          <router-view :key="route.fullPath" v-slot="{ Component }">
             <transition name="slide-fade" mode="out-in">
               <component :is="Component" />
             </transition>
@@ -55,37 +65,63 @@
         </el-main>
       </el-container>
     </el-container>
+
+    <!-- Floating Action Button: Onboarding Guide (global) -->
+    <el-dropdown trigger="click" placement="top-end" @command="handleGuideCommand">
+      <div class="onboard-fab" title="操作引导">
+        <span class="onboard-fab-icon">❓</span>
+        <span class="onboard-fab-label">操作引导</span>
+      </div>
+      <template #dropdown>
+        <el-dropdown-menu>
+          <el-dropdown-item command="basic">🚀 基础引导</el-dropdown-item>
+          <el-dropdown-item command="advanced">🎯 高级引导 · 操作流程</el-dropdown-item>
+        </el-dropdown-menu>
+      </template>
+    </el-dropdown>
+
+    <!-- Onboarding Guide Overlay (global, persists across routes) -->
+    <OnboardingGuide ref="guideRef" />
   </template>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Setting, Monitor, DataLine, Fold, ArrowDown, Connection } from '@element-plus/icons-vue'
+import { Grid, Setting, Monitor, DataLine, Fold, ArrowDown, Connection, Search } from '@element-plus/icons-vue'
 import { getStatus, clearToken, type GlobalStatus } from './api'
+import OnboardingGuide from './components/OnboardingGuide.vue'
 
 const route = useRoute()
 const router = useRouter()
 const sidebarCollapsed = ref(true)
+const globalSearch = ref('')
+const guideRef = ref<InstanceType<typeof OnboardingGuide> | null>(null)
 const currentRoute = computed(() => {
   const path = route.path
   if (path.startsWith('/detail/')) return '/monitor'
+  if (path.startsWith('/microgrid/')) return '/config'
   return path
 })
+
+function handleGlobalSearch() {
+  const q = globalSearch.value.trim()
+  if (!q) return
+  router.push({ path: '/config', query: { search: q } })
+}
 const isLoginPage = computed(() => route.path === '/login')
 const status = ref<GlobalStatus | null>(null)
 const version = ref('3.0.1')
 const username = ref('')
 
-// Menu items for custom nav
 const menuItems = [
+  { path: '/dashboard', label: '仪表盘', icon: Grid },
   { path: '/config', label: '配置管理', icon: Setting },
   { path: '/monitor', label: '运行监控', icon: Monitor },
   { path: '/trend', label: '实时趋势', icon: DataLine },
   { path: '/proxy', label: '接口测试', icon: Connection },
 ]
 
-// CountUp animation (P4)
 const animatedRunning = ref(0)
 const animatedConfigured = ref(0)
 
@@ -114,77 +150,83 @@ function updateUserFromToken() {
     if (parts.length !== 3) return
     const payload = JSON.parse(atob(parts[1]))
     if (payload.username) username.value = payload.username
-  } catch {
-    clearToken()
-  }
+  } catch { /* ignore parse errors, keep token intact */ }
 }
 
 function handleUserCommand(cmd: string) {
-  if (cmd === 'logout') {
-    clearToken()
-    username.value = ''
-    router.push('/login')
-  }
+  if (cmd === 'logout') { clearToken(); username.value = ''; router.push('/login') }
+}
+
+function handleGuideCommand(cmd: string) {
+  guideRef.value?.start(cmd as 'basic' | 'advanced')
 }
 
 watch(() => route.path, updateUserFromToken)
 updateUserFromToken()
 
-onMounted(async () => {
+let statusTimer: ReturnType<typeof setInterval> | null = null
+
+async function refreshStatus() {
   try {
-    status.value = await getStatus()
-    if (status.value?.version) version.value = status.value.version
-    // Trigger count animation
-    animateCount(status.value.running, animatedRunning)
-    animateCount(status.value.configured, animatedConfigured)
+    const s = await getStatus()
+    status.value = s
+    if (s?.version) version.value = s.version
+    animateCount(s.running, animatedRunning)
+    animateCount(s.configured, animatedConfigured)
   } catch {}
+}
+
+function handleToggleSidebar() { sidebarCollapsed.value = !sidebarCollapsed.value }
+function handleAuthLogout() { username.value = ''; router.push('/login') }
+
+onMounted(async () => {
+  await refreshStatus()
+  statusTimer = setInterval(refreshStatus, 15000)
+  window.addEventListener('toggle-sidebar', handleToggleSidebar)
+  window.addEventListener('auth:logout', handleAuthLogout)
+})
+
+onUnmounted(() => {
+  if (statusTimer) clearInterval(statusTimer)
+  window.removeEventListener('toggle-sidebar', handleToggleSidebar)
+  window.removeEventListener('auth:logout', handleAuthLogout)
 })
 </script>
 
 <style>
 :root {
-  --header-height: 52px;
-  --app-font-size-lg: 16px;
-  --app-font-size-base: 14px;
-  --app-font-size-sm: 13px;
-  --app-font-size-xs: 12px;
-  --app-color-text-primary: #303133;
-  --app-color-text-regular: #606266;
-  --app-color-text-secondary: #909399;
-  --app-spacing-base: 16px;
-  --app-spacing-sm: 8px;
+  --header-height: 48px;
 }
-body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-*:focus-visible { outline: 2px solid #409eff; outline-offset: 2px; }
-.el-button:focus-visible { outline: 2px solid #409eff; outline-offset: 1px; }
+body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg-primary); color: var(--text-primary); }
+*:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.el-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
-/* ─── Page transition: slide+fade (P3) ─── */
 .slide-fade-enter-active {
-  transition: opacity 0.25s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: opacity 0.28s ease, transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .slide-fade-leave-active {
-  transition: opacity 0.15s ease, transform 0.2s ease;
+  transition: opacity 0.18s ease, transform 0.22s ease;
 }
 .slide-fade-enter-from {
   opacity: 0;
-  transform: translateX(16px);
+  transform: translateX(20px);
 }
 .slide-fade-leave-to {
   opacity: 0;
-  transform: translateX(-8px);
+  transform: translateX(-10px);
 }
 
-/* ─── Header (P5 glow line) ─── */
 .app-header {
   height: var(--header-height);
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 20px;
-  background: #0a0e17;
-  border-bottom: 1px solid #1e293b;
+  background: var(--header-bg);
+  border-bottom: 1px solid var(--border-color);
   box-sizing: border-box;
   position: relative;
+  z-index: 100;
 }
 
 .header-glow-line {
@@ -198,8 +240,7 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Ro
     rgba(59,130,246,0.4) 20%,
     rgba(139,92,246,0.6) 50%,
     rgba(59,130,246,0.4) 80%,
-    transparent 100%
-  );
+    transparent 100%);
   background-size: 200% 100%;
   animation: glow-slide 4s linear infinite;
 }
@@ -209,25 +250,28 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Ro
   100% { background-position: -100% 0; }
 }
 
-.app-header h2 {
-  margin: 0;
-  font-size: var(--app-font-size-lg);
-  font-weight: 600;
-  color: #e2e8f0;
+.app-header h2 { margin: 0; font-size: 16px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 10px; }
+
+.app-header h2::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background: var(--accent);
+  border-radius: 50%;
+  box-shadow: var(--accent-glow);
 }
 
 .version-badge {
   font-size: 12px;
   font-weight: 400;
-  color: #64748b;
+  color: var(--text-muted);
   padding: 1px 6px;
   background: rgba(30,41,59,0.5);
   border-radius: 4px;
 }
 
-.header-status-tag {
-  font-size: 12px;
-}
+.header-status-tag { font-size: 12px; }
 
 .count-up {
   display: inline-block;
@@ -237,25 +281,18 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Ro
   transition: color 0.3s;
 }
 
-/* ─── Sidebar with PillNav (P2) ─── */
+/* Sidebar PillNav */
 .app-sidebar {
-  width: 200px;
-  border-right: 1px solid #1e293b;
-  background: #111827;
+  width: var(--sidebar-width);
+  border-right: 1px solid var(--border-color);
+  background: var(--sidebar-bg);
   transition: width 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   overflow: hidden;
 }
 
-.app-sidebar.collapsed {
-  width: 64px;
-}
+.app-sidebar.collapsed { width: var(--sidebar-collapsed); }
 
-.sidebar-nav {
-  display: flex;
-  flex-direction: column;
-  padding: 8px;
-  gap: 2px;
-}
+.sidebar-nav { display: flex; flex-direction: column; padding: 8px; gap: 2px; }
 
 .nav-item {
   position: relative;
@@ -263,26 +300,19 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Ro
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   cursor: pointer;
-  color: #94a3b8;
+  color: var(--text-secondary);
   transition: color 0.2s, background 0.2s, padding 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   white-space: nowrap;
   overflow: hidden;
   user-select: none;
 }
 
-.nav-item:hover {
-  color: #e2e8f0;
-  background: rgba(30, 41, 59, 0.5);
-}
+.nav-item:hover { color: var(--text-primary); background: var(--sidebar-hover); }
 
-.nav-item.active {
-  color: #f59e0b;
-  background: rgba(245,158,11,0.1);
-}
+.nav-item.active { color: var(--accent); background: var(--sidebar-active); }
 
-/* Pill indicator */
 .nav-pill {
   position: absolute;
   left: 0;
@@ -291,93 +321,61 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Ro
   width: 3px;
   height: 20px;
   border-radius: 0 3px 3px 0;
-  background: #f59e0b;
+  background: var(--accent);
   transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.nav-item.active .nav-pill {
-  transform: translateY(-50%) scaleY(1);
+.nav-item.active .nav-pill { transform: translateY(-50%) scaleY(1); }
+
+.nav-label { font-size: 14px; transition: opacity 0.2s; }
+
+.collapsed .nav-label { display: none; }
+.collapsed .nav-item { justify-content: center; padding: 10px; gap: 0; }
+.collapsed .nav-item .nav-pill { display: none; }
+
+/* ─── Onboarding FAB ─── */
+.onboard-fab {
+  position: fixed;
+  right: 28px;
+  bottom: 28px;
+  z-index: 7000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 18px 0 14px;
+  height: 44px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #1e40af, #3b82f6);
+  box-shadow: 0 4px 20px rgba(59, 130, 246, 0.45);
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s;
+  user-select: none;
 }
 
-.nav-label {
-  font-size: 14px;
-  transition: opacity 0.2s;
+.onboard-fab:hover {
+  transform: translateY(-3px) scale(1.04);
+  box-shadow: 0 8px 28px rgba(59, 130, 246, 0.6);
 }
 
-.collapsed .nav-label {
-  display: none;
+.onboard-fab:active {
+  transform: scale(0.97);
 }
 
-.collapsed .nav-item {
-  justify-content: center;
-  padding: 10px;
-  gap: 0;
+.onboard-fab-icon {
+  font-size: 18px;
+  line-height: 1;
 }
 
-.collapsed .nav-item .nav-pill {
-  display: none;
+.onboard-fab-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
 }
 
-/* ─── Main content area ─── */
 .app-main {
-  background: #0f1520;
+  background: var(--bg-primary);
   padding: 16px;
   overflow-y: auto;
-}
-
-/* TrendPage dark card overrides */
-.app-main .el-card {
-  background: #111827 !important;
-  border: 1px solid #1e293b !important;
-  color: #e2e8f0;
-}
-.app-main .el-card__body {
-  background: transparent;
-}
-.app-main .el-radio-button__inner {
-  background: #1a1f2e !important;
-  border-color: #1e293b !important;
-  color: #94a3b8 !important;
-}
-.app-main .el-radio-button__original-radio:checked + .el-radio-button__inner {
-  background: #f59e0b !important;
-  border-color: #f59e0b !important;
-  color: #000 !important;
-  box-shadow: none !important;
-}
-.app-main .el-tag {
-  --el-tag-bg-color: transparent;
-}
-.app-main .el-dialog {
-  background: #111827 !important;
-  border: 1px solid #1e293b !important;
-}
-.app-main .el-dialog__title {
-  color: #e2e8f0 !important;
-}
-.app-main .el-dialog__body {
-  background: #111827 !important;
-}
-.app-main .el-select-dropdown {
-  background: #1a1f2e !important;
-  border: 1px solid #1e293b !important;
-}
-.app-main .el-select-dropdown__item {
-  color: #94a3b8 !important;
-}
-.app-main .el-select-dropdown__item.hover {
-  background: #1e293b !important;
-  color: #e2e8f0 !important;
-}
-.app-main .el-select-dropdown__item.selected {
-  color: #f59e0b !important;
-}
-.app-main .el-input__wrapper {
-  background: #0a0e17 !important;
-  border-color: #1e293b !important;
-  box-shadow: none !important;
-}
-.app-main .el-input__inner {
-  color: #e2e8f0 !important;
 }
 </style>

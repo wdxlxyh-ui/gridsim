@@ -86,7 +86,11 @@ func (h *DetailHandler) handlePointsByIOA(w http.ResponseWriter, r *http.Request
 	case http.MethodGet:
 		h.getSnapshot(w, uint32(ioa))
 	case http.MethodPut:
-		h.setValue(w, r, uint32(ioa))
+		if len(parts) >= 2 && parts[1] == "qds" {
+			h.setQDS(w, r, uint32(ioa))
+		} else {
+			h.setValue(w, r, uint32(ioa))
+		}
 	default:
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
 	}
@@ -281,6 +285,25 @@ func (h *DetailHandler) setValue(w http.ResponseWriter, r *http.Request, ioa uin
 		"ioa":     ioa,
 		"changed": changed,
 	})
+}
+
+func (h *DetailHandler) setQDS(w http.ResponseWriter, r *http.Request, ioa uint32) {
+	var qds config.QualityDescriptor
+	if err := json.NewDecoder(r.Body).Decode(&qds); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON: " + err.Error()})
+		return
+	}
+
+	p, err := h.store.SetQDS(ioa, qds)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+		return
+	}
+
+	h.engine.pub.Publish(p)
+	slog.Info("QDS更新", "ioa", ioa, "instance", h.instID, "qds", qds)
+
+	writeJSON(w, http.StatusOK, pointToSnapshot(p))
 }
 
 // batchSetValue handles POST /points/batch — write multiple point values in one request.
@@ -963,7 +986,14 @@ func pointToSnapshot(p *config.Point) model.PointSnapshot {
 		BoolValue: p.BoolValue,
 		IntValue:  p.IntValue,
 		UpdatedAt: p.Timestamp,
-		Unit:      "",
+		QDS: model.QualityDescriptor{
+			Invalid:     p.QDS.Invalid,
+			NotTopical:  p.QDS.NotTopical,
+			Substituted: p.QDS.Substituted,
+			Overflow:    p.QDS.Overflow,
+			Blocked:     p.QDS.Blocked,
+		},
+		Unit: "",
 
 		FunctionCode:    p.FunctionCode,
 		RegisterAddress: p.RegisterAddress,

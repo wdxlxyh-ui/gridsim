@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { ElMessage } from 'element-plus'
 
 const http = axios.create({
   baseURL: '/api/v1',
@@ -9,6 +10,31 @@ const TOKEN_KEY = 'iec104_token'
 export function getToken(): string | null { return localStorage.getItem(TOKEN_KEY) }
 export function setToken(token: string) { localStorage.setItem(TOKEN_KEY, token) }
 export function clearToken() { localStorage.removeItem(TOKEN_KEY) }
+
+// ── Request interceptor: inject auth token ──
+http.interceptors.request.use((config) => {
+  const token = getToken()
+  if (token && config.headers) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+// ── Response interceptor: handle 401 / network errors ──
+http.interceptors.response.use(
+  (res) => res,
+  (error) => {
+    if (error?.response?.status === 401) {
+      clearToken()
+      window.dispatchEvent(new CustomEvent('auth:logout'))
+      return Promise.reject(error)
+    }
+    if (error?.code === 'ECONNABORTED' || error?.code === 'ERR_NETWORK') {
+      ElMessage.error('网络连接失败，请检查后端服务是否正常运行')
+    }
+    return Promise.reject(error)
+  }
+)
 export async function login(username: string, password: string): Promise<{ token: string }> {
   const res = await axios.post('/api/v1/auth/login', { username, password })
   return res.data
@@ -122,6 +148,14 @@ export async function listFiles(): Promise<{ name: string; size: number; modtime
   return res.data.files
 }
 
+export interface QualityDescriptor {
+  invalid: boolean
+  not_topical: boolean
+  substituted: boolean
+  overflow: boolean
+  blocked: boolean
+}
+
 export interface PointSnapshot {
   ioa: number
   name: string
@@ -130,6 +164,7 @@ export interface PointSnapshot {
   bool_value: boolean
   int_value: number
   updated_at: string
+  qds?: QualityDescriptor
   unit: string
   function_code?: number
   register_address?: number
@@ -204,8 +239,13 @@ export async function readPointsBatch(instanceId: string, ioas: number[]): Promi
   return res.data
 }
 
-export async function setPointValue(instanceId: string, ioa: number, value: any): Promise<any> {
+export async function setPointValue(instanceId: string, ioa: number, value: Record<string, unknown>): Promise<PointSnapshot> {
   const res = await http.put(`/instances/${instanceId}/points/${ioa}`, value)
+  return res.data
+}
+
+export async function setPointQDS(instanceId: string, ioa: number, qds: QualityDescriptor): Promise<PointSnapshot> {
+  const res = await http.put(`/instances/${instanceId}/points/${ioa}/qds`, qds)
   return res.data
 }
 
@@ -214,19 +254,17 @@ export async function getAutoChange(instanceId: string, ioa: number): Promise<Au
   return res.data
 }
 
-export async function setAutoChange(instanceId: string, ioa: number, cfg: any): Promise<any> {
+export async function setAutoChange(instanceId: string, ioa: number, cfg: { strategy: string; enabled: boolean; params: Record<string, unknown> }): Promise<AutoChangeConfig> {
   const res = await http.put(`/instances/${instanceId}/points/auto-change/${ioa}`, cfg)
   return res.data
 }
 
-export async function deleteAutoChange(instanceId: string, ioa: number): Promise<any> {
-  const res = await http.delete(`/instances/${instanceId}/points/auto-change/${ioa}`)
-  return res.data
+export async function deleteAutoChange(instanceId: string, ioa: number): Promise<void> {
+  await http.delete(`/instances/${instanceId}/points/auto-change/${ioa}`)
 }
 
-export async function batchAutoChange(instanceId: string, req: BatchAutoChangeRequest): Promise<any> {
-  const res = await http.put(`/instances/${instanceId}/points/auto-change/batch`, req)
-  return res.data
+export async function batchAutoChange(instanceId: string, req: BatchAutoChangeRequest): Promise<void> {
+  await http.put(`/instances/${instanceId}/points/auto-change/batch`, req)
 }
 
 export async function exportAutoConfig(instanceId: string): Promise<Blob> {
@@ -234,7 +272,7 @@ export async function exportAutoConfig(instanceId: string): Promise<Blob> {
   return res.data
 }
 
-export async function importAutoConfig(instanceId: string, file: File): Promise<any> {
+export async function importAutoConfig(instanceId: string, file: File): Promise<{ imported: number }> {
   const form = new FormData()
   form.append('file', file)
   const res = await http.post(`/instances/${instanceId}/points/auto-change/import`, form, {
@@ -248,7 +286,7 @@ export async function exportPointsCSV(instanceId: string): Promise<Blob> {
   return res.data
 }
 
-export async function uploadCSV(instanceId: string, file: File): Promise<any> {
+export async function uploadCSV(instanceId: string, file: File): Promise<{ filename: string }> {
   const form = new FormData()
   form.append('file', file)
   const res = await http.post(`/instances/${instanceId}/upload-csv`, form, {
@@ -284,7 +322,7 @@ export interface CSVReplayMapping {
   ioa: number
 }
 
-export async function configCSVReplay(instanceId: string, csvFile: string, mappings: CSVReplayMapping[], timeFormat?: string, timeUnit?: string): Promise<any> {
+export async function configCSVReplay(instanceId: string, csvFile: string, mappings: CSVReplayMapping[], timeFormat?: string, timeUnit?: string): Promise<{ status: string }> {
   const res = await http.post(`/instances/${instanceId}/csv-replay`, {
     csv_file: csvFile,
     time_format: timeFormat || 'relative',
@@ -402,7 +440,21 @@ export async function getMicrogridDashboard(instanceId: string): Promise<Microgr
   return res.data
 }
 
-export async function getMicrogridPoints(instanceId: string): Promise<{ points: any[] }> {
+export interface MicrogridPoint {
+  ioa: number
+  name: string
+  point_type: string
+  value: number
+  bool_value: boolean
+  int_value: number
+  updated_at: string
+  qds?: QualityDescriptor
+  unit: string
+  local_mode?: boolean
+  can_toggle?: boolean
+}
+
+export async function getMicrogridPoints(instanceId: string): Promise<{ points: MicrogridPoint[] }> {
   const res = await http.get(`/microgrid/${instanceId}/points`)
   return res.data
 }
@@ -512,7 +564,37 @@ export async function activateEnvironment(id: string): Promise<void> {
 }
 
 export async function exportProxyConfig(): Promise<Blob> {
-  const res = await http.get('/proxy/export', { responseType: 'blob' as any })
+  const res = await http.get('/proxy/export', { responseType: 'blob' } as Record<string, unknown>)
+  return res.data as Blob
+}
+
+// ─── Dashboard API ──────────────────────────────────────────────────────────
+
+export interface DashboardBriefInstance {
+  id: string
+  name: string
+  protocol: string
+  port: number
+  status: 'running' | 'stopped' | 'error'
+  total_points?: number
+  client_connected?: boolean
+  uptime_seconds?: number
+  error?: string
+}
+
+export interface DashboardData {
+  total_instances: number
+  running_instances: number
+  stopped_instances: number
+  error_instances: number
+  total_points: number
+  clients_connected: number
+  by_protocol: Record<string, number>
+  instances: DashboardBriefInstance[]
+}
+
+export async function getDashboard(): Promise<DashboardData> {
+  const res = await http.get('/dashboard')
   return res.data
 }
 

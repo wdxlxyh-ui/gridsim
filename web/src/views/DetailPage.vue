@@ -73,15 +73,56 @@
               <el-switch v-model="csvMultiForm.csv_loop" active-text="循环" inactive-text="播一次" style="--el-switch-on-color: #10b981" />
               <span style="font-size: 12px; color: #909399; margin-left: 8px">{{ csvMultiForm.csv_loop ? '播完后从头继续' : '播完后保持最后一个值' }}</span>
             </el-form-item>
-            <el-form-item label="测点映射">
-              <div style="display: flex; flex-direction: column; gap: 8px; width: 100%">
-                <div v-for="(m, idx) in csvMultiMappings" :key="idx" style="display: flex; align-items: center; gap: 8px">
-                  <span style="min-width: 60px; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; color: #3b82f6; background: rgba(59,130,246,.1); padding: 2px 8px; border-radius: 4px; text-align: center;" :title="csvMultiColNames[idx] || 'Value' + (idx+1)">{{ csvMultiColNames[idx] || 'Value' + (idx+1) }}</span>
-                  <el-select v-model="m.ioa" placeholder="选择测点" filterable clearable style="flex: 1; min-width: 0">
-                    <el-option v-for="p in points" :key="p.ioa" :label="`${p.name} (IOA:${p.ioa})`" :value="p.ioa" />
+            <el-form-item label="列映射">
+              <!-- Visual column mapping table -->
+              <div style="display: flex; flex-direction: column; gap: 6px; width: 100%">
+                <!-- CSV preview header -->
+                <div v-if="csvMultiColCount > 0" style="display: flex; gap: 4px; margin-bottom: 4px; overflow-x: auto; padding: 4px 0">
+                  <div v-for="(col, idx) in csvMultiColNames.slice(0, csvMultiColCount)" :key="idx"
+                    style="flex-shrink: 0; width: 100px; text-align: center; font-size: 11px; font-family: 'JetBrains Mono', monospace; color: #3b82f6; background: rgba(59,130,246,.1); padding: 3px 6px; border-radius: 4px; border: 1px solid rgba(59,130,246,.2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis"
+                    :title="col">
+                    <span style="font-weight: 600">{{ col }}</span>
+                  </div>
+                </div>
+                <!-- Mapping rows (drag-reorderable) -->
+                <div
+                  v-for="(m, idx) in csvMultiMappings" :key="idx"
+                  class="csv-mapping-row"
+                  :class="{ 'drag-over': dragOverIdx === idx }"
+                  draggable="true"
+                  @dragstart="onDragStart(idx, $event)"
+                  @dragover.prevent="onDragOver(idx)"
+                  @dragleave="onDragLeave"
+                  @drop="onDrop(idx)"
+                >
+                  <!-- Drag handle -->
+                  <span class="drag-handle" title="拖拽排序">⠿</span>
+                  <!-- Source column badge -->
+                  <span
+                    class="csv-col-badge"
+                    :title="csvMultiColNames[idx] || 'Value' + (idx+1)">
+                    {{ csvMultiColNames[idx] || 'Value' + (idx+1) }}
+                  </span>
+                  <!-- Arrow indicator -->
+                  <span style="color: #c0c4cc; flex-shrink: 0; font-size: 16px">→</span>
+                  <!-- Target IOA select -->
+                  <el-select v-model="m.ioa" placeholder="选择目标测点" filterable clearable style="flex: 1; min-width: 0">
+                    <el-option v-for="p in points" :key="p.ioa" :label="`${p.name} (IOA:${p.ioa})`" :value="p.ioa">
+                      <span style="font-weight: 500">{{ p.name }}</span>
+                      <span style="color: #909399; font-size: 11px; margin-left: 4px">IOA:{{ p.ioa }}</span>
+                      <el-tag v-if="p.point_type" size="small" effect="plain" style="margin-left: 4px">{{ p.point_type }}</el-tag>
+                    </el-option>
                   </el-select>
+                  <!-- Match status -->
+                  <span v-if="m.ioa > 0" style="color: #10b981; flex-shrink: 0; font-size: 16px" title="已映射">✓</span>
+                  <!-- Remove button -->
+                  <el-button size="small" text type="danger" @click="removeCsvMapping(idx)" title="移除此列映射">✕</el-button>
                 </div>
                 <el-button size="small" type="primary" @click="addCsvMultiMapping" :disabled="csvMultiMappings.length >= csvMultiColCount || csvMultiMappings.length >= 10" plain>+ 添加映射列</el-button>
+              </div>
+              <!-- Mapping summary -->
+              <div v-if="csvMultiMappings.length > 0" style="font-size: 11px; color: #909399; margin-top: 4px">
+                已映射 {{ csvMultiMappings.filter(m => m.ioa > 0).length }}/{{ csvMultiMappings.length }} 列
               </div>
             </el-form-item>
             <el-form-item>
@@ -96,8 +137,31 @@
 
       <el-card shadow="never" style="margin-bottom: 16px">
         <div class="toolbar">
+          <!-- Type filter chips -->
+          <div class="type-filters">
+            <span style="font-size: 13px; color: #666; font-weight: 500; margin-right: 8px">过滤：</span>
+            <el-tag
+              :type="typeFilter === '' ? 'primary' : 'info'"
+              size="small"
+              effect="plain"
+              style="cursor:pointer"
+              @click="typeFilter = ''"
+            >全部</el-tag>
+            <el-tag
+              v-for="t in pointTypes" :key="t"
+              :type="typeFilter === t ? pointTagType(t) : 'info'"
+              size="small"
+              effect="plain"
+              style="cursor:pointer"
+              @click="typeFilter = t"
+            >{{ typeLabel(t) }}</el-tag>
+          </div>
+          <el-divider direction="vertical" />
           <span style="font-size: 13px; color: #666; font-weight: 500">批量操作：</span>
           <el-button size="small" @click="openBatchModal">批量配置</el-button>
+          <el-button size="small" @click="addSelectedToTrend" :disabled="Object.keys(selectedIoas).length === 0">
+            📈 添加到趋势
+          </el-button>
           <el-divider direction="vertical" />
           <el-button size="small" @click="exportAutoConfig">导出配置</el-button>
           <el-button size="small" @click="triggerImport">导入配置</el-button>
@@ -109,7 +173,7 @@
       </el-card>
 
       <el-card shadow="never">
-        <el-table :data="points" style="width: 100%" size="small" @selection-change="onSelectionChange" max-height="calc(100vh - 280px)">
+        <el-table :data="filteredPoints" style="width: 100%" size="small" @selection-change="onSelectionChange" max-height="calc(100vh - 320px)">
           <el-table-column type="selection" width="40" />
           <el-table-column prop="ioa" label="信息体地址" width="90" />
           <el-table-column prop="name" label="测点名称" min-width="120" />
@@ -140,6 +204,36 @@
               <span style="font-weight: 600; font-size: 14px">
                 {{ displayValue(row) }}
               </span>
+            </template>
+          </el-table-column>
+          <el-table-column label="品质描述(QDS)" width="130">
+            <template #default="{ row }">
+              <el-popover trigger="click" :width="240" popper-style="padding: 12px">
+                <template #reference>
+                  <div style="display: flex; gap: 3px; flex-wrap: wrap; cursor: pointer; min-height: 24px; align-items: center">
+                    <template v-if="hasQDSFlags(row)">
+                      <el-tag v-if="row.qds?.invalid" size="small" type="danger" effect="dark" style="font-size: 10px; padding: 0 4px; height: 20px; line-height: 20px">无效</el-tag>
+                      <el-tag v-if="row.qds?.not_topical" size="small" type="warning" effect="dark" style="font-size: 10px; padding: 0 4px; height: 20px; line-height: 20px">非当前</el-tag>
+                      <el-tag v-if="row.qds?.substituted" size="small" type="warning" effect="plain" style="font-size: 10px; padding: 0 4px; height: 20px; line-height: 20px">替代</el-tag>
+                      <el-tag v-if="row.qds?.overflow" size="small" type="danger" effect="plain" style="font-size: 10px; padding: 0 4px; height: 20px; line-height: 20px">溢出</el-tag>
+                      <el-tag v-if="row.qds?.blocked" size="small" type="info" effect="dark" style="font-size: 10px; padding: 0 4px; height: 20px; line-height: 20px">闭锁</el-tag>
+                    </template>
+                    <span v-else style="font-size: 12px; color: #999">正常</span>
+                  </div>
+                </template>
+                <div style="display: flex; flex-direction: column; gap: 8px">
+                  <div style="font-weight: 600; font-size: 13px; margin-bottom: 4px">品质描述 (QDS) — {{ row.name }}</div>
+                  <div v-for="flag in qdsFlags" :key="flag.key" style="display: flex; align-items: center; justify-content: space-between">
+                    <span style="font-size: 13px">{{ flag.label }}</span>
+                    <el-switch
+                      :model-value="!!(row.qds as any)?.[flag.key]"
+                      size="small"
+                      @change="(val: boolean) => toggleQDS(row, flag.key, val)"
+                    />
+                  </div>
+                  <el-button size="small" type="primary" @click="clearQDS(row)" style="margin-top: 4px">清除全部</el-button>
+                </div>
+              </el-popover>
             </template>
           </el-table-column>
 <el-table-column label="测点值更新时间" width="165">
@@ -180,7 +274,7 @@
               </template>
             </template>
           </el-table-column>
-<el-table-column label="自动变化" width="120">
+           <el-table-column label="自动变化" width="120">
              <template #default="{ row }">
                <template v-if="row.point_type === 'AO' || row.point_type === 'DO'">
                  <span style="color: #c0c4cc; font-size: 12px">—</span>
@@ -193,6 +287,36 @@
                    {{ autoStrategyLabel(row.ioa) }}
                  </el-button>
                </template>
+             </template>
+           </el-table-column>
+           <el-table-column label="操作" width="100" fixed="right">
+              <template #default="{ row }">
+                <el-tooltip content="查看趋势" placement="top">
+                  <el-button size="small" text circle @click="quickTrend(row)" style="color: #3b82f6">
+                    <el-icon><DataLine /></el-icon>
+                  </el-button>
+                </el-tooltip>
+                <el-dropdown trigger="click" @command="(cmd: string) => handleRowAction(cmd, row)">
+                  <el-button size="small" text circle>
+                    <el-icon><MoreFilled /></el-icon>
+                  </el-button>
+                 <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item command="copyIoa">
+                        <el-icon><CopyDocument /></el-icon> 复制 IOA
+                      </el-dropdown-item>
+                      <el-dropdown-item command="copyName">
+                        <el-icon><CopyDocument /></el-icon> 复制名称
+                      </el-dropdown-item>
+                      <el-dropdown-item divided command="viewTrend">
+                        <el-icon><DataLine /></el-icon> 查看趋势
+                      </el-dropdown-item>
+                      <el-dropdown-item divided command="clearQDS" :disabled="!hasQDSFlags(row)">
+                        ╳ 清除 QDS
+                      </el-dropdown-item>
+                    </el-dropdown-menu>
+                 </template>
+               </el-dropdown>
              </template>
            </el-table-column>
         </el-table>
@@ -213,12 +337,47 @@
     </template>
 
     <!-- Auto-Change Config Dialog -->
-    <el-dialog v-model="autoDialogVisible" title="自动变化配置" width="700px" :close-on-click-modal="false">
-      <div style="margin-bottom: 12px; font-weight: 600; font-size: 14px">
-        {{ autoDialogPointName }} (IOA: {{ autoDialogIOA }})
+    <el-dialog v-model="autoDialogVisible" title="自动变化配置" width="780px" :close-on-click-modal="false">
+      <div style="margin-bottom: 12px; font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; justify-content: space-between">
+        <span>{{ autoDialogPointName }} (IOA: {{ autoDialogIOA }})</span>
+        <span style="font-size: 12px; font-weight: 400; color: var(--text-muted, #64748b)">
+          选择策略类型后配置参数，点击"确认启用"生效
+        </span>
       </div>
-      <el-tabs v-model="autoStrategyTab" type="card">
-        <el-tab-pane label="递增" name="increment">
+
+      <!-- Visual Strategy Card Grid -->
+      <div class="strategy-cards">
+        <div
+          v-for="strat in strategyCards" :key="strat.key"
+          class="strategy-card"
+          :class="{ active: autoStrategyTab === strat.key }"
+          @click="autoStrategyTab = strat.key"
+        >
+          <div class="strategy-card-icon">{{ strat.icon }}</div>
+          <div class="strategy-card-name">{{ strat.label }}</div>
+          <div class="strategy-card-desc">{{ strat.desc }}</div>
+        </div>
+      </div>
+
+      <!-- Quick templates -->
+      <div style="margin-bottom: 10px; margin-top: 8px">
+        <div style="font-size: 12px; color: var(--text-muted, #64748b); margin-bottom: 6px">快速模板</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px">
+          <el-tag
+            v-for="tpl in strategyTemplates" :key="tpl.key"
+            :type="autoStrategyTab === tpl.key ? 'primary' : 'info'"
+            effect="plain"
+            style="cursor: pointer; padding: 2px 8px"
+            @click="applyStrategyTemplate(tpl)"
+          >
+            {{ tpl.label }}
+          </el-tag>
+        </div>
+      </div>
+
+      <el-divider style="margin: 8px 0" />
+
+        <div v-show="autoStrategyTab === 'increment'">
           <el-form label-width="100px" size="small">
             <el-form-item label="起始值">
               <el-input-number v-model="autoForm.start_value" :min="0" :step="1" style="width: 200px" />
@@ -234,8 +393,8 @@
             </el-form-item>
           </el-form>
           <div style="font-size: 12px; color: #999; margin-top: 8px">每个周期：最新值 = 上次值 + 步长，达最大值后从起始值重新开始</div>
-        </el-tab-pane>
-        <el-tab-pane label="随机" name="random">
+        </div>
+        <div v-show="autoStrategyTab === 'random'">
           <el-form label-width="100px" size="small">
             <el-form-item label="变化周期(ms)">
               <el-input-number v-model="autoForm.period_ms" :min="100" :step="100" style="width: 200px" />
@@ -253,8 +412,8 @@
               </el-radio-group>
             </el-form-item>
           </el-form>
-        </el-tab-pane>
-        <el-tab-pane label="CSV" name="csv">
+        </div>
+        <div v-show="autoStrategyTab === 'csv'">
           <el-form label-width="100px" size="small">
             <el-form-item label="CSV文件">
               <div style="display: flex; gap: 8px">
@@ -285,8 +444,8 @@
               <span style="font-size: 12px; color: #909399; margin-left: 8px">{{ autoForm.csv_loop ? '播完后从头继续' : '播完后保持最后一个值' }}</span>
             </el-form-item>
           </el-form>
-        </el-tab-pane>
-        <el-tab-pane label="MAX" name="max">
+        </div>
+        <div v-show="autoStrategyTab === 'max'">
           <el-form label-width="100px" size="small">
             <el-form-item label="ParaA(IOA列表)">
               <el-input v-model="autoForm.para_a" placeholder="多个IOA用分号隔开，如 16385;16386" />
@@ -296,8 +455,8 @@
             </el-form-item>
           </el-form>
           <div style="font-size: 12px; color: #999; margin-top: 8px">取 ParaA 中各 IOA 的最大值</div>
-        </el-tab-pane>
-        <el-tab-pane label="MIN" name="min">
+        </div>
+        <div v-show="autoStrategyTab === 'min'">
           <el-form label-width="100px" size="small">
             <el-form-item label="ParaA(IOA列表)">
               <el-input v-model="autoForm.para_a" placeholder="多个IOA用分号隔开，如 16385;16386" />
@@ -307,8 +466,8 @@
             </el-form-item>
           </el-form>
           <div style="font-size: 12px; color: #999; margin-top: 8px">取 ParaA 中各 IOA 的最小值</div>
-        </el-tab-pane>
-        <el-tab-pane label="SOC计算" name="soc">
+        </div>
+        <div v-show="autoStrategyTab === 'soc'">
           <el-form label-width="120px" size="small">
             <el-form-item label="初始SOC(%)">
               <el-input-number v-model="autoForm.init_soc" :min="0" :max="100" :step="1" style="width: 200px" />
@@ -323,8 +482,8 @@
               <el-input-number v-model="autoForm.integral_ms" :min="100" :step="100" style="width: 200px" />
             </el-form-item>
           </el-form>
-        </el-tab-pane>
-        <el-tab-pane label="电量计算" name="energy">
+        </div>
+        <div v-show="autoStrategyTab === 'energy'">
           <el-form label-width="120px" size="small">
             <el-form-item label="初始电量(kWh)">
               <el-input-number v-model="autoForm.init_energy" :min="0" :step="1" style="width: 200px" />
@@ -342,8 +501,8 @@
               <el-input-number v-model="autoForm.energy_period_ms" :min="100" :step="100" style="width: 200px" />
             </el-form-item>
           </el-form>
-        </el-tab-pane>
-        <el-tab-pane label="AO关联" name="aofollow">
+        </div>
+        <div v-show="autoStrategyTab === 'aofollow'">
           <el-form label-width="100px" size="small">
             <el-form-item label="关联AO点">
               <el-select v-model="autoForm.follow_ao_ioa" filterable placeholder="选择关联的AO点" style="width: 280px">
@@ -357,23 +516,23 @@
             </el-form-item>
           </el-form>
           <div style="font-size: 12px; color: #999; margin-top: 8px">本 AI/DI/PI 点将跟随指定 AO 点的控制值变化。当 AO 点通过 IEC104 协议被遥控时，自动同步更新。</div>
-        </el-tab-pane>
-        <el-tab-pane label="接口更新" name="apiupdate">
+        </div>
+        <div v-show="autoStrategyTab === 'apiupdate'">
           <el-form label-width="100px" size="small">
             <el-form-item label="初始值">
               <el-input-number v-model="autoForm.api_init_value" :min="0" :step="1" style="width: 200px" />
             </el-form-item>
           </el-form>
           <div style="font-size: 12px; color: #999; margin-top: 8px">此模式仅能通过 HTTP API 更新值，其他方式拒绝写入</div>
-        </el-tab-pane>
-<el-tab-pane label="手动置数" name="manual">
+        </div>
+        <div v-show="autoStrategyTab === 'manual'">
            <div style="padding: 20px; color: #999; font-size: 13px">
              此模式下引擎不自动计算值<br/>
              需通过 HTTP API 手动置数（PUT /api/v1/instances/{id}/points/{ioa}）<br/>
              适用于外部系统联调场景
            </div>
-         </el-tab-pane>
-          <el-tab-pane label="自定义公式" name="custom">
+        </div>
+        <div v-show="autoStrategyTab === 'custom'">
             <el-form label-width="100px" size="small">
               <el-form-item label="关联测点">
                 <!-- 来源选择 => 当前实例 / 远程实例 -->
@@ -458,9 +617,8 @@
              <el-form-item label="公式预览">
                <el-input :model-value="customFormulaPreview" disabled type="textarea" :rows="2" />
              </el-form-item>
-           </el-form>
-         </el-tab-pane>
-      </el-tabs>
+            </el-form>
+          </div>
 <template #footer>
          <div style="display: flex; justify-content: space-between; align-items: center">
            <span v-if="batchMode" style="font-size: 12px; color: #909399">已选 {{ Object.keys(selectedIoas).length }} 个测点，策略将应用到所有选中测点</span>
@@ -482,17 +640,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown } from '@element-plus/icons-vue'
+import { ArrowDown, DataLine, MoreFilled, CopyDocument } from '@element-plus/icons-vue'
 import PointTableEditor from '../components/PointTableEditor.vue'
 import {
   getPoints, setPointValue, setAutoChange, getAutoChange, batchAutoChange,
   exportAutoConfig as fetchExport, importAutoConfig as fetchImport,
   exportPointsCSV, uploadCSV, getInstance, listInstances, listCSVFiles, readCSVHeaders,
-  deleteAutoChange,
-  type PointSnapshot, type InstanceState,
+  deleteAutoChange, setPointQDS,
+  type PointSnapshot, type InstanceState, type QualityDescriptor,
 } from '../api'
 
 const route = useRoute()
@@ -509,6 +667,12 @@ const pollingEnabled = ref(true)
 const setValues = reactive<Record<number, string | number>>({})
 const autoStrategies = reactive<Record<number, string>>({})
 const selectedIoas = reactive<Record<number, boolean>>({})
+const typeFilter = ref('')
+const pointTypes = ['AI', 'DI', 'PI', 'AO', 'DO']
+const filteredPoints = computed(() => {
+  if (!typeFilter.value) return points.value
+  return points.value.filter(p => p.point_type === typeFilter.value)
+})
 const importInputRef = ref<HTMLInputElement>()
 const pointEditorVisible = ref(false)
 const csvUploadRef = ref<HTMLInputElement>()
@@ -528,6 +692,34 @@ const csvMultiMappings = reactive<{ ioa: number }[]>([])
 const csvMultiIoas = ref<number[]>([])
 const csvMultiColNames = ref<string[]>([])
 const csvUploading = ref(false) // original CSV column names
+
+// Drag-drop state for CSV mapping reorder
+const dragSrcIdx = ref(-1)
+const dragOverIdx = ref(-1)
+function onDragStart(idx: number, e: DragEvent) {
+  dragSrcIdx.value = idx
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', String(idx))
+  }
+}
+function onDragOver(idx: number) {
+  dragOverIdx.value = idx
+}
+function onDragLeave() {
+  dragOverIdx.value = -1
+}
+function onDrop(idx: number) {
+  dragOverIdx.value = -1
+  const src = dragSrcIdx.value
+  if (src < 0 || src === idx) return
+  const item = csvMultiMappings.splice(src, 1)[0]
+  csvMultiMappings.splice(idx, 0, item)
+  dragSrcIdx.value = -1
+}
+function removeCsvMapping(idx: number) {
+  csvMultiMappings.splice(idx, 1)
+}
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
@@ -796,6 +988,17 @@ function tagType(pt: string): string {
   }
 }
 
+function pointTagType(pt: string): 'primary' | 'success' | 'warning' | 'danger' | 'info' {
+  switch (pt) {
+    case 'AI': return 'primary'
+    case 'DI': return 'success'
+    case 'PI': return 'warning'
+    case 'DO': return 'danger'
+    case 'AO': return 'danger'
+    default: return 'info'
+  }
+}
+
 function typeLabel(pt: string): string {
   switch (pt) {
     case 'AI': return 'AI 遥测'
@@ -804,6 +1007,104 @@ function typeLabel(pt: string): string {
     case 'DO': return 'DO 遥控'
     case 'AO': return 'AO 遥调'
     default: return pt
+  }
+}
+
+// ── QDS helpers ──
+const qdsFlags = [
+  { key: 'invalid', label: '无效', color: 'danger' },
+  { key: 'not_topical', label: '非当前', color: 'warning' },
+  { key: 'substituted', label: '替代', color: 'warning' },
+  { key: 'overflow', label: '溢出', color: 'danger' },
+  { key: 'blocked', label: '闭锁', color: 'info' },
+] as const
+
+function hasQDSFlags(row: PointSnapshot): boolean {
+  if (!row.qds) return false
+  return row.qds.invalid || row.qds.not_topical || row.qds.substituted || row.qds.overflow || row.qds.blocked
+}
+
+async function toggleQDS(row: PointSnapshot, key: string, val: boolean) {
+  if (!row.qds) return
+  const updated: QualityDescriptor = { ...row.qds, [key]: val }
+  try {
+    const result = await setPointQDS(route.params.id as string, row.ioa, updated)
+    if (result.qds) {
+      row.qds = result.qds
+    }
+    ElMessage.success(`QDS ${key} 已${val ? '设置' : '清除'}`)
+  } catch (e: any) {
+    ElMessage.error('QDS 更新失败: ' + (e?.response?.data?.error || e.message))
+  }
+}
+
+async function clearQDS(row: PointSnapshot) {
+  const empty: QualityDescriptor = { invalid: false, not_topical: false, substituted: false, overflow: false, blocked: false }
+  try {
+    const result = await setPointQDS(route.params.id as string, row.ioa, empty)
+    if (result.qds) {
+      row.qds = result.qds
+    }
+    ElMessage.success('QDS 已清除')
+  } catch (e: any) {
+    ElMessage.error('QDS 清除失败: ' + (e?.response?.data?.error || e.message))
+  }
+}
+
+function addSelectedToTrend() {
+  const selected = points.value.filter(p => selectedIoas[p.ioa])
+  if (selected.length === 0) {
+    ElMessage.warning('请先勾选测点')
+    return
+  }
+  const traces = selected.map(p => ({
+    instId: instanceId.value,
+    inst: instanceName.value,
+    ioa: p.ioa,
+    name: p.name,
+    unit: '',
+    alias: '',
+    colorIdx: 0,
+  }))
+  try {
+    localStorage.setItem('trend_pending_traces', JSON.stringify(traces))
+  } catch { /* ignore */ }
+  router.push('/trend')
+}
+
+function quickTrend(row: PointSnapshot) {
+  const trace = [{
+    instId: instanceId.value,
+    inst: instanceName.value,
+    ioa: row.ioa,
+    name: row.name,
+    unit: '',
+    alias: '',
+    colorIdx: 0,
+  }]
+  try {
+    localStorage.setItem('trend_pending_traces', JSON.stringify(trace))
+  } catch { /* ignore */ }
+  router.push('/trend')
+}
+
+function handleRowAction(cmd: string, row: PointSnapshot) {
+  if (cmd === 'copyIoa') {
+    navigator.clipboard.writeText(String(row.ioa)).then(() => {
+      ElMessage.success(`已复制 IOA: ${row.ioa}`)
+    }).catch(() => {
+      ElMessage.warning('复制失败，请手动复制')
+    })
+  } else if (cmd === 'copyName') {
+    navigator.clipboard.writeText(row.name).then(() => {
+      ElMessage.success(`已复制名称: ${row.name}`)
+    }).catch(() => {
+      ElMessage.warning('复制失败，请手动复制')
+    })
+  } else if (cmd === 'viewTrend') {
+    router.push(`/trend?instance=${instanceId.value}&ioa=${row.ioa}&name=${encodeURIComponent(row.name)}`)
+  } else if (cmd === 'clearQDS') {
+    clearQDS(row)
   }
 }
 
@@ -906,6 +1207,50 @@ async function doSetValue(row: PointSnapshot, overrideVal?: number | undefined) 
   } catch (e: any) {
     ElMessage.error('置数失败: ' + (e?.response?.data?.error || e.message))
   }
+}
+
+// Strategy card definitions (visual strategy configurator)
+const strategyCards = [
+  { key: 'increment', icon: '📈', label: '递增', desc: '步进变化，达最大值回起始值' },
+  { key: 'random', icon: '🎲', label: '随机', desc: '在范围内随机波动' },
+  { key: 'csv', icon: '📼', label: 'CSV回放', desc: '按CSV时序文件回放' },
+  { key: 'max', icon: '📊', label: 'MAX', desc: '取多测点最大值' },
+  { key: 'min', icon: '📉', label: 'MIN', desc: '取多测点最小值' },
+  { key: 'soc', icon: '🔋', label: 'SOC计算', desc: '储能荷电状态积分' },
+  { key: 'energy', icon: '⚡', label: '电量计算', desc: '累计充电/放电量' },
+  { key: 'aofollow', icon: '🔗', label: 'AO关联', desc: '跟随遥控值联动' },
+  { key: 'apiupdate', icon: '🌐', label: '接口更新', desc: '仅允许API写入' },
+  { key: 'manual', icon: '✋', label: '手动置数', desc: '引擎不自动计算' },
+  { key: 'custom', icon: '🧮', label: '自定义公式', desc: '四则运算表达式' },
+]
+
+// Strategy template presets
+const strategyTemplates = [
+  { key: 'increment', label: '📈 递增爬坡', params: { start_value: 0, step: 1, period_ms: 1000, max_value: 100 } },
+  { key: 'increment', label: '🐢 负荷爬坡(慢)', params: { start_value: 0, step: 1, period_ms: 5000, max_value: 100 } },
+  { key: 'random', label: '🎲 随机波动', params: { min_value: 0, max_value_r: 100, period_ms: 1000, decimal_places: 1 } },
+  { key: 'random', label: '⚡ 频率波动', params: { min_value: 498, max_value_r: 502, period_ms: 200, decimal_places: 1 } },
+  { key: 'random', label: '🚨 越限告警', params: { min_value: 180, max_value_r: 260, period_ms: 1000, decimal_places: 1 } },
+  { key: 'soc', label: '🔋 SOC充放循环', params: { init_soc: 50, rated_cap: 100, integral_ms: 1000 } },
+  { key: 'energy', label: '⚡ 电量累计', params: { init_energy: 0, stat_type: 0, energy_power_ioa: 16385, energy_period_ms: 1000 } },
+  { key: 'aofollow', label: '🔗 AO跟随联动', params: { follow_ao_ioa: 0 } },
+  { key: 'manual', label: '✋ 手动置数', params: {} },
+  { key: 'csv', label: '📋 CSV回放', params: { csv_loop: true, time_format: 'relative', time_unit: 'ms' } },
+]
+
+function applyStrategyTemplate(tpl: typeof strategyTemplates[0]) {
+  autoStrategyTab.value = tpl.key
+  // Reset params to template defaults
+  const defaults = {
+    start_value: 0, step: 1, period_ms: 1000, max_value: 100,
+    min_value: 0, max_value_r: 100, decimal_places: 0,
+    csv_file: '', time_format: 'absolute', time_unit: 'ms', csv_loop: true,
+    para_a: '', para_b: '',
+    init_soc: 50, rated_cap: 100, power_ioa: 16385, integral_ms: 1000,
+    init_energy: 0, stat_type: 0, energy_power_ioa: 16385, energy_period_ms: 1000,
+    follow_ao_ioa: 20, api_init_value: 0,
+  }
+  Object.assign(autoForm, defaults, tpl.params)
 }
 
 async function openAutoModal(row: PointSnapshot) {
@@ -1308,7 +1653,8 @@ async function loadInstanceState() {
   }
 }
 
-onMounted(async () => {
+async function initPage() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
   await loadInstanceState()
   if (instanceStatus.value === 'running') {
     await fetchPoints()
@@ -1319,7 +1665,11 @@ onMounted(async () => {
     pollingEnabled.value = false
   }
   loadCSVFileList()
-})
+}
+
+watch(instanceId, () => { initPage() })
+
+onMounted(initPage)
 
 onUnmounted(() => {
   if (pollTimer) {
@@ -1328,3 +1678,95 @@ onUnmounted(() => {
   }
 })
 </script>
+
+<style scoped>
+.strategy-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.strategy-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 6px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: var(--el-fill-color-light);
+}
+.strategy-card:hover {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+}
+.strategy-card.active {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary-light-8);
+  box-shadow: 0 2px 8px rgba(59,130,246,0.15);
+}
+.strategy-card-icon {
+  font-size: 24px;
+  line-height: 1.2;
+}
+.strategy-card-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+.strategy-card-desc {
+  font-size: 10px;
+  color: var(--el-text-color-secondary);
+  text-align: center;
+  line-height: 1.3;
+}
+
+/* CSV mapping drag-reorder */
+.csv-mapping-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--el-border-color-light, #f0f0f0);
+  border-radius: 6px;
+  transition: background 0.15s, border-color 0.15s;
+  cursor: default;
+}
+.csv-mapping-row.drag-over {
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px dashed var(--el-color-primary);
+  margin: -1px 0;
+}
+.csv-mapping-row:active {
+  cursor: grabbing;
+}
+.drag-handle {
+  flex-shrink: 0;
+  font-size: 16px;
+  color: #64748b;
+  cursor: grab;
+  padding: 0 2px;
+  user-select: none;
+  line-height: 1;
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+.csv-col-badge {
+  flex-shrink: 0;
+  width: 100px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: #3b82f6;
+  background: rgba(59,130,246,.1);
+  padding: 4px 8px;
+  border-radius: 4px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+</style>

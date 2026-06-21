@@ -12,7 +12,18 @@ type Event struct {
 	Instance  string      `json:"instance"`
 	IOA       uint32      `json:"ioa,omitempty"`
 	Value     interface{} `json:"value,omitempty"`
+	PrevValue interface{} `json:"prev_value,omitempty"`
+	AlarmType string      `json:"alarm_type,omitempty"`
+	Severity  string      `json:"severity,omitempty"`
+	Progress  *ProgressInfo `json:"progress,omitempty"`
 	Timestamp int64       `json:"ts"`
+}
+
+type ProgressInfo struct {
+	Current int `json:"current"`
+	Total   int `json:"total"`
+	Failed  int `json:"failed,omitempty"`
+	Label   string `json:"label,omitempty"`
 }
 
 type subscriber struct {
