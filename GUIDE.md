@@ -167,7 +167,6 @@ curl -X PUT .../points/10 -d '{"int_value": 42}'
 |------|------|------|
 | GET | `/openapi.json` | OpenAPI 3.0 规范 (30+ 端点) |
 | GET | `/api/v1/state` | **统一状态** — 单次调用获取全部实例+状态 |
-| GET | `/api/v1/events` | **SSE 事件流** — 实时推送变更 |
 | GET/POST | `/api/v1/recordings` | **场景录制** — start/stop/list |
 
 **幂等性：** POST/PUT/DELETE 请求携带 `Idempotency-Key: <唯一键>` 头，重复请求返回缓存结果（24h 有效）。

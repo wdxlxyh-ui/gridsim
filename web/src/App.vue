@@ -67,18 +67,10 @@
     </el-container>
 
     <!-- Floating Action Button: Onboarding Guide (global) -->
-    <el-dropdown trigger="click" placement="top-end" @command="handleGuideCommand">
-      <div class="onboard-fab" title="操作引导">
-        <span class="onboard-fab-icon">❓</span>
-        <span class="onboard-fab-label">操作引导</span>
-      </div>
-      <template #dropdown>
-        <el-dropdown-menu>
-          <el-dropdown-item command="basic">🚀 基础引导</el-dropdown-item>
-          <el-dropdown-item command="advanced">🎯 高级引导 · 操作流程</el-dropdown-item>
-        </el-dropdown-menu>
-      </template>
-    </el-dropdown>
+    <div class="onboard-fab" title="操作引导" @click="handleGuideClick">
+      <span class="onboard-fab-icon">❓</span>
+      <span class="onboard-fab-label">操作引导</span>
+    </div>
 
     <!-- Onboarding Guide Overlay (global, persists across routes) -->
     <OnboardingGuide ref="guideRef" />
@@ -157,8 +149,8 @@ function handleUserCommand(cmd: string) {
   if (cmd === 'logout') { clearToken(); username.value = ''; router.push('/login') }
 }
 
-function handleGuideCommand(cmd: string) {
-  guideRef.value?.start(cmd as 'basic' | 'advanced')
+function handleGuideClick() {
+  guideRef.value?.start()
 }
 
 watch(() => route.path, updateUserFromToken)

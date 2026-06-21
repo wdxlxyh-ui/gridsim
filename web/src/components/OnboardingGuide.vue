@@ -1,7 +1,30 @@
 <template>
   <teleport to="body">
+    <!-- Welcome screen (first visit or triggered from FAB) -->
     <transition name="onboard-fade">
-      <div v-if="active" class="onboard-overlay" @click.self="handleOverlayClick">
+      <div v-if="mode === 'welcome'" class="onboard-overlay welcome-overlay" @click.self="dismiss">
+        <div class="welcome-card" @click.stop>
+          <div class="welcome-icon">🚀</div>
+          <h2 class="welcome-title">欢迎使用 GridSim v{{ version }}</h2>
+          <p class="welcome-desc">多协议电网仿真平台 — 快速创建仿真场景，测试您的 SCADA 系统。选择引导模式快速上手，或直接关闭开始使用。</p>
+          <div class="welcome-steps">
+            <div class="welcome-step" v-for="(s, i) in welcomeSteps" :key="i">
+              <span class="welcome-step-num">{{ i + 1 }}</span>
+              <span class="welcome-step-text">{{ s }}</span>
+            </div>
+          </div>
+          <div class="welcome-actions">
+            <el-button type="primary" size="default" @click="startTour('basic')">🚀 基础引导</el-button>
+            <el-button size="default" @click="startTour('advanced')">🎯 高级引导</el-button>
+            <el-button text size="small" @click="dismiss" class="welcome-dismiss">稍后再说</el-button>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- Step-by-step tour overlay -->
+    <transition name="onboard-fade">
+      <div v-if="mode === 'tour'" class="onboard-overlay" @click.self="handleOverlayClick">
         <!-- SVG cutout mask -->
         <svg class="onboard-mask" :width="viewW" :height="viewH" @click.self="handleOverlayClick">
           <defs>
@@ -70,6 +93,9 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
+
+const LS_KEY = 'gridsim_onboarded_v2'
+const version = ref('3.1.0')
 
 interface Step {
   title: string
@@ -202,12 +228,22 @@ const advancedSteps: Step[] = [
 ]
 
 const router = useRouter()
-const active = ref(false)
+
+// Mode: 'idle' → nothing shown, 'welcome' → welcome card, 'tour' → step-by-step guide
+const mode = ref<'idle' | 'welcome' | 'tour'>('idle')
 const stepIndex = ref(0)
 const steps = ref<Step[]>(basicSteps)
 const highlightRect = ref<{ x: number; y: number; width: number; height: number } | null>(null)
 const viewW = ref(window.innerWidth)
 const viewH = ref(window.innerHeight)
+
+const welcomeSteps = [
+  '上传点表文件 (Excel格式，定义测点和IOA)',
+  '创建仿真实例 (配置名称、端口和协议类型)',
+  '启动实例，通过IEC104或Modbus连接仿真设备',
+  '置数或配置自动变化策略，模拟数据变化',
+  '在SCADA端验证数据接收和响应',
+]
 
 const currentStep = computed(() => steps.value[stepIndex.value] ?? null)
 
@@ -284,33 +320,165 @@ async function prev() {
   }
 }
 
-function skipAll() { active.value = false }
-function finish() { active.value = false }
+function skipAll() { mode.value = 'idle' }
+function finish() { mode.value = 'idle' }
+function dismiss() { mode.value = 'idle' }
 
 function handleOverlayClick() {
   if (stepIndex.value < steps.value.length - 1) next()
   else finish()
 }
 
-async function start(mode: 'basic' | 'advanced' = 'basic') {
-  steps.value = mode === 'advanced' ? advancedSteps : basicSteps
+/** Show the welcome screen (or directly start a tour if mode specified) */
+async function start(tourMode?: 'basic' | 'advanced') {
+  if (tourMode) {
+    await startTour(tourMode)
+    return
+  }
+  // Show welcome screen
+  mode.value = 'welcome'
+}
+
+async function startTour(tourMode: 'basic' | 'advanced') {
+  steps.value = tourMode === 'advanced' ? advancedSteps : basicSteps
   stepIndex.value = 0
-  active.value = true
+  mode.value = 'tour'
   await navigateAndHighlight(steps.value[0])
 }
 
-onMounted(() => window.addEventListener('resize', onResize))
+/** Auto-show welcome on first visit */
+function autoShow() {
+  const onboarded = localStorage.getItem(LS_KEY)
+  if (!onboarded) {
+    localStorage.setItem(LS_KEY, 'true')
+    // Small delay to let the page render first
+    setTimeout(() => { mode.value = 'welcome' }, 600)
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('resize', onResize)
+  autoShow()
+})
 onUnmounted(() => window.removeEventListener('resize', onResize))
 
-defineExpose({ start })
+defineExpose({ start, startTour, autoShow })
 </script>
 
 <style scoped>
+/* ─── Welcome Screen ─── */
+.welcome-card {
+  background: var(--bg-card, #141b2d);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: 20px;
+  padding: 36px 32px 28px;
+  max-width: 480px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+  animation: welcome-pop 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes welcome-pop {
+  from { opacity: 0; transform: translateY(24px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.welcome-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  line-height: 1;
+}
+
+.welcome-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+  color: var(--text-primary, #e2e8f0);
+}
+
+.welcome-desc {
+  font-size: 13px;
+  color: var(--text-secondary, #94a3b8);
+  line-height: 1.6;
+  margin: 0 0 20px 0;
+}
+
+.welcome-steps {
+  text-align: left;
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.welcome-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(59, 130, 246, 0.04);
+  border: 1px solid rgba(59, 130, 246, 0.06);
+  transition: background 0.2s;
+}
+
+.welcome-step:hover {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.welcome-step-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.welcome-step-text {
+  font-size: 13px;
+  color: var(--text-secondary, #94a3b8);
+  line-height: 1.4;
+}
+
+.welcome-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+}
+
+.welcome-dismiss {
+  width: 100%;
+  margin-top: 4px;
+  color: var(--text-muted, #64748b) !important;
+  font-size: 12px !important;
+}
+
+.welcome-dismiss:hover {
+  color: var(--text-secondary, #94a3b8) !important;
+}
+
 .onboard-overlay {
   position: fixed;
   inset: 0;
   z-index: 8000;
   pointer-events: all;
+}
+.welcome-overlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 .onboard-mask {
   position: absolute;

@@ -11,8 +11,8 @@
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
-| **v3.1.0** | 2026-06-20 | **UX 全新改版 Phase 4: 操作引导、Dashboard 改造、CommandPalette、性能优化** — 全局 OnboardingGuide 支持跨页面引导（基础+高级两个流程）；Dashboard 全新设计（骨架屏、统计卡片、规约分布、快捷操作）；CommandPalette 命令面板（键盘快捷操作）；PropertyPanel 属性面板 + SceneSnapshots 场景快照；MicrogridEditor 页面性能优化（IOABanner、DeviceList 组件化拆分）；全局 SSE 事件增强、QDS 品质描述 API 增强 |
-| **v3.0.1** | 2026-06-14 | **AI 友好接口 + 部署指南** — OpenAPI 3.0 规范 (`/openapi.json`)；结构化错误响应（统一 `{error:{code,message,hint,candidates}}` 格式）；全局统一状态快照 (`GET /api/v1/state`)；幂等性支持 (`Idempotency-Key` 头)；SSE 事件推送 (`GET /api/v1/events`)；场景录制回放 (`GET/POST /api/v1/recordings`)；MCP 新增 `get_state` + `get_openapi_spec` 工具（共 37 个）；发行包含 `GUIDE.md` 部署指南 |
+| **v3.1.0** | 2026-06-20 | **UX 全新改版 Phase 4: 操作引导、Dashboard 改造、CommandPalette、性能优化** — 全局 OnboardingGuide 支持跨页面引导（基础+高级两个流程）；Dashboard 全新设计（骨架屏、统计卡片、规约分布、快捷操作）；CommandPalette 命令面板（键盘快捷操作）；PropertyPanel 属性面板 + SceneSnapshots 场景快照；MicrogridEditor 页面性能优化（IOABanner、DeviceList 组件化拆分）；QDS 品质描述 API 增强 |
+| **v3.0.1** | 2026-06-14 | **AI 友好接口 + 部署指南** — OpenAPI 3.0 规范 (`/openapi.json`)；结构化错误响应（统一 `{error:{code,message,hint,candidates}}` 格式）；全局统一状态快照 (`GET /api/v1/state`)；幂等性支持 (`Idempotency-Key` 头)；场景录制回放 (`GET/POST /api/v1/recordings`)；MCP 新增 `get_state` + `get_openapi_spec` 工具（共 37 个）；发行包含 `GUIDE.md` 部署指南 |
 | **v3.0.0** | 2026-06-10 | **大版本: 微电网仿真 + 接口测试 + 全新 UI** — 微电网拓扑编辑器（光伏/储能/负荷/充电桩）、实时仿真引擎、SVG 拓扑图、IOA 自动分配与冲突检测、按设备/完整点表导出；内置 Postman 风格接口测试工具（环境变量、前置/后置脚本、集合管理）；UI 全面升级（侧边栏、动画组件、品牌重塑）；项目全面重命名为 GridSim |
 | **v2.5.4** | 2026-06-04 | **接口测试菜单 MCP 工具 + API 文档** — 新增 10 个 MCP 工具覆盖接口测试全流程（创建/修改/删除接口、管理环境变量、执行代理请求、修改 URL/请求体/前置后置脚本）；更新 MCP.md、API.md、GRIDSIM.md 文档 |
 | **v2.5.3** | 2026-05-22 | **ECharts 实时趋势重构 + 批量读取 API** — TrendPage 全面改用 ECharts（时间轴基于真实时间戳、缩放拖拽、十字准线 tooltip）；新增 `GET /points/batch` 批量读取接口（N 次请求→1 次）；修复 goroutine nil pointer 崩溃；发行包预置 users.json + VERSION 文件 |
@@ -36,7 +36,6 @@
   - **结构化错误** — 统一 `{error:{code, message, hint, candidates}}` 格式，包含错误码、修复建议和候选值
   - **全局状态快照** — `GET /api/v1/state` 一次调用获取全部实例 + 测点状态，减少 N 次轮询
   - **幂等性支持** — 写操作支持 `Idempotency-Key` 请求头，24h 内重复请求安全重试
-  - **SSE 事件推送** — `GET /api/v1/events` 实时推送实例状态变化、测点变化事件
   - **场景录制** — `GET/POST /api/v1/recordings` 记录操作序列，支持回放复现
 - **MCP 工具同步** — 新增 `get_state`、`get_openapi_spec` 共 2 个工具，工具总数 37
 - **部署指南** — 发行包含 `GUIDE.md`，涵盖 API、MCP、GUI 全部操作方式
@@ -61,7 +60,6 @@
   - 拆分 10+ 子组件：DashboardCard、DeviceDialogs、DeviceList、FormulaPreview、GridMeterConfig、IOABanner、PointTable、PropertyPanel、SnapshotPanel、SvgTopology、TopologyHeader
   - 页面加载性能大幅提升
 - **QDS 品质描述 API 增强** — 新增品质描述更新端点，支持遥测无效/非当前/替代/溢出/闭锁
-- **SSE 事件总线增强** — 实例状态变更事件推送
 - **其他改进**
   - 新增 `simulator_manager.py` Python 管理工具
   - 全局引导状态持久化，FAB 按钮提升至 App.vue 避免路由切换丢失
@@ -180,7 +178,7 @@
 - **多规约支持** — IEC 104 + Modbus TCP 并行运行
 - **MCP Server** — 提供 37 个 GridSim MCP 工具，支持 AI 助手直接控制模拟器
 - **接口测试 (API Proxy)** — 内置 Postman 风格的接口测试工具，支持环境变量、前置/后置脚本、集合管理
-- **AI 友好接口** — OpenAPI 3.0 规范、结构化错误、幂等性、SSE 事件、场景录制，让 AI Agent 高效自主操作
+- **AI 友好接口** — OpenAPI 3.0 规范、结构化错误、幂等性、场景录制，让 AI Agent 高效自主操作
 
 ---
 
@@ -306,7 +304,6 @@ go build -o bin/gridsim ./cmd/gridsim/
 | `POST` | `/api/v1/upload` | 上传 `.xlsx` 点表文件 |
 | `GET` | `/openapi.json` | OpenAPI 3.0 规范 (v3.0.1) |
 | `GET` | `/api/v1/state` | 全局统一状态快照 (v3.0.1) |
-| `GET` | `/api/v1/events` | SSE 事件推送 (v3.0.1) |
 | `GET` | `/api/v1/recordings` | 获取场景录制列表 (v3.0.1) |
 | `POST` | `/api/v1/recordings` | 启动/停止场景录制 (v3.0.1) |
 
@@ -392,7 +389,6 @@ curl -X PUT http://localhost:8989/api/v1/instances/{id}/points/auto-change/16385
 │   ├── api/               HTTP API 处理器
 │   ├── config/            Excel 加载器 + 测点数据模型
 │   ├── errors/            统一结构化错误 (v3.0.1)
-│   ├── events/            SSE 事件总线 (v3.0.1)
 │   ├── iec104/            IEC 104 服务端
 │   ├── library/           并发安全内存点表
 │   ├── middleware/        幂等性中间件 (v3.0.1)
