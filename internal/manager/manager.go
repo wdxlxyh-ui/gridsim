@@ -108,10 +108,12 @@ func (m *Manager) CreateConfig(cfg model.InstanceConfig) (model.InstanceConfig, 
 }
 
 func (m *Manager) StartInstance(id string) error {
-	// Microgrid instances use a different startup path
 	cfg, ok := m.store.Get(id)
 	if ok && cfg.Protocol == "microgrid" {
 		return m.startMicrogrid(id)
+	}
+	if ok && cfg.Protocol == "iec104_client" {
+		return m.startClient(id)
 	}
 
 	m.mu.Lock()
@@ -317,9 +319,11 @@ func (m *Manager) StopInstance(id string) error {
 		RemoveInstanceLogDir(m.cfgDir, inst.Config.ID, inst.Config.IEC104Port)
 	}
 
-	firewall.RemovePort(inst.Config.IEC104Port)
-	if inst.Config.HttpEnabled && inst.Config.HttpPort > 0 {
-		firewall.RemovePort(inst.Config.HttpPort)
+	if inst.Config.Protocol != "iec104_client" {
+		firewall.RemovePort(inst.Config.IEC104Port)
+		if inst.Config.HttpEnabled && inst.Config.HttpPort > 0 {
+			firewall.RemovePort(inst.Config.HttpPort)
+		}
 	}
 
 	delete(m.instances, id)
@@ -339,6 +343,13 @@ func (m *Manager) GetStore(id string) *library.Store {
 		return inst.Store
 	}
 	return nil
+}
+
+// GetInstance returns the running instance by ID, or nil.
+func (m *Manager) GetInstance(id string) *Instance {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.instances[id]
 }
 
 func (m *Manager) GetEngine(id string) *detail.Engine {
@@ -602,6 +613,72 @@ func (m *Manager) startMicrogrid(id string) error {
 	m.instances[id] = inst
 	firewall.EnsurePort(cfg.IEC104Port, "gridsim-microgrid")
 	slog.Info("微电网实例已启动", "id", id, "devices", len(topo.Devices))
+	return nil
+}
+
+func (m *Manager) startClient(id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, ok := m.instances[id]; ok {
+		return fmt.Errorf("instance %s already running", id)
+	}
+
+	cfg, ok := m.store.Get(id)
+	if !ok {
+		return fmt.Errorf("instance %s not found", id)
+	}
+
+	if cfg.IEC104ClientConfig == nil {
+		return fmt.Errorf("iec104_client_config not configured")
+	}
+
+	xlsxPath := cfg.XLSXFile
+	if !filepath.IsAbs(xlsxPath) {
+		if _, err := os.Stat(xlsxPath); os.IsNotExist(err) {
+			xlsxPath = filepath.Join(m.cfgDir, xlsxPath)
+		}
+	}
+
+	points, err := config.LoadFromXLSX(xlsxPath, cfg.Protocol)
+	if err != nil {
+		return fmt.Errorf("load xlsx: %w", err)
+	}
+
+	store := library.NewStore(points)
+
+	proto, err := protocol.New(cfg)
+	if err != nil {
+		return fmt.Errorf("create protocol: %w", err)
+	}
+	proto.SetStore(store)
+	if err := proto.Start(); err != nil {
+		return fmt.Errorf("start protocol: %w", err)
+	}
+
+	acStore := detail.NewAutoChangeStore(m.cfgDir)
+	engine := detail.NewEngine(cfg.ID, store, proto, acStore, m.cfgDir, m)
+	if err := engine.LoadAndStart(); err != nil {
+		slog.Warn("自动变化引擎加载失败", "id", id, "error", err)
+	}
+
+	logger, err := NewInstanceLogger(m.cfgDir, cfg.ID, cfg.IEC104Port)
+	if err != nil {
+		slog.Warn("创建实例日志目录失败", "id", id, "error", err)
+	}
+
+	inst := &Instance{
+		Config:     cfg,
+		Protocol:   proto,
+		Store:      store,
+		AutoEngine: engine,
+		Logger:     logger,
+	}
+
+	m.instances[id] = inst
+	slog.Info("客户端实例已启动", "id", id, "remote",
+		fmt.Sprintf("%s:%d", cfg.IEC104ClientConfig.RemoteAddr, cfg.IEC104ClientConfig.RemotePort),
+		"points", len(points))
 	return nil
 }
 
