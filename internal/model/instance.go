@@ -10,9 +10,19 @@ type InstanceConfig struct {
 	HttpEnabled bool   `json:"http_enabled"`
 	HttpPort    int    `json:"http_port"`
 
-	Protocol        string                   `json:"protocol,omitempty"`
-	ModbusConfig    *ModbusInstanceConfig    `json:"modbus_config,omitempty"`
-	MicrogridConfig *MicrogridInstanceConfig `json:"microgrid_config,omitempty"`
+	Protocol           string                   `json:"protocol,omitempty"`
+	ModbusConfig       *ModbusInstanceConfig    `json:"modbus_config,omitempty"`
+	MicrogridConfig    *MicrogridInstanceConfig `json:"microgrid_config,omitempty"`
+	IEC104ClientConfig *IEC104ClientConfig      `json:"iec104_client_config,omitempty"`
+}
+
+// IEC104ClientConfig 客户端实例配置（主站模式）
+type IEC104ClientConfig struct {
+	RemoteAddr     string `json:"remote_addr"`
+	RemotePort     int    `json:"remote_port"`
+	CommonAddr     int    `json:"common_addr"`
+	ReconnectDelay int    `json:"reconnect_delay"`
+	ConnectTimeout int    `json:"connect_timeout"`
 }
 
 // MicrogridInstanceConfig 微电网实例配置
