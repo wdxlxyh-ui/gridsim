@@ -525,6 +525,8 @@ func (ws *webServer) handleInstanceByID(w http.ResponseWriter, r *http.Request) 
 			ws.withDetailHandler(w, r, id, func(dh *detail.DetailHandler) { dh.HandleMetrics(w, r) })
 		case "point-table":
 			ws.handlePointTableRoute(w, r, id)
+		case "command":
+			ws.handleClientCommand(w, r, id)
 		default:
 			writeError(w, http.StatusBadRequest, "unknown action: "+parts[1])
 		}
@@ -608,6 +610,62 @@ func (ws *webServer) withDetailHandler(w http.ResponseWriter, r *http.Request, i
 		return
 	}
 	fn(detail.NewDetailHandler(id, store, engine, ws.mgr.CfgDir()))
+}
+
+func (ws *webServer) handleClientCommand(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method != http.MethodPut {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	inst := ws.mgr.GetInstance(id)
+	if inst == nil || inst.Protocol == nil {
+		writeError(w, http.StatusNotFound, "instance not running")
+		return
+	}
+
+	var body struct {
+		IOA       uint32   `json:"ioa"`
+		Value     *float64 `json:"value,omitempty"`
+		BoolValue *bool    `json:"bool_value,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+
+	pt, ok := inst.Store.Get(body.IOA)
+	if !ok {
+		writeError(w, http.StatusNotFound, "point not found")
+		return
+	}
+
+	switch pt.PointType {
+	case config.TypeDO:
+		if body.BoolValue == nil {
+			writeError(w, http.StatusBadRequest, "bool_value required for DO")
+			return
+		}
+		inst.Store.SetBoolValue(body.IOA, *body.BoolValue)
+		inst.Protocol.Publish(pt)
+
+	case config.TypeAO:
+		if body.Value == nil {
+			writeError(w, http.StatusBadRequest, "value required for AO")
+			return
+		}
+		inst.Store.SetValue(body.IOA, *body.Value)
+		inst.Protocol.Publish(pt)
+
+	default:
+		writeError(w, http.StatusBadRequest, "only DO/AO supported for commands")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"success": true,
+		"ioa":     body.IOA,
+	})
 }
 
 func (ws *webServer) handleInstancePoints(w http.ResponseWriter, r *http.Request, id string) {
