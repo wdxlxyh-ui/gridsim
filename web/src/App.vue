@@ -65,6 +65,23 @@
         </el-main>
       </el-container>
     </el-container>
+
+    <!-- Floating Action Button: Onboarding Guide (global) -->
+    <el-dropdown trigger="click" placement="top-end" @command="handleGuideCommand">
+      <div class="onboard-fab" title="操作引导">
+        <span class="onboard-fab-icon">❓</span>
+        <span class="onboard-fab-label">操作引导</span>
+      </div>
+      <template #dropdown>
+        <el-dropdown-menu>
+          <el-dropdown-item command="basic">🚀 基础引导</el-dropdown-item>
+          <el-dropdown-item command="advanced">🎯 高级引导 · 操作流程</el-dropdown-item>
+        </el-dropdown-menu>
+      </template>
+    </el-dropdown>
+
+    <!-- Onboarding Guide Overlay (global, persists across routes) -->
+    <OnboardingGuide ref="guideRef" />
   </template>
 </template>
 
@@ -73,11 +90,13 @@ import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Grid, Setting, Monitor, DataLine, Fold, ArrowDown, Connection, Search } from '@element-plus/icons-vue'
 import { getStatus, clearToken, type GlobalStatus } from './api'
+import OnboardingGuide from './components/OnboardingGuide.vue'
 
 const route = useRoute()
 const router = useRouter()
 const sidebarCollapsed = ref(true)
 const globalSearch = ref('')
+const guideRef = ref<InstanceType<typeof OnboardingGuide> | null>(null)
 const currentRoute = computed(() => {
   const path = route.path
   if (path.startsWith('/detail/')) return '/monitor'
@@ -136,6 +155,10 @@ function updateUserFromToken() {
 
 function handleUserCommand(cmd: string) {
   if (cmd === 'logout') { clearToken(); username.value = ''; router.push('/login') }
+}
+
+function handleGuideCommand(cmd: string) {
+  guideRef.value?.start(cmd as 'basic' | 'advanced')
 }
 
 watch(() => route.path, updateUserFromToken)
@@ -309,6 +332,46 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Ro
 .collapsed .nav-label { display: none; }
 .collapsed .nav-item { justify-content: center; padding: 10px; gap: 0; }
 .collapsed .nav-item .nav-pill { display: none; }
+
+/* ─── Onboarding FAB ─── */
+.onboard-fab {
+  position: fixed;
+  right: 28px;
+  bottom: 28px;
+  z-index: 7000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 18px 0 14px;
+  height: 44px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #1e40af, #3b82f6);
+  box-shadow: 0 4px 20px rgba(59, 130, 246, 0.45);
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s;
+  user-select: none;
+}
+
+.onboard-fab:hover {
+  transform: translateY(-3px) scale(1.04);
+  box-shadow: 0 8px 28px rgba(59, 130, 246, 0.6);
+}
+
+.onboard-fab:active {
+  transform: scale(0.97);
+}
+
+.onboard-fab-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.onboard-fab-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+}
 
 .app-main {
   background: var(--bg-primary);
