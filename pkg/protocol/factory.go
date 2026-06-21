@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"gridsim/internal/model"
+	"gridsim/pkg/iec104"
 	"gridsim/pkg/protocol/modbus"
 )
 
@@ -27,6 +28,11 @@ func New(cfg model.InstanceConfig) (Protocol, error) {
 		return modbus.NewTCPServer(port, slaveID, byteOrder), nil
 	case "microgrid":
 		return NewIEC104Wrapper(cfg.IEC104Port), nil
+	case "iec104_client":
+		if cfg.IEC104ClientConfig == nil {
+			return nil, fmt.Errorf("iec104_client_config required for client mode")
+		}
+		return iec104.NewClient(*cfg.IEC104ClientConfig), nil
 	case "", "iec104":
 		return NewIEC104Wrapper(cfg.IEC104Port), nil
 	default:
@@ -35,5 +41,5 @@ func New(cfg model.InstanceConfig) (Protocol, error) {
 }
 
 func SupportedProtocols() []string {
-	return []string{"iec104", "modbus_tcp", "microgrid"}
+	return []string{"iec104", "modbus_tcp", "microgrid", "iec104_client"}
 }
