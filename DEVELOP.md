@@ -228,10 +228,10 @@ IEC104 C_SE_NC_1 (AO遥控) → iec104.Server.AO控制 → store.SetValue(AO)
 | 开发版本 | `-dev` 后缀（如 `2.1.5-dev`） |
 
 版本号在以下位置同步更新：
-1. `Makefile` → `VERSION := 2.2.0`
-2. `web/package.json` → `"version": "2.2.0"`
-3. `cmd/gridsim/main.go` → `-ldflags="-X main.version=2.2.0"`
-4. Git Tag → `v2.2.0`
+1. `Makefile` → `VERSION := 3.1.0`
+2. `web/package.json` → `"version": "3.1.0"`
+3. `cmd/gridsim/main.go` → `-ldflags="-X main.version=3.1.0"`
+4. Git Tag → `v3.1.0`
 
 ---
 

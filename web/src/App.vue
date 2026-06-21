@@ -111,7 +111,7 @@ function handleGlobalSearch() {
 }
 const isLoginPage = computed(() => route.path === '/login')
 const status = ref<GlobalStatus | null>(null)
-const version = ref('3.0.1')
+const version = ref('3.1.0')
 const username = ref('')
 
 const menuItems = [

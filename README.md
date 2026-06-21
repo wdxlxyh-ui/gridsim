@@ -11,6 +11,7 @@
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v3.1.0** | 2026-06-20 | **UX 全新改版 Phase 4: 操作引导、Dashboard 改造、CommandPalette、性能优化** — 全局 OnboardingGuide 支持跨页面引导（基础+高级两个流程）；Dashboard 全新设计（骨架屏、统计卡片、规约分布、快捷操作）；CommandPalette 命令面板（键盘快捷操作）；PropertyPanel 属性面板 + SceneSnapshots 场景快照；MicrogridEditor 页面性能优化（IOABanner、DeviceList 组件化拆分）；全局 SSE 事件增强、QDS 品质描述 API 增强 |
 | **v3.0.1** | 2026-06-14 | **AI 友好接口 + 部署指南** — OpenAPI 3.0 规范 (`/openapi.json`)；结构化错误响应（统一 `{error:{code,message,hint,candidates}}` 格式）；全局统一状态快照 (`GET /api/v1/state`)；幂等性支持 (`Idempotency-Key` 头)；SSE 事件推送 (`GET /api/v1/events`)；场景录制回放 (`GET/POST /api/v1/recordings`)；MCP 新增 `get_state` + `get_openapi_spec` 工具（共 37 个）；发行包含 `GUIDE.md` 部署指南 |
 | **v3.0.0** | 2026-06-10 | **大版本: 微电网仿真 + 接口测试 + 全新 UI** — 微电网拓扑编辑器（光伏/储能/负荷/充电桩）、实时仿真引擎、SVG 拓扑图、IOA 自动分配与冲突检测、按设备/完整点表导出；内置 Postman 风格接口测试工具（环境变量、前置/后置脚本、集合管理）；UI 全面升级（侧边栏、动画组件、品牌重塑）；项目全面重命名为 GridSim |
 | **v2.5.4** | 2026-06-04 | **接口测试菜单 MCP 工具 + API 文档** — 新增 10 个 MCP 工具覆盖接口测试全流程（创建/修改/删除接口、管理环境变量、执行代理请求、修改 URL/请求体/前置后置脚本）；更新 MCP.md、API.md、GRIDSIM.md 文档 |
@@ -39,6 +40,32 @@
   - **场景录制** — `GET/POST /api/v1/recordings` 记录操作序列，支持回放复现
 - **MCP 工具同步** — 新增 `get_state`、`get_openapi_spec` 共 2 个工具，工具总数 37
 - **部署指南** — 发行包含 `GUIDE.md`，涵盖 API、MCP、GUI 全部操作方式
+
+### v3.1.0 新特性
+
+- **操作引导 (OnboardingGuide)** — 全局引导覆盖层，支持跨页面导航
+  - 基础引导：8 步快速了解核心功能，逐页引导仪表盘→配置→监控→趋势
+  - 高级引导：8 步完整操作流程，从创建实例→启动→置数→策略→趋势验证
+  - 全局 FAB 按钮（❓），支持在任意页面启动引导
+  - 路由跳转时引导状态保持，不因页面切换中断
+- **Dashboard 全新设计**
+  - 骨架屏 (SkeletonScreen) 加载过渡
+  - 统计卡片（总实例/运行中/已停止/在线客户端）带动画计数
+  - 规约分布条形图（IEC104 / Modbus TCP / Microgrid）
+  - 实例概览卡片网格（状态指示灯、端口、测点数、运行时长）
+  - 快捷操作区域（新建实例、监控、趋势、接口测试）
+- **CommandPalette 命令面板** — `Ctrl+K` 全局命令面板，搜索和执行快捷操作
+- **PropertyPanel 属性面板** — 微电网设备快速查看/编辑
+- **SceneSnapshots 场景快照** — 微电网拓扑快照保存与恢复
+- **MicrogridEditor 组件化优化**
+  - 拆分 10+ 子组件：DashboardCard、DeviceDialogs、DeviceList、FormulaPreview、GridMeterConfig、IOABanner、PointTable、PropertyPanel、SnapshotPanel、SvgTopology、TopologyHeader
+  - 页面加载性能大幅提升
+- **QDS 品质描述 API 增强** — 新增品质描述更新端点，支持遥测无效/非当前/替代/溢出/闭锁
+- **SSE 事件总线增强** — 实例状态变更事件推送
+- **其他改进**
+  - 新增 `simulator_manager.py` Python 管理工具
+  - 全局引导状态持久化，FAB 按钮提升至 App.vue 避免路由切换丢失
+  - MicrogridEditor 删除冗余组件，减少包体积
 
 ### v3.0.0 新特性
 
@@ -143,6 +170,9 @@
   - 品质描述 QDS：无效 / 非当前 / 替代 / 溢出 / 闭锁
 - **RESTful HTTP API** — 查询、单点/批量更新、修改 QDS
 - **Web 管理界面** — 实例增删改查、启停、运行监控（自动刷新）
+- **仪表盘总览** — 骨架屏加载、统计卡片、规约分布、实例概览、快捷操作 (v3.1)
+- **操作引导** — 全局 OnboardingGuide 跨页面引导，基础/高级双流程 (v3.1)
+- **命令面板** — `Ctrl+K` 全局搜索与快捷操作 (v3.1)
 - **运行统计** — 运行时长、总召唤次数、遥控次数、变化上送次数
 - **单客户端限制** — 每个实例只接受一个客户端连接
 - **跨平台编译** — Linux amd64/arm64、Windows amd64、`.deb` 打包
@@ -172,8 +202,8 @@
 ### 方式一：下载压缩包（推荐）
 
 ```bash
-tar xzf gridsim-v3.0.1-linux-amd64.tar.gz
-cd gridsim-v3.0.1-linux-amd64
+tar xzf gridsim-v3.1.0-linux-amd64.tar.gz
+cd gridsim-v3.1.0-linux-amd64
 ./bin/start.sh
 # 浏览器访问 http://localhost:8989
 # 部署指南：cat GUIDE.md
@@ -379,12 +409,21 @@ curl -X PUT http://localhost:8989/api/v1/instances/{id}/points/auto-change/16385
 ├── web/                   Vue 3 + Element Plus 前端
 │   ├── src/views/
 │   │   ├── ConfigPage.vue     配置管理（含实例容量显示）
+│   │   ├── DashboardPage.vue  v3.1 仪表盘（骨架屏、统计卡片、快捷操作）
 │   │   ├── MonitorPage.vue    运行监控
 │   │   ├── DetailPage.vue     v2.1 实例详情页 + v2.5 CSV多测点回放
 │   │   ├── ProxyPage.vue      接口测试（Postman风格）
-│   │   └── TrendPage.vue      v2.2 趋势对比页
+│   │   ├── TrendPage.vue      v2.2 趋势对比页
+│   │   └── MicrogridEditor.vue v3.0 微电网编辑（组件化优化）
+│   ├── src/components/
+│   │   ├── OnboardingGuide.vue  v3.1 操作引导（跨页面导航）
+│   │   ├── CommandPalette.vue   v3.1 命令面板
+│   │   ├── SkeletonScreen.vue   v3.1 骨架屏加载
+│   │   └── microgrid/           微电网子组件（10+ 组件）
+│   ├── src/composables/
+│   │   └── useApiFeedback.ts    v3.1 API 反馈封装
 │   ├── src/api/           Axios API 客户端
-│   └── src/composables/   Vue composables（useApi）
+│   └── src/styles/theme.css 主题变量
 ├── scripts/               启停脚本
 ├── config/                运行时配置
 ├── samples/               示例点表

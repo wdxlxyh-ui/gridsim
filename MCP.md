@@ -292,6 +292,6 @@ Error: dial tcp connection refused
 
 ## 版本信息
 
-- GridSim: 3.0.0+
+- GridSim: 3.1.0+
 - MCP Server: 1.3.0
-- 工具总数: 38（原有28个 + 新增10个接口测试工具）
+- 工具总数: 37（实例管理11 + 数据接口15 + 接口测试9 + 全局2）
