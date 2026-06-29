@@ -56,7 +56,7 @@
           :points="points"
           :loading-points="loadingPoints"
           @refresh="fetchPoints(true)"
-          @toggle-mode="togglePointMode($event, $event)"
+          @toggle-mode="(row: any, val: boolean) => togglePointMode(row, val)"
           @config-strategy="configPointStrategy($event)"
         />
       </el-tab-pane>
@@ -86,7 +86,7 @@
       :devices="devices"
       @update:show-add-device="showAddDevice = $event"
       @update:show-edit-device="showEditDevice = $event"
-      @update:show-strategy-dialog="showStrategyDialog = $event"
+      @update:show-strategy-dialog="onStrategyDialogClose($event)"
       @confirm-add="handleAddDevice($event)"
       @confirm-edit="handleUpdateDevice($event)"
       @confirm-strategy="confirmStrategy($event)"
@@ -471,8 +471,11 @@ async function handleSwitchToggle(devId: string, closed: boolean) {
 }
 
 async function togglePointMode(row: any, local: boolean) {
-  if (local) { configPointStrategy(row) }
-  else {
+  if (local) {
+    // 切换到本地模式 → 打开策略配置对话框
+    configPointStrategy(row)
+  } else {
+    // 切换到远方模式 → 删除已有的 auto-change 策略
     try {
       await deleteAutoChange(instanceId, row.ioa)
       ElMessage.success('已切换为远方控制')
@@ -485,6 +488,15 @@ function configPointStrategy(row: any) {
   strategyPointIOA.value = row.ioa
   strategyTargetName.value = row.name
   showStrategyDialog.value = true
+}
+
+function onStrategyDialogClose(visible: boolean) {
+  showStrategyDialog.value = visible
+  // When dialog is closed without confirming (cancel/close),
+  // refresh points to rollback the switch state that was optimistically toggled by v-model
+  if (!visible) {
+    fetchPoints(true)
+  }
 }
 
 async function confirmStrategy(payload: any) {
