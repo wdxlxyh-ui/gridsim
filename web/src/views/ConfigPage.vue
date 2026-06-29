@@ -65,7 +65,12 @@
               <el-icon :color="row.stats.client_connected ? '#67c23a' : '#f56c6c'" style="vertical-align: middle; margin-right: 2px">
                 <component :is="row.stats.client_connected ? SuccessFilled : CircleCloseFilled" />
               </el-icon>
-              {{ row.stats.client_connected ? '在线' : '离线' }} |
+              <template v-if="row.protocol === 'iec104_client'">
+                {{ row.stats.client_connected ? '已连接' : '未连接' }} |
+              </template>
+              <template v-else>
+                {{ row.stats.client_connected ? '在线' : '离线' }} |
+              </template>
               测点: {{ row.stats.total_points }} |
               运行: {{ fmtUptime(row.stats.uptime_seconds) }}
             </span>
@@ -109,11 +114,13 @@
           <el-form-item label="规约类型" prop="protocol">
             <el-radio-group v-model="form.protocol">
               <el-radio-button value="iec104">IEC104</el-radio-button>
+              <el-radio-button value="iec104_client">IEC104 客户端</el-radio-button>
               <el-radio-button value="modbus_tcp">Modbus TCP</el-radio-button>
               <el-radio-button value="microgrid">微电网</el-radio-button>
             </el-radio-group>
             <div style="font-size:12px;color:#64748b;margin-top:6px;line-height:1.4">
               <template v-if="form.protocol === 'iec104'">电力行业标准规约，适用于变电站自动化系统联调测试</template>
+              <template v-else-if="form.protocol === 'iec104_client'">主站模式，连接真实 IEC104 从站设备，接收遥测/遥信并发送遥控/遥调</template>
               <template v-else-if="form.protocol === 'modbus_tcp'">工业自动化领域通用规约，适用于Modbus TCP设备仿真</template>
               <template v-else>微电网仿真场景，包含光伏、储能、负荷等设备的一体化仿真</template>
             </div>
@@ -123,22 +130,41 @@
           </el-form-item>
         </div>
 
-        <!-- Step 2: Network -->
+        <!-- Step 2: Network / Client Config -->
         <div v-show="wizardStep === 1">
-          <el-form-item :label="form.protocol === 'modbus_tcp' ? 'Modbus端口' : 'IEC104端口'" prop="iec104_port">
-            <el-input-number v-model="form.iec104_port" :min="1" :max="65535" style="width: 100%" />
-          </el-form-item>
-          <el-form-item v-if="form.protocol === 'modbus_tcp'" label="从站地址">
-            <el-input-number v-model="modbusSlaveId" :min="1" :max="247" style="width: 100%" />
-          </el-form-item>
-          <el-form-item v-if="form.protocol === 'modbus_tcp'" label="字节序">
-            <el-select v-model="modbusByteOrder" style="width: 100%">
-              <el-option label="ABCD (Big-Endian)" value="ABCD" />
-              <el-option label="CDAB (Little-Endian)" value="CDAB" />
-              <el-option label="BADC (Byte-Swapped)" value="BADC" />
-              <el-option label="DCBA (Word-Swapped)" value="DCBA" />
-            </el-select>
-          </el-form-item>
+          <template v-if="form.protocol === 'iec104_client'">
+            <el-form-item label="远端地址" required>
+              <el-input v-model="clientConfig.remote_addr" placeholder="如 192.168.1.100" />
+            </el-form-item>
+            <el-form-item label="远端端口" required>
+              <el-input-number v-model="clientConfig.remote_port" :min="1" :max="65535" style="width: 100%" />
+            </el-form-item>
+            <el-form-item label="公共地址">
+              <el-input-number v-model="clientConfig.common_addr" :min="1" :max="255" style="width: 100%" />
+            </el-form-item>
+            <el-form-item label="重连间隔(秒)">
+              <el-input-number v-model="clientConfig.reconnect_delay" :min="1" :max="300" style="width: 100%" />
+            </el-form-item>
+            <el-form-item label="连接超时(秒)">
+              <el-input-number v-model="clientConfig.connect_timeout" :min="1" :max="60" style="width: 100%" />
+            </el-form-item>
+          </template>
+          <template v-else>
+            <el-form-item :label="form.protocol === 'modbus_tcp' ? 'Modbus端口' : 'IEC104端口'" prop="iec104_port">
+              <el-input-number v-model="form.iec104_port" :min="1" :max="65535" style="width: 100%" />
+            </el-form-item>
+            <el-form-item v-if="form.protocol === 'modbus_tcp'" label="从站地址">
+              <el-input-number v-model="modbusSlaveId" :min="1" :max="247" style="width: 100%" />
+            </el-form-item>
+            <el-form-item v-if="form.protocol === 'modbus_tcp'" label="字节序">
+              <el-select v-model="modbusByteOrder" style="width: 100%">
+                <el-option label="ABCD (Big-Endian)" value="ABCD" />
+                <el-option label="CDAB (Little-Endian)" value="CDAB" />
+                <el-option label="BADC (Byte-Swapped)" value="BADC" />
+                <el-option label="DCBA (Word-Swapped)" value="DCBA" />
+              </el-select>
+            </el-form-item>
+          </template>
         </div>
 
         <!-- Step 3: XLSX & HTTP -->
@@ -183,9 +209,17 @@
               <div class="review-label">实例名称</div>
               <div class="review-value">{{ form.name }}</div>
             </div>
-            <div class="review-section">
+            <div class="review-section" v-if="form.protocol !== 'iec104_client'">
               <div class="review-label">{{ form.protocol === 'modbus_tcp' ? 'Modbus端口' : 'IEC104端口' }}</div>
               <div class="review-value">{{ form.iec104_port }}</div>
+            </div>
+            <div class="review-section" v-if="form.protocol === 'iec104_client'">
+              <div class="review-label">远端地址</div>
+              <div class="review-value">{{ clientConfig.remote_addr }}:{{ clientConfig.remote_port }}</div>
+            </div>
+            <div class="review-section" v-if="form.protocol === 'iec104_client'">
+              <div class="review-label">公共地址</div>
+              <div class="review-value">{{ clientConfig.common_addr }}</div>
             </div>
             <div class="review-section" v-if="form.protocol === 'modbus_tcp'">
               <div class="review-label">从站地址</div>
@@ -220,20 +254,40 @@
         <el-form-item label="实例名称" prop="name">
           <el-input v-model="form.name" placeholder="例如: 变电站A" />
         </el-form-item>
-        <el-form-item :label="form.protocol === 'modbus_tcp' ? 'Modbus端口' : 'IEC104端口'" prop="iec104_port">
-          <el-input-number v-model="form.iec104_port" :min="1" :max="65535" style="width: 100%" />
-        </el-form-item>
-        <el-form-item v-if="form.protocol === 'modbus_tcp'" label="从站地址">
-          <el-input-number v-model="modbusSlaveId" :min="1" :max="247" style="width: 100%" />
-        </el-form-item>
-        <el-form-item v-if="form.protocol === 'modbus_tcp'" label="字节序">
-          <el-select v-model="modbusByteOrder" style="width: 100%">
-            <el-option label="ABCD (Big-Endian)" value="ABCD" />
-            <el-option label="CDAB (Little-Endian)" value="CDAB" />
-            <el-option label="BADC (Byte-Swapped)" value="BADC" />
-            <el-option label="DCBA (Word-Swapped)" value="DCBA" />
-          </el-select>
-        </el-form-item>
+        <!-- Client mode: show client config fields -->
+        <template v-if="form.protocol === 'iec104_client'">
+          <el-form-item label="远端地址" required>
+            <el-input v-model="clientConfig.remote_addr" placeholder="如 192.168.1.100" />
+          </el-form-item>
+          <el-form-item label="远端端口" required>
+            <el-input-number v-model="clientConfig.remote_port" :min="1" :max="65535" style="width: 100%" />
+          </el-form-item>
+          <el-form-item label="公共地址">
+            <el-input-number v-model="clientConfig.common_addr" :min="1" :max="255" style="width: 100%" />
+          </el-form-item>
+          <el-form-item label="重连间隔(秒)">
+            <el-input-number v-model="clientConfig.reconnect_delay" :min="1" :max="300" style="width: 100%" />
+          </el-form-item>
+          <el-form-item label="连接超时(秒)">
+            <el-input-number v-model="clientConfig.connect_timeout" :min="1" :max="60" style="width: 100%" />
+          </el-form-item>
+        </template>
+        <template v-else>
+          <el-form-item :label="form.protocol === 'modbus_tcp' ? 'Modbus端口' : 'IEC104端口'" prop="iec104_port">
+            <el-input-number v-model="form.iec104_port" :min="1" :max="65535" style="width: 100%" />
+          </el-form-item>
+          <el-form-item v-if="form.protocol === 'modbus_tcp'" label="从站地址">
+            <el-input-number v-model="modbusSlaveId" :min="1" :max="247" style="width: 100%" />
+          </el-form-item>
+          <el-form-item v-if="form.protocol === 'modbus_tcp'" label="字节序">
+            <el-select v-model="modbusByteOrder" style="width: 100%">
+              <el-option label="ABCD (Big-Endian)" value="ABCD" />
+              <el-option label="CDAB (Little-Endian)" value="CDAB" />
+              <el-option label="BADC (Byte-Swapped)" value="BADC" />
+              <el-option label="DCBA (Word-Swapped)" value="DCBA" />
+            </el-select>
+          </el-form-item>
+        </template>
         <el-form-item label="HTTP接口">
           <el-switch v-model="form.http_enabled" active-text="启用HTTP修改测点值" />
         </el-form-item>
@@ -281,6 +335,7 @@ import {
   listFiles,
   getStatus,
   type InstanceConfig,
+  type IEC104ClientConfig,
   type InstanceState,
   type GlobalStatus,
 } from '../api'
@@ -348,6 +403,16 @@ function onFileSelected(val: string) {
   form.value.xlsx_file = val
 }
 
+const defaultClientConfig = (): IEC104ClientConfig => ({
+  remote_addr: '',
+  remote_port: 2404,
+  common_addr: 1,
+  reconnect_delay: 5,
+  connect_timeout: 10,
+})
+
+const clientConfig = ref<IEC104ClientConfig>(defaultClientConfig())
+
 const form = ref<InstanceConfig>({
   name: '',
   iec104_port: 2404,
@@ -399,6 +464,9 @@ const xlsxHint = computed(() => {
   if (form.value.protocol === 'modbus_tcp') {
     return 'Modbus 格式: 名称 | IOA | 类型 | 类型 | 系数 | 基值 | 别名 | 寄存器地址 | 功能码 | 数据类型 | (额外列自动忽略)'
   }
+  if (form.value.protocol === 'iec104_client') {
+    return '客户端模式点表定义远端从站的数据结构，用于映射接收到的遥测/遥信数据'
+  }
   return 'IEC104 格式: 名称 | IOA | 数据类型 | 测点类型 | 系数 | 基值 | 别名'
 })
 
@@ -409,11 +477,17 @@ watch(showAddDialog, (v) => {
 
 async function wizardNext() {
   if (wizardStep.value === 0) {
-    // Validate step 1 fields
+    // Step 1: Validate name only
     if (!form.value.name) { ElMessage.warning('请输入实例名称'); return }
     wizardStep.value++
   } else if (wizardStep.value === 1) {
-    if (!form.value.iec104_port) { ElMessage.warning('请填写端口号'); return }
+    // Step 2: Validate network config (port or client config)
+    if (form.value.protocol === 'iec104_client') {
+      if (!clientConfig.value.remote_addr) { ElMessage.warning('请填写远端地址'); return }
+      if (!clientConfig.value.remote_port) { ElMessage.warning('请填写远端端口'); return }
+    } else {
+      if (!form.value.iec104_port) { ElMessage.warning('请填写端口号'); return }
+    }
     wizardStep.value++
   } else if (wizardStep.value === 2) {
     wizardStep.value++
@@ -493,6 +567,12 @@ function handleEdit(row: InstanceState) {
     http_port: row.http_port ?? 8081,
     protocol: row.protocol || 'iec104',
   }
+  // Restore client config if editing client mode instance
+  if (row.protocol === 'iec104_client' && row.iec104_client_config) {
+    clientConfig.value = { ...defaultClientConfig(), ...row.iec104_client_config }
+  } else {
+    clientConfig.value = defaultClientConfig()
+  }
   modbusSlaveId.value = 1
   modbusByteOrder.value = 'ABCD'
   showAddDialog.value = true
@@ -513,6 +593,9 @@ async function handleSave() {
         byte_order: modbusByteOrder.value,
       }
     }
+    if (data.protocol === 'iec104_client') {
+      data.iec104_client_config = { ...clientConfig.value }
+    }
     if (editing.value) {
       await updateInstance(data.id!, data)
       ElMessage.success('已更新')
@@ -524,7 +607,11 @@ async function handleSave() {
       await createInstance(createData)
       // Refresh list to get the new instance's ID
       await fetchData()
-      const newInstance = instances.value.find(i => i.name === createData.name && i.iec104_port === createData.iec104_port)
+      const newInstance = instances.value.find(i =>
+        i.name === createData.name &&
+        i.iec104_port === createData.iec104_port &&
+        i.protocol === createData.protocol
+      )
       if (startAfterCreate.value && newInstance) {
         try {
           await startInstance(newInstance.id)
@@ -625,6 +712,7 @@ function openPointTableEditor(id: string, protocol?: string) {
 function resetForm() {
   editing.value = false
   form.value = { name: '', iec104_port: 2404, xlsx_file: '', http_enabled: false, http_port: 8081, protocol: 'iec104' }
+  clientConfig.value = defaultClientConfig()
   modbusSlaveId.value = 1
   modbusByteOrder.value = 'ABCD'
   selectedFile.value = null
@@ -633,18 +721,21 @@ function resetForm() {
 function protoLabel(proto?: string): string {
   if (proto === 'modbus_tcp') return 'Modbus TCP'
   if (proto === 'microgrid') return '微电网'
+  if (proto === 'iec104_client') return 'IEC104 客户端'
   return 'IEC104'
 }
 
 function protoTagType(proto?: string): 'success' | 'primary' | 'info' | 'warning' {
   if (proto === 'modbus_tcp') return 'success'
   if (proto === 'microgrid') return 'warning'
+  if (proto === 'iec104_client') return 'info'
   return 'primary'
 }
 
 function displayPort(row: InstanceState): string {
   if (row.protocol === 'microgrid') return String(row.iec104_port)
   if (row.protocol === 'modbus_tcp' && row.iec104_port) return String(row.iec104_port)
+  if (row.protocol === 'iec104_client') return '—'
   return String(row.iec104_port)
 }
 

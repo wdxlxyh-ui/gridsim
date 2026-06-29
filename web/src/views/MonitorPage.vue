@@ -21,30 +21,59 @@
         class="stagger-col" :style="{ marginBottom: '16px', animationDelay: idx * 0.06 + 's' }">
         <el-card shadow="never" class="monitor-card" @mousemove="onCardHover" @mouseleave="onCardLeave">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px">
-            <span style="font-weight: 600; font-size: 15px">{{ inst.name }}</span>
-            <el-tag v-if="inst.status === 'running'" type="success" size="small">运行中</el-tag>
-            <el-tag v-else-if="inst.status === 'error'" type="danger" size="small">错误</el-tag>
-            <el-tag v-else type="info" size="small">已停止</el-tag>
+            <div style="display: flex; align-items: center; gap: 8px">
+              <span style="font-weight: 600; font-size: 15px">{{ inst.name }}</span>
+              <el-tag v-if="inst.status === 'running'" type="success" size="small">运行中</el-tag>
+              <el-tag v-else-if="inst.status === 'error'" type="danger" size="small">错误</el-tag>
+              <el-tag v-else type="info" size="small">已停止</el-tag>
+            </div>
+            <el-tag :type="protoTag(inst.protocol)" size="small" effect="plain">{{ protoLabel(inst.protocol) }}</el-tag>
           </div>
 
           <template v-if="inst.stats">
-            <el-descriptions :column="1" size="small" border style="margin-bottom: 12px">
-              <el-descriptions-item label="IEC104端口">
-                <el-tag size="small">{{ inst.iec104_port }}</el-tag>
-              </el-descriptions-item>
-              <el-descriptions-item label="HTTP端口" v-if="inst.http_enabled">
-                <el-tag size="small" type="warning">{{ inst.http_port }}</el-tag>
-              </el-descriptions-item>
-              <el-descriptions-item label="客户端">
-                <el-tag :type="inst.stats.client_connected ? 'success' : 'danger'" size="small">
-                  {{ inst.stats.client_connected ? '已连接' : '未连接' }}
-                </el-tag>
-              </el-descriptions-item>
-              <el-descriptions-item label="测点数">{{ inst.stats.total_points }}</el-descriptions-item>
-              <el-descriptions-item label="运行时间">{{ fmtUptime(inst.stats.uptime_seconds) }}</el-descriptions-item>
-              <el-descriptions-item label="总召次数">{{ inst.stats.interrogations }}</el-descriptions-item>
-              <el-descriptions-item label="变化上送">{{ inst.stats.spontaneous }}</el-descriptions-item>
-            </el-descriptions>
+            <!-- Client mode: show remote address and connection status -->
+            <template v-if="inst.protocol === 'iec104_client'">
+              <el-descriptions :column="1" size="small" border style="margin-bottom: 12px">
+                <el-descriptions-item label="远端地址">
+                  <span v-if="inst.iec104_client_config" style="font-family: var(--font-mono, monospace); font-weight: 600">
+                    {{ inst.iec104_client_config.remote_addr }}:{{ inst.iec104_client_config.remote_port }}
+                  </span>
+                  <span v-else style="color: var(--text-muted)">未配置</span>
+                </el-descriptions-item>
+                <el-descriptions-item label="公共地址">
+                  {{ inst.iec104_client_config?.common_addr ?? '-' }}
+                </el-descriptions-item>
+                <el-descriptions-item label="连接状态">
+                  <el-tag :type="inst.stats.client_connected ? 'success' : 'danger'" size="small" effect="dark">
+                    {{ inst.stats.client_connected ? '已连接' : '未连接' }}
+                  </el-tag>
+                </el-descriptions-item>
+                <el-descriptions-item label="测点数">{{ inst.stats.total_points }}</el-descriptions-item>
+                <el-descriptions-item label="运行时间">{{ fmtUptime(inst.stats.uptime_seconds) }}</el-descriptions-item>
+                <el-descriptions-item label="总召次数">{{ inst.stats.interrogations }}</el-descriptions-item>
+                <el-descriptions-item label="变化上送">{{ inst.stats.spontaneous }}</el-descriptions-item>
+              </el-descriptions>
+            </template>
+            <!-- Server mode: standard display -->
+            <template v-else>
+              <el-descriptions :column="1" size="small" border style="margin-bottom: 12px">
+                <el-descriptions-item label="IEC104端口">
+                  <el-tag size="small">{{ inst.iec104_port }}</el-tag>
+                </el-descriptions-item>
+                <el-descriptions-item label="HTTP端口" v-if="inst.http_enabled">
+                  <el-tag size="small" type="warning">{{ inst.http_port }}</el-tag>
+                </el-descriptions-item>
+                <el-descriptions-item label="客户端">
+                  <el-tag :type="inst.stats.client_connected ? 'success' : 'danger'" size="small">
+                    {{ inst.stats.client_connected ? '已连接' : '未连接' }}
+                  </el-tag>
+                </el-descriptions-item>
+                <el-descriptions-item label="测点数">{{ inst.stats.total_points }}</el-descriptions-item>
+                <el-descriptions-item label="运行时间">{{ fmtUptime(inst.stats.uptime_seconds) }}</el-descriptions-item>
+                <el-descriptions-item label="总召次数">{{ inst.stats.interrogations }}</el-descriptions-item>
+                <el-descriptions-item label="变化上送">{{ inst.stats.spontaneous }}</el-descriptions-item>
+              </el-descriptions>
+            </template>
           </template>
           <template v-else>
             <el-alert type="warning" :closable="false" show-icon style="margin-bottom: 12px">
@@ -116,6 +145,20 @@ const lastRefresh = ref('')
 const actionLoading = ref('')
 const router = useRouter()
 let timer: ReturnType<typeof setInterval> | null = null
+
+function protoLabel(proto?: string): string {
+  if (proto === 'modbus_tcp') return 'Modbus TCP'
+  if (proto === 'microgrid') return '微电网'
+  if (proto === 'iec104_client') return 'IEC104 客户端'
+  return 'IEC104'
+}
+
+function protoTag(proto?: string): 'success' | 'warning' | 'info' | 'primary' {
+  if (proto === 'modbus_tcp') return 'success'
+  if (proto === 'microgrid') return 'warning'
+  if (proto === 'iec104_client') return 'info'
+  return 'primary'
+}
 
 function openInstance(inst: InstanceState) {
   if (inst.protocol === 'microgrid') {

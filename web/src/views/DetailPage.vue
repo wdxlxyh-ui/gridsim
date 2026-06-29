@@ -7,9 +7,11 @@
           <span style="font-size: 16px; font-weight: 600">实例详情 — {{ instanceName }}</span>
           <el-tag v-if="instanceStatus === 'running'" type="success" size="small">运行中</el-tag>
           <el-tag v-else type="info" size="small">已停止</el-tag>
+          <el-tag v-if="isClientMode" type="info" size="small" effect="plain">IEC104 客户端</el-tag>
+          <el-tag v-else-if="isModbus" type="success" size="small" effect="plain">Modbus TCP</el-tag>
         </div>
         <div style="display: flex; align-items: center; gap: 8px">
-          <el-button v-if="instanceStatus !== 'running'" size="small" type="warning" @click="pointEditorVisible = true">编辑点表</el-button>
+          <el-button v-if="instanceStatus !== 'running' && !isClientMode" size="small" type="warning" @click="pointEditorVisible = true">编辑点表</el-button>
           <el-switch
             v-model="pollingEnabled"
             size="small"
@@ -32,7 +34,7 @@
     </el-card>
 
     <template v-if="instanceStatus === 'running'">
-      <el-card shadow="never" style="margin-bottom: 16px">
+      <el-card shadow="never" v-if="!isClientMode" style="margin-bottom: 16px">
         <div style="display: flex; justify-content: space-between; align-items: center; cursor: user-select: none" @click="csvMultiExpanded = !csvMultiExpanded">
           <div style="display: flex; align-items: center; gap: 10px">
             <span style="font-size: 14px; font-weight: 600">CSV 多测点回放</span>
@@ -135,9 +137,28 @@
         </div>
       </el-card>
 
+      <!-- Client mode: connection status -->
+      <client-status-card
+        v-if="isClientMode"
+        :connection-status="connectionStatus"
+        :remote-addr="clientRemoteAddr"
+        :remote-port="clientRemotePort"
+        :stats="instanceStats"
+        @refresh="loadInstanceState"
+      />
+
+      <!-- Client mode: CommandPanel -->
+      <command-panel
+        :points="points"
+        :instance-id="instanceId"
+        :visible="isClientMode && points.length > 0"
+        @command-sent="onCommandSent"
+      />
+
       <el-card shadow="never" style="margin-bottom: 16px">
         <div class="toolbar">
-          <!-- Type filter chips -->
+          <!-- Type filter chips: hide for client mode -->
+          <template v-if="!isClientMode">
           <div class="type-filters">
             <span style="font-size: 13px; color: #666; font-weight: 500; margin-right: 8px">过滤：</span>
             <el-tag
@@ -157,7 +178,9 @@
             >{{ typeLabel(t) }}</el-tag>
           </div>
           <el-divider direction="vertical" />
+          </template>
           <span style="font-size: 13px; color: #666; font-weight: 500">批量操作：</span>
+          <template v-if="!isClientMode">
           <el-button size="small" @click="openBatchModal">批量配置</el-button>
           <el-button size="small" @click="addSelectedToTrend" :disabled="Object.keys(selectedIoas).length === 0">
             📈 添加到趋势
@@ -169,6 +192,7 @@
           <el-divider direction="vertical" />
           <el-button size="small" type="primary" @click="exportCSVData">导出 CSV 数据</el-button>
           <span style="font-size: 12px; color: #999; margin-left: auto" id="selectedCount">已选 {{ Object.keys(selectedIoas).length }} 个测点</span>
+          </template>
         </div>
       </el-card>
 
@@ -243,52 +267,54 @@
                </span>
              </template>
            </el-table-column>
-          <el-table-column label="置数" width="150">
-            <template #default="{ row }">
-              <template v-if="row.point_type === 'AO' || row.point_type === 'DO'">
-                <span style="color: #c0c4cc; font-size: 12px">—</span>
-              </template>
-              <template v-else-if="row.point_type === 'DI'">
-                <el-switch
-                   :model-value="!!setValues[row.ioa]"
-                   :key="row.ioa"
-                   @change="(val: boolean) => doSetValue(row, val ? 1 : 0)"
-                   size="small"
-                   active-text="ON"
-                   inactive-text="OFF"
-                 />
-              </template>
-              <template v-else>
-                <div style="display: flex; gap: 4px">
-<el-input-number
-                     :model-value="setValues[row.ioa] ?? null"
-                     size="small"
-                     :step="row.point_type === 'PI' ? 1 : 0.1"
-                     :controls="false"
-                     style="width: 80px"
-                     @update:model-value="(v: number | null) => { setValues[row.ioa] = (v ?? '') as string | number }"
-                     @keydown.enter.prevent="() => doSetValue(row)"
-                   />
-                  <el-button size="small" type="primary" @click="doSetValue(row, undefined)">置数</el-button>
-                </div>
-              </template>
-            </template>
-          </el-table-column>
-           <el-table-column label="自动变化" width="120">
+           <!-- 置数 column: hide for client mode (data flows from slave → client, not controllable) -->
+           <el-table-column label="置数" width="150" v-if="!isClientMode">
              <template #default="{ row }">
                <template v-if="row.point_type === 'AO' || row.point_type === 'DO'">
                  <span style="color: #c0c4cc; font-size: 12px">—</span>
                </template>
                <template v-else-if="row.point_type === 'DI'">
-                 <span style="color: #c0c4cc; font-size: 12px">—</span>
+                 <el-switch
+                    :model-value="!!setValues[row.ioa]"
+                    :key="row.ioa"
+                    @change="(val: boolean) => doSetValue(row, val ? 1 : 0)"
+                    size="small"
+                    active-text="ON"
+                    inactive-text="OFF"
+                  />
                </template>
                <template v-else>
-                 <el-button size="small" :type="autoStrategies[row.ioa] ? 'success' : 'default'" @click="openAutoModal(row)">
-                   {{ autoStrategyLabel(row.ioa) }}
-                 </el-button>
+                 <div style="display: flex; gap: 4px">
+ <el-input-number
+                      :model-value="setValues[row.ioa] ?? null"
+                      size="small"
+                      :step="row.point_type === 'PI' ? 1 : 0.1"
+                      :controls="false"
+                      style="width: 80px"
+                      @update:model-value="(v: number | null) => { setValues[row.ioa] = (v ?? '') as string | number }"
+                      @keydown.enter.prevent="() => doSetValue(row)"
+                    />
+                   <el-button size="small" type="primary" @click="doSetValue(row, undefined)">置数</el-button>
+                 </div>
                </template>
              </template>
            </el-table-column>
+            <!-- 自动变化 column: hide for client mode -->
+            <el-table-column label="自动变化" width="120" v-if="!isClientMode">
+              <template #default="{ row }">
+                <template v-if="row.point_type === 'AO' || row.point_type === 'DO'">
+                  <span style="color: #c0c4cc; font-size: 12px">—</span>
+                </template>
+                <template v-else-if="row.point_type === 'DI'">
+                  <span style="color: #c0c4cc; font-size: 12px">—</span>
+                </template>
+                <template v-else>
+                  <el-button size="small" :type="autoStrategies[row.ioa] ? 'success' : 'default'" @click="openAutoModal(row)">
+                    {{ autoStrategyLabel(row.ioa) }}
+                  </el-button>
+                </template>
+              </template>
+            </el-table-column>
            <el-table-column label="操作" width="100" fixed="right">
               <template #default="{ row }">
                 <el-tooltip content="查看趋势" placement="top">
@@ -321,12 +347,15 @@
            </el-table-column>
         </el-table>
 
-        <div style="font-size: 12px; color: #999; display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; padding: 8px 0">
-          <span><el-tag type="primary" size="small" effect="plain">AI</el-tag> 遥测 — 置数/自动变化均可用</span>
-          <span><el-tag type="success" size="small" effect="plain">DI</el-tag> 遥信 — ON/OFF 开关置数</span>
-          <span><el-tag type="warning" size="small" effect="plain">PI</el-tag> 遥脉 — 自动变化可用</span>
-          <span><el-tag type="danger" size="small" effect="plain">AO/DO</el-tag> 置数和自动变化均不可用</span>
-        </div>
+         <div v-if="!isClientMode" style="font-size: 12px; color: #999; display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; padding: 8px 0">
+           <span><el-tag type="primary" size="small" effect="plain">AI</el-tag> 遥测 — 置数/自动变化均可用</span>
+           <span><el-tag type="success" size="small" effect="plain">DI</el-tag> 遥信 — ON/OFF 开关置数</span>
+           <span><el-tag type="warning" size="small" effect="plain">PI</el-tag> 遥脉 — 自动变化可用</span>
+           <span><el-tag type="danger" size="small" effect="plain">AO/DO</el-tag> 置数和自动变化均不可用</span>
+         </div>
+         <div v-else style="font-size: 12px; color: #10b981; display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; padding: 8px 0">
+           <span>ℹ 客户端模式：数据由远端从站主动上送，不支持置数/自动变化操作。可通过 CommandPanel 发送总召唤和遥控。</span>
+         </div>
       </el-card>
     </template>
 
@@ -643,8 +672,10 @@
 import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown, DataLine, MoreFilled, CopyDocument } from '@element-plus/icons-vue'
+import { ArrowDown, DataLine, MoreFilled, CopyDocument, SuccessFilled, CircleCloseFilled } from '@element-plus/icons-vue'
 import PointTableEditor from '../components/PointTableEditor.vue'
+import CommandPanel from '../components/instance/CommandPanel.vue'
+import ClientStatusCard from '../components/instance/ClientStatusCard.vue'
 import {
   getPoints, setPointValue, setAutoChange, getAutoChange, batchAutoChange,
   exportAutoConfig as fetchExport, importAutoConfig as fetchImport,
@@ -660,7 +691,12 @@ const instanceId = computed(() => route.params.id as string)
 const instanceName = ref('')
 const instanceStatus = ref('')
 const instanceProtocol = ref('iec104')
+const instanceStats = ref<{ interrogations: number; controls: number; spontaneous: number; uptime_seconds: number } | null>(null)
+const connectionStatus = ref<'connected' | 'disconnected'>('disconnected')
+const clientRemoteAddr = ref('')
+const clientRemotePort = ref(0)
 const isModbus = computed(() => instanceProtocol.value === 'modbus_tcp')
+const isClientMode = computed(() => instanceProtocol.value === 'iec104_client')
 const points = ref<PointSnapshot[]>([])
 const refreshRate = ref(200)
 const pollingEnabled = ref(true)
@@ -1111,6 +1147,17 @@ function handleRowAction(cmd: string, row: PointSnapshot) {
 function formatTime(ts: string): string {
   if (!ts) return ''
   return ts.replace('T', ' ').substring(0, 23)
+}
+
+function fmtDuration(s: number): string {
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  return h > 0 ? `${h}h${m}m` : `${m}m`
+}
+
+function onCommandSent(ioa: number) {
+  // Refresh points after sending command to show updated value
+  fetchPoints()
 }
 
 function displayValue(p: PointSnapshot): string {
@@ -1646,10 +1693,29 @@ async function loadInstanceState() {
     instanceName.value = state.name
     instanceStatus.value = state.status
     instanceProtocol.value = state.protocol || 'iec104'
+    if (state.stats) {
+      instanceStats.value = {
+        interrogations: state.stats.interrogations || 0,
+        controls: state.stats.controls || 0,
+        spontaneous: state.stats.spontaneous || 0,
+        uptime_seconds: state.stats.uptime_seconds || 0,
+      }
+      connectionStatus.value = state.stats.client_connected ? 'connected' : 'disconnected'
+    } else {
+      instanceStats.value = null
+      connectionStatus.value = 'disconnected'
+    }
+    // Extract client config for remote address display
+    if (state.iec104_client_config) {
+      clientRemoteAddr.value = state.iec104_client_config.remote_addr || ''
+      clientRemotePort.value = state.iec104_client_config.remote_port || 0
+    }
   } catch {
     instanceName.value = instanceId.value
     instanceStatus.value = 'stopped'
     instanceProtocol.value = 'iec104'
+    instanceStats.value = null
+    connectionStatus.value = 'disconnected'
   }
 }
 

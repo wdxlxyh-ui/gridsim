@@ -46,6 +46,14 @@ export interface ModbusConfig {
   slave_id?: number
 }
 
+export interface IEC104ClientConfig {
+  remote_addr: string
+  remote_port: number
+  common_addr: number
+  reconnect_delay: number
+  connect_timeout: number
+}
+
 export interface InstanceConfig {
   id?: string
   name: string
@@ -56,6 +64,7 @@ export interface InstanceConfig {
   http_port?: number
   protocol?: string
   modbus_config?: ModbusConfig
+  iec104_client_config?: IEC104ClientConfig
 }
 
 export interface InstanceStats {
@@ -79,6 +88,8 @@ export interface InstanceState {
   status: 'running' | 'stopped' | 'error'
   stats?: InstanceStats
   error?: string
+  iec104_client_config?: IEC104ClientConfig
+  modbus_config?: ModbusConfig
 }
 
 export interface GlobalStatus {
@@ -624,4 +635,11 @@ export async function getPointTable(instanceId: string): Promise<PointTableRespo
 
 export async function savePointTable(instanceId: string, points: PointTableRow[]): Promise<void> {
   await http.put(`/instances/${instanceId}/point-table`, { points })
+}
+
+// ─── Client Mode Command API ────────────────────────────────────────────────
+
+export async function sendCommand(instanceId: string, payload: { ioa: number; value?: number; bool_value?: boolean }): Promise<{ success: boolean; ioa: number }> {
+  const res = await http.put(`/instances/${instanceId}/command`, payload)
+  return res.data
 }

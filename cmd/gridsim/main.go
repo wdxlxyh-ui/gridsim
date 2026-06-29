@@ -1161,6 +1161,12 @@ func instanceStateToMap(s *model.InstanceState) map[string]interface{} {
 	if s.Config.MicrogridConfig != nil {
 		m["microgrid_config"] = s.Config.MicrogridConfig
 	}
+	if s.Config.ModbusConfig != nil {
+		m["modbus_config"] = s.Config.ModbusConfig
+	}
+	if s.Config.IEC104ClientConfig != nil {
+		m["iec104_client_config"] = s.Config.IEC104ClientConfig
+	}
 	if s.Status == model.StatusRunning {
 		m["stats"] = map[string]interface{}{
 			"uptime_seconds":   s.UptimeSeconds,
@@ -1185,12 +1191,16 @@ func validateConfig(cfg model.InstanceConfig) error {
 	if proto == "" {
 		proto = "iec104"
 	}
-	port := cfg.IEC104Port
-	if proto == "modbus_tcp" && cfg.ModbusConfig != nil && cfg.ModbusConfig.Port > 0 {
-		port = cfg.ModbusConfig.Port
-	}
-	if port < 1 || port > 65535 {
-		return fmt.Errorf("port must be 1-65535")
+	if proto == "iec104_client" {
+		// client mode connects to a remote slave, no local port needed
+	} else {
+		port := cfg.IEC104Port
+		if proto == "modbus_tcp" && cfg.ModbusConfig != nil && cfg.ModbusConfig.Port > 0 {
+			port = cfg.ModbusConfig.Port
+		}
+		if port < 1 || port > 65535 {
+			return fmt.Errorf("port must be 1-65535")
+		}
 	}
 	if cfg.Protocol != "microgrid" && cfg.XLSXFile == "" {
 		return fmt.Errorf("xlsx_file is required")

@@ -86,9 +86,11 @@ func (m *Manager) CreateConfig(cfg model.InstanceConfig) (model.InstanceConfig, 
 		return model.InstanceConfig{}, fmt.Errorf("maximum %d instances allowed", MaxInstances)
 	}
 
-	// Check IEC104 port conflict with other configs
+	// Check IEC104 port conflict with other configs (skip for client mode, no server port needed)
 	for _, existing := range m.store.List() {
-		if existing.IEC104Port == cfg.IEC104Port {
+		if cfg.Protocol == "iec104_client" {
+			// client mode doesn't use a server port, skip port collision check
+		} else if existing.IEC104Port == cfg.IEC104Port {
 			return model.InstanceConfig{}, fmt.Errorf("port %d already configured for instance %s", cfg.IEC104Port, existing.ID)
 		}
 		if cfg.HttpEnabled && existing.HttpEnabled && existing.HttpPort == cfg.HttpPort {

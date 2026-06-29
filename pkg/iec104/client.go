@@ -64,7 +64,10 @@ func (c *Client) Start() error {
 	addr := fmt.Sprintf("%s:%d", c.cfg.RemoteAddr, c.cfg.RemotePort)
 	opt := cs104.NewOption().
 		SetAutoReconnect(true).
-		SetReconnectInterval(time.Duration(c.cfg.ReconnectDelay) * time.Second)
+		SetReconnectInterval(time.Duration(c.cfg.ReconnectDelay) * time.Second).
+		SetConfig(cs104.Config{
+			ConnectTimeout0: time.Duration(c.cfg.ConnectTimeout) * time.Second,
+		})
 	if err := opt.AddRemoteServer(addr); err != nil {
 		return fmt.Errorf("invalid remote address %s: %w", addr, err)
 	}
@@ -131,6 +134,7 @@ func (c *Client) Publish(point *config.Point) {
 	c.mu.RUnlock()
 
 	if !connected || cl == nil {
+		slog.Warn("IEC104 客户端未就绪，丢弃命令", "ioa", point.IOA)
 		return
 	}
 
@@ -169,7 +173,8 @@ func (c *Client) SetStore(store *library.Store) {
 }
 
 func (c *Client) onConnect(cl *cs104.Client) {
-	slog.Info("已连接到远端", "remote", cl.UnderlyingConn().RemoteAddr())
+	slog.Info("已连接到远端，发送 STARTDT 激活", "remote", cl.UnderlyingConn().RemoteAddr())
+	cl.SendStartDt()
 }
 
 func (c *Client) onServerActive(cl *cs104.Client) {
