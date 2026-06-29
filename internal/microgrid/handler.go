@@ -98,6 +98,10 @@ func HandleMicrogridDevice(mgr ManagerBridge) http.HandlerFunc {
 			if dev.Switch.Name == "" {
 				dev.Switch.Name = fmt.Sprintf("QF%d", len(topo.Devices)+1)
 			}
+			// 默认控制模式为远方(AO跟随)
+			if dev.ControlMode == "" {
+				dev.ControlMode = ModeRemote
+			}
 			// 系统自动分配 IOABase
 			dev.IOABase = nextAvailableIOABase(topo.Devices)
 			if dev.IOABase == 0 {

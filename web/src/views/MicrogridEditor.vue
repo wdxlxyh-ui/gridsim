@@ -45,7 +45,7 @@
           </div>
           <div class="topo-right">
             <MicrogridDashboardCard :running="running" :dash="dash" />
-            <MicrogridSvgTopology :devices="devices" :dash="dash" :running="running" :bus-name="busName" :bus-voltage="busVoltage" />
+            <MicrogridSvgTopology :devices="devices" :dash="dash" :running="running" :bus-name="busName" :bus-voltage="busVoltage" :grid-meter-capacity="gridMeter.rated_capacity_kw" />
             <MicrogridFormulaPreview :devices="devices" />
           </div>
         </div>
@@ -544,11 +544,4 @@ onUnmounted(() => {
 .topo-left { display: flex; flex-direction: column; gap: 12px; }
 .topo-right { display: flex; flex-direction: column; gap: 12px; }
 .el-tabs :deep(.el-tabs__content) { padding: 16px; }
-.topology-html :deep(svg) { display: block; width: 100%; height: auto; }
-.topology-html :deep(text) { font-family: system-ui, -apple-system, sans-serif; }
-@keyframes flow-up { to { stroke-dashoffset: 32; } }
-@keyframes flow-dn { to { stroke-dashoffset: -32; } }
-.topology-html :deep(.fl-up) { stroke-dasharray: 12 4; animation: flow-up .6s linear infinite; stroke-width: 3.5; }
-.topology-html :deep(.fl-dn) { stroke-dasharray: 12 4; animation: flow-dn .6s linear infinite; stroke-width: 3.5; }
-.topology-html :deep(.fz) { stroke-dasharray: 4 8; stroke: #c0c4cc !important; stroke-width: 2; }
 </style>

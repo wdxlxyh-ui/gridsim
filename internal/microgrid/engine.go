@@ -454,34 +454,72 @@ func (e *Engine) tick() {
 		}
 		ratedP := dev.Params.RatedPowerKW
 		if ratedP <= 0 { ratedP = 100 }
-		// Remote: follow AO setpoint; Local: keep current value
+		// Remote: always follow AO setpoint (including 0 = output off)
+		// Local: keep current store value (strategy-driven)
 		if dev.ControlMode != ModeLocal {
 			setpoint := e.readPt(dev.ID + "_Setpoint")
-			if setpoint > 0 {
-				if setpoint > ratedP { setpoint = ratedP }
-				e.pvPower[dev.ID] = setpoint
-				continue
+			if setpoint < 0 {
+				setpoint = 0
 			}
+			if setpoint > ratedP {
+				setpoint = ratedP
+			}
+			e.pvPower[dev.ID] = setpoint
+			continue
 		}
-		// Keep current value (no random irradiance)
+		// Local mode: keep current value (no random irradiance)
 		e.pvPower[dev.ID] = e.readPt(dev.ID + "_Power")
 	}
 
-	// 2. Calculate load/charger power: keep current value from store
+	// 2. Calculate load/charger power: remote → follow AO setpoint; local → keep store value
 	for _, dev := range e.topology.Devices {
 		switch dev.Type {
 		case CompLoad:
-			if dev.Switch.Closed {
-				e.loadPower[dev.ID] = e.readPt(dev.ID + "_Power")
-			} else {
+			if !dev.Switch.Closed {
 				e.loadPower[dev.ID] = 0
+				continue
 			}
+			if dev.ControlMode != ModeLocal {
+				setpoint := e.readPt(dev.ID + "_Setpoint")
+				if setpoint != 0 {
+					rated := dev.Params.LoadRatedKW
+					if rated <= 0 {
+						rated = 100
+					}
+					if setpoint > rated {
+						setpoint = rated
+					}
+					if setpoint < 0 {
+						setpoint = 0
+					}
+					e.loadPower[dev.ID] = setpoint
+					continue
+				}
+			}
+			e.loadPower[dev.ID] = e.readPt(dev.ID + "_Power")
 		case CompCharger:
-			if dev.Switch.Closed {
-				e.loadPower[dev.ID] = e.readPt(dev.ID + "_Power")
-			} else {
+			if !dev.Switch.Closed {
 				e.loadPower[dev.ID] = 0
+				continue
 			}
+			if dev.ControlMode != ModeLocal {
+				setpoint := e.readPt(dev.ID + "_Setpoint")
+				if setpoint != 0 {
+					rated := dev.Params.ChargerRatedKW
+					if rated <= 0 {
+						rated = 100
+					}
+					if setpoint > rated {
+						setpoint = rated
+					}
+					if setpoint < 0 {
+						setpoint = 0
+					}
+					e.loadPower[dev.ID] = setpoint
+					continue
+				}
+			}
+			e.loadPower[dev.ID] = e.readPt(dev.ID + "_Power")
 		}
 	}
 
@@ -650,6 +688,13 @@ func (e *Engine) evaluateFormulasLocked() {
 	}
 	for _, f := range e.topology.Formulas {
 		if !f.Enabled || f.Expression == "" {
+			continue
+		}
+		// Skip auto-generated GRID formula — grid power is already computed by
+		// calcPowerBalanceLocked() and written by syncStoreLocked(). Using the
+		// formula would overwrite with a less accurate value derived from store
+		// reads that may lag behind the engine's internal state.
+		if f.ID == "auto-grid" {
 			continue
 		}
 		expr := formulaRefRE.ReplaceAllStringFunc(f.Expression, func(match string) string {
