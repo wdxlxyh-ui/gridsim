@@ -22,9 +22,6 @@
           <linearGradient id="grad-grid" x1="0%" y1="0%" x2="0%" y2="100%">
             <stop offset="0%" stop-color="#fee2e2"/><stop offset="100%" stop-color="#fecaca"/>
           </linearGradient>
-          <linearGradient id="grad-meter" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stop-color="#fef9c3"/><stop offset="100%" stop-color="#fde68a"/>
-          </linearGradient>
           <linearGradient id="grad-bus" x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stop-color="#64748b"/><stop offset="50%" stop-color="#334155"/><stop offset="100%" stop-color="#64748b"/>
           </linearGradient>
@@ -42,19 +39,8 @@
           </text>
         </g>
 
-        <!-- Grid → Meter connection -->
-        <line :x1="cx" y1="60" :x2="cx" y2="82" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"
-          :class="running ? gridFlowClass : ''"/>
-
-        <!-- ═══ 关口表 (Meter) ═══ -->
-        <g class="meter-node">
-          <rect :x="cx - 60" y="82" width="120" height="40" rx="8" fill="url(#grad-meter)" stroke="#d97706" stroke-width="1.5"/>
-          <text :x="cx" y="100" text-anchor="middle" font-size="11" fill="#92400e" font-weight="600">关口表</text>
-          <text :x="cx" y="114" text-anchor="middle" font-size="9" fill="#a16207">{{ gridMeterCapacity }} kW</text>
-        </g>
-
-        <!-- Meter → Bus connection -->
-        <line :x1="cx" y1="122" :x2="cx" :y2="BUS_Y - 8" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"
+        <!-- Grid → Bus connection (直连，移除关口表) -->
+        <line :x1="cx" y1="60" :x2="cx" :y2="BUS_Y - 8" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"
           :class="running ? gridFlowClass : ''"/>
 
         <!-- ═══ Bus bar (母线) ═══ -->
@@ -157,13 +143,12 @@ const props = defineProps<{
   running: boolean
   busName: string
   busVoltage: number
-  gridMeterCapacity?: number
 }>()
 
 // ─── Layout constants ───
 const CARD_W = 100
 const SW_R = 9
-const BUS_Y = 160
+const BUS_Y = 100
 const swY = BUS_Y + 36
 const boxTop = BUS_Y + 70
 
@@ -185,7 +170,7 @@ const N = computed(() => props.devices.length)
 const svgW = computed(() => Math.max(400, N.value * 130 + 80))
 const svgH = computed(() => {
   const hasBat = props.devices.some(d => d.type === 'battery')
-  return hasBat ? 380 : 360
+  return hasBat ? 320 : 300
 })
 const cx = computed(() => svgW.value / 2)
 
@@ -226,7 +211,6 @@ const socMap = computed(() => {
 })
 
 const gridPower = computed(() => props.dash.grid_power_kw ?? 0)
-const gridMeterCapacity = computed(() => props.gridMeterCapacity ?? 500)
 const gridPowerClass = computed(() => gridPower.value >= 0 ? 'consuming' : 'exporting')
 const gridFlowClass = computed(() => gridPower.value > 0.1 ? 'fl-dn' : (gridPower.value < -0.1 ? 'fl-up' : 'fl-idle'))
 
@@ -294,7 +278,7 @@ function devFlowClass(dev: MicrogridDevice): string {
 
 .topology-svg {
   display: block;
-  min-height: 360px;
+  min-height: 300px;
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
