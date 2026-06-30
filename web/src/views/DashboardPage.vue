@@ -279,18 +279,21 @@ function animateTo(target: number, current: { value: number }) {
 function protoColor(proto?: string): string {
   if (proto === 'modbus_tcp') return '#10b981'
   if (proto === 'microgrid') return '#f59e0b'
+  if (proto === 'iec104_client') return '#8b5cf6'
   return '#3b82f6'
 }
 
 function protoLabel(proto?: string): string {
   if (proto === 'modbus_tcp') return 'Modbus TCP'
   if (proto === 'microgrid') return '微电网'
+  if (proto === 'iec104_client') return 'IEC104 客户端'
   return 'IEC104'
 }
 
-function protoTag(proto?: string): 'success' | 'warning' | 'primary' {
+function protoTag(proto?: string): 'success' | 'warning' | 'primary' | 'info' {
   if (proto === 'modbus_tcp') return 'success'
   if (proto === 'microgrid') return 'warning'
+  if (proto === 'iec104_client') return 'info'
   return 'primary'
 }
 
