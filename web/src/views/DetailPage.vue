@@ -152,6 +152,7 @@
         :points="points"
         :instance-id="instanceId"
         :visible="isClientMode && points.length > 0"
+        :client-config="clientConfigData"
         @command-sent="onCommandSent"
       />
 
@@ -695,6 +696,7 @@ const instanceStats = ref<{ interrogations: number; controls: number; spontaneou
 const connectionStatus = ref<'connected' | 'disconnected'>('disconnected')
 const clientRemoteAddr = ref('')
 const clientRemotePort = ref(0)
+const clientConfigData = ref<any>(null)
 const isModbus = computed(() => instanceProtocol.value === 'modbus_tcp')
 const isClientMode = computed(() => instanceProtocol.value === 'iec104_client')
 const points = ref<PointSnapshot[]>([])
@@ -1725,6 +1727,7 @@ async function loadInstanceState() {
     if (state.iec104_client_config) {
       clientRemoteAddr.value = state.iec104_client_config.remote_addr || ''
       clientRemotePort.value = state.iec104_client_config.remote_port || 0
+      clientConfigData.value = state.iec104_client_config
     }
   } catch {
     instanceName.value = instanceId.value

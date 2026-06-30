@@ -23,6 +23,9 @@ type IEC104ClientConfig struct {
 	CommonAddr     int    `json:"common_addr"`
 	ReconnectDelay int    `json:"reconnect_delay"`
 	ConnectTimeout int    `json:"connect_timeout"`
+	InterrogPeriod int    `json:"interrog_period"` // 总召周期（秒），默认 600
+	RetryDelay     int    `json:"retry_delay"`     // 总召失败重试间隔（秒），默认 20
+	ControlMode    string `json:"control_mode"`    // "select" 或 "direct"，默认 "select"
 }
 
 // MicrogridInstanceConfig 微电网实例配置

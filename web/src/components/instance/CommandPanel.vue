@@ -191,18 +191,21 @@ import { computed, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { ArrowDown, List } from '@element-plus/icons-vue'
 import { sendCommand } from '../../api'
-import type { PointSnapshot } from '../../api'
+import type { PointSnapshot, IEC104ClientConfig } from '../../api'
 
 const props = defineProps<{
   points: PointSnapshot[]
   instanceId: string
   visible: boolean
+  clientConfig?: IEC104ClientConfig | null
 }>()
 
 const emit = defineEmits<{
   commandSent: [ioa: number]
 }>()
 
+// ── Control Mode ──
+const controlMode = computed(() => props.clientConfig?.control_mode || 'select')
 // ── Computed ──
 const commandablePoints = computed(() =>
   props.points.filter((p) => p.point_type === 'DO' || p.point_type === 'AO')
@@ -258,9 +261,44 @@ function fmtTime(): string {
 
 // ── DO Command Flow ──
 function confirmDOSend(point: PointSnapshot, newVal: boolean) {
-  confirmTarget.value = point
-  confirmValue.value = newVal
-  confirmVisible.value = true
+  if (controlMode.value === 'direct') {
+    // 直接执行：跳过确认对话框
+    directDOSend(point, newVal)
+  } else {
+    // 选择执行：弹出确认对话框
+    confirmTarget.value = point
+    confirmValue.value = newVal
+    confirmVisible.value = true
+  }
+}
+
+async function directDOSend(point: PointSnapshot, val: boolean) {
+  sendingIoas.add(point.ioa)
+  try {
+    await sendCommand(props.instanceId, { ioa: point.ioa, bool_value: val })
+    ElMessage.success(`DO 命令已发送 — ${point.name} → ${val ? 'ON' : 'OFF'}`)
+    addLogEntry({
+      time: fmtTime(),
+      ioa: point.ioa,
+      name: point.name,
+      pointType: 'DO',
+      value: val ? 'ON' : 'OFF',
+      status: 'success',
+    })
+    emit('commandSent', point.ioa)
+  } catch (e: any) {
+    ElMessage.error('DO 命令发送失败: ' + (e?.response?.data?.error || e.message))
+    addLogEntry({
+      time: fmtTime(),
+      ioa: point.ioa,
+      name: point.name,
+      pointType: 'DO',
+      value: val ? 'ON' : 'OFF',
+      status: 'error',
+    })
+  } finally {
+    sendingIoas.delete(point.ioa)
+  }
 }
 
 async function executeDOSend() {
@@ -303,6 +341,13 @@ async function sendAOCommand(point: PointSnapshot) {
   if (val === undefined || val === null) {
     ElMessage.warning('请先输入要发送的数值')
     return
+  }
+
+  if (controlMode.value === 'select') {
+    // 选择执行：弹确认
+    if (!confirm(`确认发送 AO 遥调命令？\n测点：${point.name} (IOA: ${point.ioa})\n目标值：${val}`)) {
+      return
+    }
   }
 
   sendingIoas.add(point.ioa)

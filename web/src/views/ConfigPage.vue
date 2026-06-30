@@ -148,6 +148,21 @@
             <el-form-item label="连接超时(秒)">
               <el-input-number v-model="clientConfig.connect_timeout" :min="1" :max="60" style="width: 100%" />
             </el-form-item>
+            <el-form-item label="总召周期(秒)">
+              <el-input-number v-model="clientConfig.interrog_period" :min="1" :max="86400" style="width: 100%" />
+              <div style="font-size:12px;color:#64748b;margin-top:4px">连接后按此周期定时发送总召唤，默认 600 秒</div>
+            </el-form-item>
+            <el-form-item label="重试间隔(秒)">
+              <el-input-number v-model="clientConfig.retry_delay" :min="1" :max="3600" style="width: 100%" />
+              <div style="font-size:12px;color:#64748b;margin-top:4px">总召失败后的重试等待时间，默认 20 秒</div>
+            </el-form-item>
+            <el-form-item label="控制模式">
+              <el-radio-group v-model="clientConfig.control_mode">
+                <el-radio-button value="select">选择执行</el-radio-button>
+                <el-radio-button value="direct">直接执行</el-radio-button>
+              </el-radio-group>
+              <div style="font-size:12px;color:#64748b;margin-top:4px">选择执行：下发前需确认；直接执行：点击即发送</div>
+            </el-form-item>
           </template>
           <template v-else>
             <el-form-item :label="form.protocol === 'modbus_tcp' ? 'Modbus端口' : 'IEC104端口'" prop="iec104_port">
@@ -270,6 +285,21 @@
           </el-form-item>
           <el-form-item label="连接超时(秒)">
             <el-input-number v-model="clientConfig.connect_timeout" :min="1" :max="60" style="width: 100%" />
+          </el-form-item>
+          <el-form-item label="总召周期(秒)">
+            <el-input-number v-model="clientConfig.interrog_period" :min="1" :max="86400" style="width: 100%" />
+            <div style="font-size:12px;color:#64748b;margin-top:4px">连接后按此周期定时发送总召唤，默认 600 秒</div>
+          </el-form-item>
+          <el-form-item label="重试间隔(秒)">
+            <el-input-number v-model="clientConfig.retry_delay" :min="1" :max="3600" style="width: 100%" />
+            <div style="font-size:12px;color:#64748b;margin-top:4px">总召失败后的重试等待时间，默认 20 秒</div>
+          </el-form-item>
+          <el-form-item label="控制模式">
+            <el-radio-group v-model="clientConfig.control_mode">
+              <el-radio-button value="select">选择执行</el-radio-button>
+              <el-radio-button value="direct">直接执行</el-radio-button>
+            </el-radio-group>
+            <div style="font-size:12px;color:#64748b;margin-top:4px">选择执行：下发前需确认；直接执行：点击即发送</div>
           </el-form-item>
         </template>
         <template v-else>
@@ -409,6 +439,9 @@ const defaultClientConfig = (): IEC104ClientConfig => ({
   common_addr: 1,
   reconnect_delay: 5,
   connect_timeout: 10,
+  interrog_period: 600,
+  retry_delay: 20,
+  control_mode: 'select',
 })
 
 const clientConfig = ref<IEC104ClientConfig>(defaultClientConfig())

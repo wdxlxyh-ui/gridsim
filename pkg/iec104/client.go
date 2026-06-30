@@ -25,6 +25,7 @@ type Client struct {
 	connected bool
 	startTime time.Time
 	started   bool
+	stopCh    chan struct{}
 
 	interrogCnt atomic.Int64
 	controlCnt  atomic.Int64
@@ -45,6 +46,12 @@ func NewClient(cfg model.IEC104ClientConfig) *Client {
 	if cfg.ConnectTimeout == 0 {
 		cfg.ConnectTimeout = 10
 	}
+	if cfg.InterrogPeriod == 0 {
+		cfg.InterrogPeriod = 600
+	}
+	if cfg.RetryDelay == 0 {
+		cfg.RetryDelay = 20
+	}
 	return &Client{cfg: cfg}
 }
 
@@ -60,6 +67,7 @@ func (c *Client) Start() error {
 
 	c.startTime = time.Now()
 	c.connected = false
+	c.stopCh = make(chan struct{})
 
 	addr := fmt.Sprintf("%s:%d", c.cfg.RemoteAddr, c.cfg.RemotePort)
 	opt := cs104.NewOption().
@@ -84,7 +92,11 @@ func (c *Client) Start() error {
 	}
 
 	c.started = true
-	slog.Info("IEC104 客户端已启动", "remote", addr)
+	go c.interrogationLoop()
+	slog.Info("IEC104 客户端已启动", "remote", addr,
+		"interrog_period", c.cfg.InterrogPeriod,
+		"retry_delay", c.cfg.RetryDelay,
+		"control_mode", c.cfg.ControlMode)
 	return nil
 }
 
@@ -98,6 +110,11 @@ func (c *Client) Stop() {
 
 	slog.Info("正在停止 IEC104 客户端",
 		"remote", fmt.Sprintf("%s:%d", c.cfg.RemoteAddr, c.cfg.RemotePort))
+
+	if c.stopCh != nil {
+		close(c.stopCh)
+		c.stopCh = nil
+	}
 
 	if c.client != nil {
 		_ = c.client.Close()
@@ -185,14 +202,8 @@ func (c *Client) onServerActive(cl *cs104.Client) {
 	slog.Info("STARTDT 确认，连接就绪",
 		"remote", cl.UnderlyingConn().RemoteAddr())
 
-	coa := asdu.CauseOfTransmission{Cause: asdu.Activation}
-	ca := asdu.CommonAddr(c.cfg.CommonAddr)
-	if err := cl.InterrogationCmd(coa, ca, 20); err != nil {
-		slog.Warn("发送总召唤失败", "error", err)
-	} else {
-		slog.Info("总召唤已发送")
-		c.interrogCnt.Add(1)
-	}
+	// 连接就绪后立即发送首次总召
+	c.sendInterrogation()
 }
 
 func (c *Client) onDisconnect(cl *cs104.Client) {
@@ -201,6 +212,63 @@ func (c *Client) onDisconnect(cl *cs104.Client) {
 	c.mu.Unlock()
 	slog.Warn("与远端断开连接",
 		"remote", fmt.Sprintf("%s:%d", c.cfg.RemoteAddr, c.cfg.RemotePort))
+}
+
+// interrogationLoop 周期性发送总召唤
+func (c *Client) interrogationLoop() {
+	period := time.Duration(c.cfg.InterrogPeriod) * time.Second
+	ticker := time.NewTicker(period)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-c.stopCh:
+			return
+		case <-ticker.C:
+			if !c.ClientConnected() {
+				continue
+			}
+			c.sendInterrogation()
+		}
+	}
+}
+
+// sendInterrogation 发送一次总召唤，失败时在 RetryDelay 后重试一次
+func (c *Client) sendInterrogation() {
+	c.mu.RLock()
+	cl := c.client
+	c.mu.RUnlock()
+	if cl == nil {
+		return
+	}
+
+	coa := asdu.CauseOfTransmission{Cause: asdu.Activation}
+	ca := asdu.CommonAddr(c.cfg.CommonAddr)
+	if err := cl.InterrogationCmd(coa, ca, 20); err != nil {
+		slog.Warn("总召唤发送失败，等待重试", "error", err, "retry_delay", c.cfg.RetryDelay)
+		retryDelay := time.Duration(c.cfg.RetryDelay) * time.Second
+		select {
+		case <-c.stopCh:
+			return
+		case <-time.After(retryDelay):
+		}
+		// 重试
+		c.mu.RLock()
+		cl = c.client
+		c.mu.RUnlock()
+		if cl == nil {
+			return
+		}
+		if err := cl.InterrogationCmd(coa, ca, 20); err != nil {
+			slog.Warn("总召唤重试失败", "error", err)
+		} else {
+			c.interrogCnt.Add(1)
+			slog.Info("总召唤重试成功")
+		}
+	} else {
+		c.interrogCnt.Add(1)
+		slog.Info("周期总召唤已发送")
+	}
 }
 
 type clientHandler struct {

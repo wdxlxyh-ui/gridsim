@@ -52,6 +52,9 @@ export interface IEC104ClientConfig {
   common_addr: number
   reconnect_delay: number
   connect_timeout: number
+  interrog_period: number
+  retry_delay: number
+  control_mode: string
 }
 
 export interface InstanceConfig {
