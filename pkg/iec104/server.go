@@ -21,6 +21,7 @@ type Server struct {
 	connect     asdu.Connect
 	connected   bool
 	publishCh   chan *config.Point
+	stopCh      chan struct{}
 	connMu      sync.RWMutex
 	interrogCnt atomic.Int64
 	controlCnt  atomic.Int64
@@ -48,6 +49,7 @@ func (s *Server) Start() error {
 
 	s.startTime = time.Now()
 	s.publishCh = make(chan *config.Point, 1024)
+	s.stopCh = make(chan struct{})
 	s.connected = false
 	s.connect = nil
 
@@ -81,6 +83,12 @@ func (s *Server) Stop() {
 	if s.server != nil {
 		_ = s.server.Close()
 		s.server = nil
+	}
+
+	// 通知 publishLoop 退出，避免 goroutine 泄漏。
+	// 使用独立的 stopCh 而非 close(publishCh)，防止 Publish() 向已关闭通道写入导致 panic。
+	if s.stopCh != nil {
+		close(s.stopCh)
 	}
 
 	s.connMu.Lock()
@@ -120,12 +128,17 @@ func (s *Server) onDisconnect(c asdu.Connect) {
 }
 
 func (s *Server) publishLoop() {
-	for pt := range s.publishCh {
-		c := s.getConnect()
-		if c == nil {
-			continue
+	for {
+		select {
+		case <-s.stopCh:
+			return
+		case pt := <-s.publishCh:
+			c := s.getConnect()
+			if c == nil {
+				continue
+			}
+			s.sendSpontaneous(c, pt)
 		}
-		s.sendSpontaneous(c, pt)
 	}
 }
 

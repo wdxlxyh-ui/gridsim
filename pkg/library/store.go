@@ -12,16 +12,28 @@ type Store struct {
 	mu     sync.RWMutex
 	points map[uint32]*config.Point
 	byType map[config.PointType][]*config.Point
+	// byFCAddr 二级索引: (functionCode<<16 | registerAddress) → *Point
+	// 用于 Modbus 按功能码+寄存器地址 O(1) 查找，避免全表线性扫描。
+	byFCAddr map[uint32]*config.Point
+}
+
+// fcAddrKey 组合功能码与寄存器地址为单一索引键。
+func fcAddrKey(fc uint8, addr uint16) uint32 {
+	return uint32(fc)<<16 | uint32(addr)
 }
 
 func NewStore(points []*config.Point) *Store {
 	s := &Store{
-		points: make(map[uint32]*config.Point),
-		byType: make(map[config.PointType][]*config.Point),
+		points:   make(map[uint32]*config.Point),
+		byType:   make(map[config.PointType][]*config.Point),
+		byFCAddr: make(map[uint32]*config.Point),
 	}
 	for _, p := range points {
 		s.points[p.IOA] = p
 		s.byType[p.PointType] = append(s.byType[p.PointType], p)
+		if p.FunctionCode != 0 {
+			s.byFCAddr[fcAddrKey(p.FunctionCode, p.RegisterAddress)] = p
+		}
 	}
 	return s
 }
@@ -83,6 +95,9 @@ func (s *Store) AddPoint(p *config.Point) error {
 	cp := *p
 	s.points[p.IOA] = &cp
 	s.byType[p.PointType] = append(s.byType[p.PointType], &cp)
+	if cp.FunctionCode != 0 {
+		s.byFCAddr[fcAddrKey(cp.FunctionCode, cp.RegisterAddress)] = &cp
+	}
 	return nil
 }
 
@@ -176,10 +191,8 @@ func (s *Store) TotalCount() int {
 func (s *Store) GetByFunctionCodeAndAddress(fc uint8, addr uint16) (*config.Point, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	for _, p := range s.points {
-		if p.FunctionCode == fc && p.RegisterAddress == addr {
-			return p, nil
-		}
+	if p, ok := s.byFCAddr[fcAddrKey(fc, addr)]; ok {
+		return p, nil
 	}
 	return nil, fmt.Errorf("no point found for FC=%d, Addr=%d", fc, addr)
 }
@@ -187,10 +200,12 @@ func (s *Store) GetByFunctionCodeAndAddress(fc uint8, addr uint16) (*config.Poin
 func (s *Store) GetByFunctionCodeRange(fc uint8, startAddr uint16, count uint16) []*config.Point {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	var result []*config.Point
-	endAddr := startAddr + count
-	for _, p := range s.points {
-		if p.FunctionCode == fc && p.RegisterAddress >= startAddr && p.RegisterAddress < endAddr {
+	result := make([]*config.Point, 0, count)
+	// 按地址逐个 O(1) 查找索引，避免遍历全表。
+	// count 受 Modbus 协议限制（线圈≤2000，寄存器≤125），循环开销可控。
+	for off := uint16(0); off < count; off++ {
+		addr := startAddr + off
+		if p, ok := s.byFCAddr[fcAddrKey(fc, addr)]; ok {
 			result = append(result, p)
 		}
 	}

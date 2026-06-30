@@ -500,11 +500,10 @@ function onSelectionChange(rows: InstanceState[]) {
 
 async function batchStart() {
   batchLoading.value = true
-  let ok = 0
-  for (const id of selectedIds.value) {
-    try { await startInstance(id); ok++ } catch {}
-  }
-  ElMessage.success(`已启动 ${ok}/${selectedIds.value.length} 个实例`)
+  const total = selectedIds.value.length
+  const results = await Promise.allSettled(selectedIds.value.map(id => startInstance(id)))
+  const ok = results.filter(r => r.status === 'fulfilled').length
+  ElMessage.success(`已启动 ${ok}/${total} 个实例`)
   selectedIds.value = []
   await fetchData()
   batchLoading.value = false
@@ -512,11 +511,10 @@ async function batchStart() {
 
 async function batchStop() {
   batchLoading.value = true
-  let ok = 0
-  for (const id of selectedIds.value) {
-    try { await stopInstance(id); ok++ } catch {}
-  }
-  ElMessage.success(`已停止 ${ok}/${selectedIds.value.length} 个实例`)
+  const total = selectedIds.value.length
+  const results = await Promise.allSettled(selectedIds.value.map(id => stopInstance(id)))
+  const ok = results.filter(r => r.status === 'fulfilled').length
+  ElMessage.success(`已停止 ${ok}/${total} 个实例`)
   selectedIds.value = []
   await fetchData()
   batchLoading.value = false
@@ -528,10 +526,8 @@ async function batchDelete() {
     await ElMessageBox.confirm(`确定删除选中的 ${count} 个实例？`, '批量删除', { type: 'warning' })
   } catch { return }
   batchLoading.value = true
-  let ok = 0
-  for (const id of selectedIds.value) {
-    try { await deleteInstance(id); ok++ } catch {}
-  }
+  const results = await Promise.allSettled(selectedIds.value.map(id => deleteInstance(id)))
+  const ok = results.filter(r => r.status === 'fulfilled').length
   ElMessage.success(`已删除 ${ok}/${count} 个实例`)
   selectedIds.value = []
   await fetchData()

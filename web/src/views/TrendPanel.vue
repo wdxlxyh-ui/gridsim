@@ -84,8 +84,10 @@ let resizeObserver: ResizeObserver | null = null
 let pollTimer: ReturnType<typeof setInterval> | null = null
 let disposed = false
 
-// Reconcile traces when props.traces changes (template switch / add trace from parent)
-watch(() => props.traces, (newConfigs) => {
+// Reconcile traces when props.traces changes (template switch / add trace from parent).
+// 用 traces 的稳定签名(instId+ioa)做浅层比较，避免 deep:true 对每个配置对象做深度遍历。
+watch(() => props.traces.map(t => `${t.instId}:${t.ioa}`).join(','), () => {
+  const newConfigs = props.traces
   const wasEmpty = panelTraces.value.length === 0
   const newTraces: Trace[] = []
   for (const cfg of newConfigs) {
@@ -109,7 +111,7 @@ watch(() => props.traces, (newConfigs) => {
   } else {
     nextTick(updateChart)
   }
-}, { deep: true })
+})
 
 watch(() => props.timeRange, () => {
   trimData()

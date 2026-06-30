@@ -15,9 +15,30 @@ type cachedResponse struct {
 }
 
 var (
-	idemCache   sync.Map
-	idemTTL     = 24 * time.Hour
+	idemCache     sync.Map
+	idemTTL       = 24 * time.Hour
+	idemCleanOnce sync.Once
 )
+
+// startIdemCleaner 启动后台清理协程，使用 sync.Once 保证全进程只启动一次，
+// 避免多次构造中间件时泄漏多个常驻协程。
+func startIdemCleaner() {
+	idemCleanOnce.Do(func() {
+		go func() {
+			ticker := time.NewTicker(10 * time.Minute)
+			defer ticker.Stop()
+			for range ticker.C {
+				now := time.Now()
+				idemCache.Range(func(key, val any) bool {
+					if cr, ok := val.(*cachedResponse); ok && now.After(cr.expiresAt) {
+						idemCache.Delete(key)
+					}
+					return true
+				})
+			}
+		}()
+	})
+}
 
 type responseRecorder struct {
 	http.ResponseWriter
@@ -36,18 +57,7 @@ func (r *responseRecorder) Write(b []byte) (int, error) {
 }
 
 func IdempotencyMiddleware(next http.Handler) http.Handler {
-	go func() {
-		for {
-			time.Sleep(10 * time.Minute)
-			now := time.Now()
-			idemCache.Range(func(key, val any) bool {
-				if cr, ok := val.(*cachedResponse); ok && now.After(cr.expiresAt) {
-					idemCache.Delete(key)
-				}
-				return true
-			})
-		}
-	}()
+	startIdemCleaner()
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		key := r.Header.Get("Idempotency-Key")

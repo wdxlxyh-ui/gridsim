@@ -698,7 +698,7 @@ const clientRemotePort = ref(0)
 const isModbus = computed(() => instanceProtocol.value === 'modbus_tcp')
 const isClientMode = computed(() => instanceProtocol.value === 'iec104_client')
 const points = ref<PointSnapshot[]>([])
-const refreshRate = ref(200)
+const refreshRate = ref(1000)
 const pollingEnabled = ref(true)
 const setValues = reactive<Record<number, string | number>>({})
 const autoStrategies = reactive<Record<number, string>>({})
@@ -1187,9 +1187,25 @@ function onSelectionChange(rows: PointSnapshot[]) {
 async function fetchPoints() {
    try {
      const res = await getPoints(instanceId.value)
-     points.value = res.points
+     const newPts = res.points || []
+     // 首次加载或点集数量变化时整体替换；否则按 IOA 原地更新，避免整表重渲染
+     if (points.value.length !== newPts.length) {
+       points.value = newPts
+     } else {
+       const byIOA = new Map(newPts.map(p => [p.ioa, p]))
+       for (const p of points.value) {
+         const np = byIOA.get(p.ioa)
+         if (np) {
+           p.value = np.value
+           p.bool_value = np.bool_value
+           p.int_value = np.int_value
+           p.updated_at = np.updated_at
+           p.qds = np.qds
+         }
+       }
+     }
      // 仅初始化 AI/PI/DI 的置数输入框初值，AO/DO 无置数 UI 不初始化
-     res.points.forEach(p => {
+     newPts.forEach(p => {
        if (p.ioa in setValues) return
        if (p.point_type === 'AI' || p.point_type === 'PI') {
          setValues[p.ioa] = p.value

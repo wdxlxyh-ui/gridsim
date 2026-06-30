@@ -27,6 +27,12 @@ type DetailHandler struct {
 	engine *Engine
 	cfgDir string
 	instID string
+
+	// sortedOrderCache 缓存按 (PointType, IOA) 排序后的 IOA 顺序。
+	// 点集不变时排序顺序固定，避免每次轮询都做全量 sort.Slice。
+	sortMu          sync.Mutex
+	sortedIOAs      []uint32
+	sortedForCount  int
 }
 
 func NewDetailHandler(instID string, store *library.Store, engine *Engine, cfgDir string) *DetailHandler {
@@ -145,26 +151,59 @@ func (h *DetailHandler) handleAutoChangeConfig(w http.ResponseWriter, r *http.Re
 
 func (h *DetailHandler) listSnapshots(w http.ResponseWriter, r *http.Request) {
 	points := h.store.GetAll()
-	snapshots := make([]model.PointSnapshot, 0, len(points))
+
+	// 建立 IOA → snapshot 映射，并按缓存的排序顺序输出。
+	byIOA := make(map[uint32]model.PointSnapshot, len(points))
 	for _, p := range points {
-		snapshots = append(snapshots, pointToSnapshot(p))
+		byIOA[p.IOA] = pointToSnapshot(p)
 	}
-	// Sort: AI first, then all by IOA ascending
-	sort.Slice(snapshots, func(i, j int) bool {
-		if snapshots[i].PointType != snapshots[j].PointType {
-			if snapshots[i].PointType == "AI" {
-				return true
-			}
-			if snapshots[j].PointType == "AI" {
-				return false
-			}
+
+	order := h.sortedOrder(points)
+	snapshots := make([]model.PointSnapshot, 0, len(order))
+	for _, ioa := range order {
+		if snap, ok := byIOA[ioa]; ok {
+			snapshots = append(snapshots, snap)
 		}
-		return snapshots[i].IOA < snapshots[j].IOA
-	})
+	}
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"points":       snapshots,
 		"refreshed_at": time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
 	})
+}
+
+// sortedOrder 返回按 (AI优先, 然后 IOA 升序) 排序的 IOA 序列。
+// 仅在点集数量变化时重新计算并缓存，避免每次轮询全量排序。
+func (h *DetailHandler) sortedOrder(points []*config.Point) []uint32 {
+	h.sortMu.Lock()
+	defer h.sortMu.Unlock()
+
+	if h.sortedIOAs != nil && h.sortedForCount == len(points) {
+		return h.sortedIOAs
+	}
+
+	sorted := make([]*config.Point, len(points))
+	copy(sorted, points)
+	sort.Slice(sorted, func(i, j int) bool {
+		pi, pj := sorted[i], sorted[j]
+		if pi.PointType != pj.PointType {
+			if pi.PointType == config.TypeAI {
+				return true
+			}
+			if pj.PointType == config.TypeAI {
+				return false
+			}
+		}
+		return pi.IOA < pj.IOA
+	})
+
+	order := make([]uint32, len(sorted))
+	for i, p := range sorted {
+		order[i] = p.IOA
+	}
+	h.sortedIOAs = order
+	h.sortedForCount = len(points)
+	return order
 }
 
 func (h *DetailHandler) getSnapshot(w http.ResponseWriter, ioa uint32) {
