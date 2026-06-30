@@ -180,8 +180,8 @@
           </div>
           <el-divider direction="vertical" />
           </template>
-          <span style="font-size: 13px; color: #666; font-weight: 500">批量操作：</span>
           <template v-if="!isClientMode">
+          <span style="font-size: 13px; color: #666; font-weight: 500">批量操作：</span>
           <el-button size="small" @click="openBatchModal">批量配置</el-button>
           <el-button size="small" @click="addSelectedToTrend" :disabled="Object.keys(selectedIoas).length === 0">
             📈 添加到趋势

@@ -736,6 +736,7 @@ func (ws *webServer) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		ClientConnected bool   `json:"client_connected"`
 		UptimeSeconds   int64  `json:"uptime_seconds,omitempty"`
 		Error           string `json:"error,omitempty"`
+		RemoteAddr      string `json:"remote_addr,omitempty"`
 	}
 
 	instances := make([]briefInstance, 0, len(data.Instances))
@@ -755,6 +756,9 @@ func (ws *webServer) handleDashboard(w http.ResponseWriter, r *http.Request) {
 			Port:   port,
 			Protocol: proto,
 			Error:  s.Error,
+		}
+		if proto == "iec104_client" && s.Config.IEC104ClientConfig != nil {
+			bi.RemoteAddr = fmt.Sprintf("%s:%d", s.Config.IEC104ClientConfig.RemoteAddr, s.Config.IEC104ClientConfig.RemotePort)
 		}
 		if s.Status == model.StatusRunning {
 			bi.TotalPoints = s.TotalPoints

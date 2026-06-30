@@ -46,9 +46,10 @@
             <el-tag :type="protoTagType(row.protocol)">{{ protoLabel(row.protocol) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="端口" width="100">
+        <el-table-column label="端口/远端" width="160">
           <template #default="{ row }">
-            <el-tag>{{ displayPort(row) }}</el-tag>
+            <el-tag v-if="row.protocol === 'iec104_client'" type="info" size="small">{{ displayPort(row) }}</el-tag>
+            <el-tag v-else>{{ displayPort(row) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="xlsx_file" label="点表文件" min-width="160" />
@@ -764,7 +765,12 @@ function protoTagType(proto?: string): 'success' | 'primary' | 'info' | 'warning
 function displayPort(row: InstanceState): string {
   if (row.protocol === 'microgrid') return String(row.iec104_port)
   if (row.protocol === 'modbus_tcp' && row.iec104_port) return String(row.iec104_port)
-  if (row.protocol === 'iec104_client') return '—'
+  if (row.protocol === 'iec104_client') {
+    if (row.iec104_client_config) {
+      return `${row.iec104_client_config.remote_addr}:${row.iec104_client_config.remote_port}`
+    }
+    return '—'
+  }
   return String(row.iec104_port)
 }
 

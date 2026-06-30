@@ -594,6 +594,7 @@ export interface DashboardBriefInstance {
   client_connected?: boolean
   uptime_seconds?: number
   error?: string
+  remote_addr?: string
 }
 
 export interface DashboardData {
