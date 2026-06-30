@@ -123,6 +123,7 @@ fi
 
 # ─── 2. Go binaries (parallel) ────────────────────────────────────────────
 LDFLAGS="-ldflags=-s -w -X main.version=$VERSION -X main.gitCommit=$GIT_COMMIT -X main.gitBranch=$GIT_BRANCH"
+LDFLAGS_WIN="-ldflags=-s -w -X main.version=$VERSION -X main.gitCommit=$GIT_COMMIT -X main.gitBranch=$GIT_BRANCH -H windowsgui"
 echo "[2/3] Go builds ── compiling for ${#PLATFORMS[@]} platforms ..."
 
 mkdir -p "$DIST_DIR/bin"
@@ -134,9 +135,13 @@ for entry in "${PLATFORMS[@]}"; do
     bin_name="$PROJECT"
     [ "$goos" = "windows" ] && bin_name="$PROJECT.exe"
 
+    # Windows uses GUI subsystem (no console on double-click)
+    BUILD_LDFLAGS="$LDFLAGS"
+    [ "$goos" = "windows" ] && BUILD_LDFLAGS="$LDFLAGS_WIN"
+
     (
         GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 \
-            $GO_CMD build "$LDFLAGS" \
+            $GO_CMD build "$BUILD_LDFLAGS" \
             -o "$DIST_DIR/bin/$PROJECT-$suffix${bin_name#$PROJECT}" \
             "$ROOT/cmd/gridsim/"
         echo "    ✔ $goos/$goarch  →  $(ls -lh "$DIST_DIR/bin/$PROJECT-$suffix${bin_name#$PROJECT}" | awk '{print $5}')"

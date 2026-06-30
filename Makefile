@@ -35,10 +35,11 @@ build-linux-arm64:
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 \
 		go build $(LDFLAGS) -o $(BIN_DIR)/$(PROJECT)-arm64 ./cmd/gridsim/
 
-# ── Windows amd64 ─────────────────────────────────────
+# ── Windows amd64 (GUI subsystem: no console on double-click) ─────
 build-windows:
 	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
-		go build $(LDFLAGS) -o $(BIN_DIR)/$(PROJECT).exe ./cmd/gridsim/
+		go build -ldflags="-s -w -X main.version=$(VERSION) -X main.gitCommit=$(GIT_COMMIT) -X main.gitBranch=$(GIT_BRANCH) -H windowsgui" \
+		-o $(BIN_DIR)/$(PROJECT).exe ./cmd/gridsim/
 
 # ── MCP Server (stdio 协议, 供 AI Agent 调用) ───────────
 build-mcp-linux-amd64:
