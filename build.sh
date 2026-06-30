@@ -14,7 +14,6 @@ set -euo pipefail
 
 # ─── Config ───────────────────────────────────────────────────────────────
 PROJECT="gridsim"
-VERSION="3.0.0"
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 DIST_DIR="$ROOT/dist"
 GO_CMD="${GO:-go}"
@@ -23,6 +22,26 @@ PLATFORMS=(
     "linux:arm64:linux-arm64"
     "windows:amd64:windows-amd64"
 )
+
+# ─── Auto-detect version from git ─────────────────────────────────────────
+# Priority: git tag (exact) > tag-dev+commits.hash > 0.0.0-dev+hash
+if git describe --tags --exact-match >/dev/null 2>&1; then
+    VERSION=$(git describe --tags --exact-match | sed 's/^v//')
+else
+    TAG=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || true)
+    if [ -n "$TAG" ]; then
+        COMMITS=$(git rev-list --count "$(git describe --tags --abbrev=0 2>/dev/null)..HEAD" 2>/dev/null)
+        HASH=$(git rev-parse --short HEAD 2>/dev/null)
+        VERSION="${TAG}-dev+${COMMITS}.${HASH}"
+    else
+        HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+        VERSION="0.0.0-dev+${HASH}"
+    fi
+fi
+# For filenames: replace + with - (tar/zip don't like + in names)
+DIST_VERSION=$(echo "$VERSION" | tr '+' '-')
+GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 
 # ─── Flags ────────────────────────────────────────────────────────────────
 SKIP_WEB=false
@@ -65,7 +84,7 @@ fi
 export PATH="$(dirname "$GO_CMD"):$PATH"
 
 echo "═══════════════════════════════════════════════════════════════════"
-echo "  $PROJECT v$VERSION Build"
+echo "  $PROJECT v$VERSION Build  ($GIT_BRANCH @ $GIT_COMMIT)"
 echo "═══════════════════════════════════════════════════════════════════"
 echo ""
 
@@ -103,7 +122,7 @@ else
 fi
 
 # ─── 2. Go binaries (parallel) ────────────────────────────────────────────
-LDFLAGS="-ldflags=-s -w -X main.version=$VERSION"
+LDFLAGS="-ldflags=-s -w -X main.version=$VERSION -X main.gitCommit=$GIT_COMMIT -X main.gitBranch=$GIT_BRANCH"
 echo "[2/3] Go builds ── compiling for ${#PLATFORMS[@]} platforms ..."
 
 mkdir -p "$DIST_DIR/bin"
@@ -124,6 +143,24 @@ for entry in "${PLATFORMS[@]}"; do
     ) &
     GO_BUILD_PIDS+=($!)
 done
+
+# Build MCP server for all platforms in parallel
+if [ -d "$ROOT/cmd/gridsim-mcp" ]; then
+    for entry in "${PLATFORMS[@]}"; do
+        IFS=":" read -r goos goarch suffix <<< "$entry"
+        mcp_ext=""
+        [ "$goos" = "windows" ] && mcp_ext=".exe"
+
+        (
+            GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 \
+                $GO_CMD build "$LDFLAGS" \
+                -o "$DIST_DIR/bin/gridsim-mcp-$suffix$mcp_ext" \
+                "$ROOT/cmd/gridsim-mcp/"
+            echo "    ✔ mcp $goos/$goarch  →  $(ls -lh "$DIST_DIR/bin/gridsim-mcp-$suffix$mcp_ext" | awk '{print $5}')"
+        ) &
+        GO_BUILD_PIDS+=($!)
+    done
+fi
 
 # Build frontend in parallel with Go (if needed)
 if [ "$BUILD_WEB" = true ]; then
@@ -180,9 +217,9 @@ PACKAGES=0
 for entry in "${PLATFORMS[@]}"; do
     IFS=":" read -r goos goarch suffix <<< "$entry"
 
-    STAGING="$DIST_DIR/staging/$PROJECT-v$VERSION-$suffix"
-    mkdir -p "$STAGING/bin" "$STAGING/scripts" "$STAGING/config" \
-             "$STAGING/logs" "$STAGING/web/dist" "$STAGING/samples"
+    STAGING="$DIST_DIR/staging/$PROJECT-v$DIST_VERSION-$suffix"
+    mkdir -p "$STAGING/bin" "$STAGING/config" \
+             "$STAGING/logs" "$STAGING/resources" "$STAGING/web/dist"
 
     # Binary
     if [ "$goos" = "windows" ]; then
@@ -192,24 +229,41 @@ for entry in "${PLATFORMS[@]}"; do
         chmod +x "$STAGING/bin/$PROJECT"
     fi
 
-    # Scripts
+    # VERSION file
+    echo "$VERSION" > "$STAGING/bin/VERSION"
+
+    # Scripts (placed in bin/ alongside binary)
     if [ "$goos" = "windows" ]; then
-        cp "$ROOT/scripts/start.bat"   "$STAGING/scripts/"
-        cp "$ROOT/scripts/stop.bat"    "$STAGING/scripts/"
-        cp "$ROOT/scripts/restart.bat" "$STAGING/scripts/"
+        cp "$ROOT/scripts/start.bat"   "$STAGING/bin/"
+        cp "$ROOT/scripts/stop.bat"    "$STAGING/bin/"
+        cp "$ROOT/scripts/restart.bat" "$STAGING/bin/"
     else
-        cp "$ROOT/scripts/start.sh"    "$STAGING/scripts/"
-        cp "$ROOT/scripts/stop.sh"     "$STAGING/scripts/"
-        cp "$ROOT/scripts/restart.sh"  "$STAGING/scripts/"
-        chmod +x "$STAGING/scripts/"*.sh
+        cp "$ROOT/scripts/start.sh"    "$STAGING/bin/"
+        cp "$ROOT/scripts/stop.sh"     "$STAGING/bin/"
+        cp "$ROOT/scripts/restart.sh"  "$STAGING/bin/"
+        chmod +x "$STAGING/bin/"*.sh
     fi
 
-    # Config / samples
-    echo '[]' > "$STAGING/config/instances.json"
-    [ -f "$ROOT/samples/point.xlsx" ] && cp "$ROOT/samples/point.xlsx" "$STAGING/samples/"
-    touch "$STAGING/logs/.gitkeep"
+    # MCP binary (if exists)
+    if [ "$goos" = "windows" ]; then
+        [ -f "$DIST_DIR/bin/gridsim-mcp-$suffix.exe" ] && \
+            cp "$DIST_DIR/bin/gridsim-mcp-$suffix.exe" "$STAGING/bin/gridsim-mcp.exe"
+    else
+        [ -f "$DIST_DIR/bin/gridsim-mcp-$suffix" ] && \
+            cp "$DIST_DIR/bin/gridsim-mcp-$suffix" "$STAGING/bin/gridsim-mcp" && \
+            chmod +x "$STAGING/bin/gridsim-mcp"
+    fi
 
-    # README
+    # Config
+    echo '[]' > "$STAGING/config/instances.json"
+    [ -f "$ROOT/config/users.json" ] && cp "$ROOT/config/users.json" "$STAGING/config/"
+
+    # Logs & resources placeholders
+    touch "$STAGING/logs/.gitkeep"
+    touch "$STAGING/resources/.gitkeep"
+
+    # GUIDE / README
+    [ -f "$ROOT/GUIDE.md" ] && cp "$ROOT/GUIDE.md" "$STAGING/"
     [ -f "$ROOT/README.md" ] && cp "$ROOT/README.md" "$STAGING/"
 
     # Frontend assets (if available)
@@ -221,13 +275,13 @@ for entry in "${PLATFORMS[@]}"; do
     cd "$DIST_DIR/staging"
     if [ "$goos" = "windows" ]; then
         if command -v zip &>/dev/null; then
-            zip -rq "$DIST_DIR/$PROJECT-v$VERSION-$suffix.zip" \
-                "$PROJECT-v$VERSION-$suffix/"
+            zip -rq "$DIST_DIR/$PROJECT-v$DIST_VERSION-$suffix.zip" \
+                "$PROJECT-v$DIST_VERSION-$suffix/"
         else
             python3 -c "
 import zipfile, os
-src = '$PROJECT-v$VERSION-$suffix'
-dst = '$DIST_DIR/$PROJECT-v$VERSION-$suffix.zip'
+src = '$PROJECT-v$DIST_VERSION-$suffix'
+dst = '$DIST_DIR/$PROJECT-v$DIST_VERSION-$suffix.zip'
 with zipfile.ZipFile(dst, 'w', zipfile.ZIP_DEFLATED) as zf:
     for root, dirs, files in os.walk(src):
         for f in files:
@@ -235,11 +289,11 @@ with zipfile.ZipFile(dst, 'w', zipfile.ZIP_DEFLATED) as zf:
             zf.write(p, os.path.relpath(p, os.path.dirname(src)))
 "
         fi
-        echo "  ✔ gridsim-v$VERSION-$suffix.zip  ($(ls -lh "$DIST_DIR/$PROJECT-v$VERSION-$suffix.zip" | awk '{print $5}'))"
+        echo "  ✔ gridsim-v$DIST_VERSION-$suffix.zip  ($(ls -lh "$DIST_DIR/$PROJECT-v$DIST_VERSION-$suffix.zip" | awk '{print $5}'))"
     else
-        tar czf "$DIST_DIR/$PROJECT-v$VERSION-$suffix.tar.gz" \
-            "$PROJECT-v$VERSION-$suffix/"
-        echo "  ✔ gridsim-v$VERSION-$suffix.tar.gz  ($(ls -lh "$DIST_DIR/$PROJECT-v$VERSION-$suffix.tar.gz" | awk '{print $5}'))"
+        tar czf "$DIST_DIR/$PROJECT-v$DIST_VERSION-$suffix.tar.gz" \
+            "$PROJECT-v$DIST_VERSION-$suffix/"
+        echo "  ✔ gridsim-v$DIST_VERSION-$suffix.tar.gz  ($(ls -lh "$DIST_DIR/$PROJECT-v$DIST_VERSION-$suffix.tar.gz" | awk '{print $5}'))"
     fi
     PACKAGES=$((PACKAGES + 1))
 done
@@ -251,7 +305,7 @@ rm -rf "$DIST_DIR/staging"
 TOTAL=$SECONDS
 echo ""
 echo "═══════════════════════════════════════════════════════════════════"
-echo "  Build complete  (${TOTAL}s)"
+echo "  Build complete  v$VERSION ($GIT_BRANCH @ $GIT_COMMIT)  (${TOTAL}s)"
 echo "═══════════════════════════════════════════════════════════════════"
 ls -lh "$DIST_DIR/"*.tar.gz "$DIST_DIR/"*.zip 2>/dev/null | \
     awk '{printf "  %s  %s\n", $5, $9}'
