@@ -312,8 +312,8 @@ func (h *serverHandler) handleSingleCommand(c asdu.Connect, a *asdu.ASDU) error 
 	slog.Info("收到DO控制", "ioa", ioa, "value", cmd.Value)
 
 	pt, err := h.srv.store.SetBoolValue(ioa, cmd.Value)
-if err != nil {
-		slog.Warn("发送变化上送失败", "ioa", pt.IOA, "error", err)
+	if err != nil {
+		slog.Warn("DO控制更新失败", "ioa", ioa, "error", err)
 	} else {
 		slog.Debug("变化上送", "ioa", pt.IOA, "value", formatPointValue(pt))
 	}
@@ -364,31 +364,91 @@ func (h *serverHandler) handleSetpointCommand(c asdu.Connect, a *asdu.ASDU) erro
 	return nil
 }
 
+// maxInfosPerASDU 单个 ASDU 在非序列(SQ=0)模式下可容纳的信息对象数量上限。
+// 受 ASDUSizeMax(249字节) 约束: 标识符6字节 + IOA地址3字节 + 对象体N字节。
+// 浮点/累计量对象体5字节(每对象8字节)→ 上限约30; 单点对象体1字节(每对象4字节)→ 上限约60。
+// 取保守值，确保所有类型都不会超过 ASDU 长度限制。
+const (
+	maxFloatInfosPerASDU  = 30 // AI/AO (M_ME_NC_1)
+	maxSingleInfosPerASDU = 60 // DI/DO (M_SP_NA_1)
+	maxCounterInfosPerASDU = 30 // PI (M_IT_NA_1)
+)
+
+// sendPointsByType 将指定类型的所有测点分批打包发送。
+// 每个 ASDU 包含多个 IOA(非序列模式)，相比逐点发送可将 TCP 包数量降低约 30~60 倍。
 func sendPointsByType(c asdu.Connect, store *library.Store, pt config.PointType, coa asdu.CauseOfTransmission, commonAddr asdu.CommonAddr) {
-	for _, point := range store.SnapshotByType(pt) {
-		switch pt {
-		case config.TypeAI, config.TypeAO:
-			info := asdu.MeasuredValueFloatInfo{
+	points := store.SnapshotByType(pt)
+	if len(points) == 0 {
+		return
+	}
+
+	switch pt {
+	case config.TypeAI, config.TypeAO:
+		batch := make([]asdu.MeasuredValueFloatInfo, 0, maxFloatInfosPerASDU)
+		flush := func() {
+			if len(batch) == 0 {
+				return
+			}
+			if err := asdu.MeasuredValueFloat(c, false, coa, commonAddr, batch...); err != nil {
+				slog.Warn("总召发送遥测失败", "count", len(batch), "error", err)
+			}
+			batch = batch[:0]
+		}
+		for _, point := range points {
+			batch = append(batch, asdu.MeasuredValueFloatInfo{
 				Ioa:   asdu.InfoObjAddr(point.IOA),
 				Value: float32(point.Value),
 				Qds:   qualityToQDS(point.QDS),
+			})
+			if len(batch) >= maxFloatInfosPerASDU {
+				flush()
 			}
-			asdu.MeasuredValueFloat(c, false, coa, commonAddr, info)
+		}
+		flush()
 
-		case config.TypeDI, config.TypeDO:
-			info := asdu.SinglePointInfo{
+	case config.TypeDI, config.TypeDO:
+		batch := make([]asdu.SinglePointInfo, 0, maxSingleInfosPerASDU)
+		flush := func() {
+			if len(batch) == 0 {
+				return
+			}
+			if err := asdu.Single(c, false, coa, commonAddr, batch...); err != nil {
+				slog.Warn("总召发送遥信失败", "count", len(batch), "error", err)
+			}
+			batch = batch[:0]
+		}
+		for _, point := range points {
+			batch = append(batch, asdu.SinglePointInfo{
 				Ioa:   asdu.InfoObjAddr(point.IOA),
 				Value: point.BoolValue,
 				Qds:   qualityToQDS(point.QDS),
+			})
+			if len(batch) >= maxSingleInfosPerASDU {
+				flush()
 			}
-			asdu.Single(c, false, coa, commonAddr, info)
-
-		case config.TypePI:
-			info := asdu.BinaryCounterReadingInfo{
-				Ioa: asdu.InfoObjAddr(point.IOA),
-			}
-			asdu.IntegratedTotals(c, false, coa, commonAddr, info)
 		}
+		flush()
+
+	case config.TypePI:
+		batch := make([]asdu.BinaryCounterReadingInfo, 0, maxCounterInfosPerASDU)
+		flush := func() {
+			if len(batch) == 0 {
+				return
+			}
+			if err := asdu.IntegratedTotals(c, false, coa, commonAddr, batch...); err != nil {
+				slog.Warn("总召发送遥脉失败", "count", len(batch), "error", err)
+			}
+			batch = batch[:0]
+		}
+		for _, point := range points {
+			batch = append(batch, asdu.BinaryCounterReadingInfo{
+				Ioa: asdu.InfoObjAddr(point.IOA),
+			})
+			if len(batch) >= maxCounterInfosPerASDU {
+				flush()
+			}
+		}
+		flush()
 	}
 }
 

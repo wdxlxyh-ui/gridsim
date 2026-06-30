@@ -34,6 +34,7 @@ export default defineConfig({
         manualChunks: {
           'vendor-vue': ['vue', 'vue-router'],
           'vendor-element': ['element-plus'],
+          'vendor-echarts': ['echarts'],
           'vendor-axios': ['axios'],
         },
         chunkFileNames: 'assets/js/[name]-[hash].js',
@@ -43,9 +44,9 @@ export default defineConfig({
     },
     sourcemap: false,
     minify: 'esbuild',
-    chunkSizeWarningLimit: 500,
+    chunkSizeWarningLimit: 800,
   },
   optimizeDeps: {
-    include: ['vue', 'vue-router', 'element-plus', 'axios'],
+    include: ['vue', 'vue-router', 'element-plus', 'axios', 'echarts'],
   },
 })
