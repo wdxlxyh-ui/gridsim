@@ -1,9 +1,9 @@
 <template>
   <div class="py-config-editor">
-    <!-- Save button (always visible at top) -->
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <span style="font-size:14px;color:#6b7280">{{ disabled ? '⚠️ 实例运行中，配置为只读' : '编辑设备配置后点击保存' }}</span>
-      <el-button type="primary" :disabled="disabled" :loading="saving" @click="handleSave">💾 保存配置</el-button>
+    <!-- Save button (sticky top bar) -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:10px 16px;background:var(--el-bg-color);border-radius:8px;border:1px solid var(--el-border-color);position:sticky;top:0;z-index:10">
+      <span style="font-size:13px;color:var(--el-text-color-secondary)">{{ disabled ? '⚠️ 实例运行中，配置为只读' : '📝 编辑设备配置后点击右侧保存' }}</span>
+      <el-button type="primary" :disabled="disabled" :loading="saving" @click="handleSave">保存配置</el-button>
     </div>
 
     <!-- Global config -->
