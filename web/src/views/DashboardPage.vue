@@ -287,12 +287,14 @@ function protoLabel(proto?: string): string {
   if (proto === 'modbus_tcp') return 'Modbus TCP'
   if (proto === 'microgrid') return '微电网'
   if (proto === 'iec104_client') return 'IEC104 客户端'
+  if (proto === 'modbus_bridge') return 'Python微电网'
   return 'IEC104'
 }
 
 function protoTag(proto?: string): 'success' | 'warning' | 'primary' | 'info' {
   if (proto === 'modbus_tcp') return 'success'
   if (proto === 'microgrid') return 'warning'
+  if (proto === 'modbus_bridge') return 'warning'
   if (proto === 'iec104_client') return 'info'
   return 'primary'
 }
@@ -312,6 +314,8 @@ function fmtUptime(s: number): string {
 function goToDetail(inst: DashboardBriefInstance) {
   if (inst.protocol === 'microgrid') {
     router.push(`/microgrid/${inst.id}`)
+  } else if (inst.protocol === 'modbus_bridge') {
+    router.push(`/py-microgrid/${inst.id}`)
   } else {
     router.push(`/detail/${inst.id}`)
   }

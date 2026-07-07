@@ -263,6 +263,18 @@ for entry in "${PLATFORMS[@]}"; do
     echo '[]' > "$STAGING/config/instances.json"
     [ -f "$ROOT/config/users.json" ] && cp "$ROOT/config/users.json" "$STAGING/config/"
 
+    # Python microgrid simulator (PyInstaller binary + data files)
+    if [ "$goos" = "linux" ] && [ -d "$ROOT/bin/py-microgrid-sim" ]; then
+        cp -r "$ROOT/bin/py-microgrid-sim" "$STAGING/bin/py-microgrid-sim"
+        chmod +x "$STAGING/bin/py-microgrid-sim/py-microgrid-sim" 2>/dev/null || true
+    fi
+    if [ -d "$ROOT/config/py_simulator" ]; then
+        cp -r "$ROOT/config/py_simulator" "$STAGING/config/py_simulator"
+        # Remove __pycache__ and build artifacts
+        find "$STAGING/config/py_simulator" -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+        rm -rf "$STAGING/config/py_simulator/build" "$STAGING/config/py_simulator/"*.spec 2>/dev/null || true
+    fi
+
     # Logs & resources placeholders
     touch "$STAGING/logs/.gitkeep"
     touch "$STAGING/resources/.gitkeep"

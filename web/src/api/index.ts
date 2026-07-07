@@ -705,3 +705,30 @@ export async function sendCommand(instanceId: string, payload: { ioa: number; va
   const res = await http.put(`/instances/${instanceId}/command`, payload)
   return res.data
 }
+
+// ─── Python Microgrid Config/Export API ────────────────────────────────────
+
+export async function getPyMicrogridConfig(instanceId: string): Promise<any> {
+  const res = await http.get(`/py-microgrid/${instanceId}/config`)
+  return res.data
+}
+
+export async function savePyMicrogridConfig(instanceId: string, config: any): Promise<void> {
+  await http.put(`/py-microgrid/${instanceId}/config`, config)
+}
+
+export async function getPyMicrogridCurves(instanceId: string): Promise<string[]> {
+  const res = await http.get(`/py-microgrid/${instanceId}/curves`)
+  return res.data.files || []
+}
+
+export async function uploadPyMicrogridCurve(instanceId: string, file: File): Promise<void> {
+  const form = new FormData()
+  form.append('file', file)
+  await http.post(`/py-microgrid/${instanceId}/upload-curve`, form, { headers: { 'Content-Type': 'multipart/form-data' } })
+}
+
+export async function exportPyMicrogridPoints(instanceId: string): Promise<Blob> {
+  const res = await http.get(`/py-microgrid/${instanceId}/export-points`, { responseType: 'blob' })
+  return res.data
+}
