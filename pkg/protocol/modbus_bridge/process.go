@@ -46,14 +46,15 @@ func (p *Process) findBinary() (string, []string) {
 	}
 
 	candidates := []string{
-		filepath.Join(exeDir, binName),                          // same dir as gridsim
-		filepath.Join(exeDir, "py-microgrid-sim", binName),     // subdir next to exe
+		filepath.Join(exeDir, "py-microgrid-sim", binName),     // bin/py-microgrid-sim/py-microgrid-sim
+		filepath.Join(exeDir, binName),                          // bin/py-microgrid-sim (single file)
 		filepath.Join(exeDir, "..", "bin", "py-microgrid-sim", binName), // ../bin/py-microgrid-sim/
 		filepath.Join(p.cfgDir, "..", "bin", "py-microgrid-sim", binName),
 	}
 
 	for _, path := range candidates {
-		if _, err := os.Stat(path); err == nil {
+		info, err := os.Stat(path)
+		if err == nil && !info.IsDir() {
 			slog.Info("ModbusBridge: found binary", "path", path)
 			return path, nil
 		}
