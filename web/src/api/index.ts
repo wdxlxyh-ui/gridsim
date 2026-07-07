@@ -513,6 +513,54 @@ export async function deleteMicrogridFormula(instanceId: string, formulaId: stri
   await http.delete(`/microgrid/${instanceId}/formulas/${formulaId}`)
 }
 
+// ─── Python Microgrid (modbus_bridge) API ──────────────────────────────────
+
+export interface PyMicrogridDevice {
+  id: string
+  type: string
+  name: string
+  slave_id: number
+  point_count: number
+  ioa_base: number
+}
+
+export interface PyMicrogridTopology {
+  bus_name: string
+  bus_voltage: number
+  start_time: string
+  modbus_port: number
+  devices: PyMicrogridDevice[]
+}
+
+export interface PyMicrogridDashboard {
+  status: string
+  grid_power_kw: number
+  total_pv_kw: number
+  total_bat_kw: number
+  total_load_kw: number
+  total_charger_kw: number
+  battery_soc: number
+  pv?: { id: string; name: string; power_kw: number; closed: boolean; mode?: string }[]
+  battery?: { id: string; name: string; power_kw: number; closed: boolean; soc?: number; mode?: string }[]
+  load?: { id: string; name: string; power_kw: number; closed: boolean; mode?: string }[]
+  charger?: { id: string; name: string; power_kw: number; closed: boolean; mode?: string }[]
+  device_count: number
+}
+
+export async function getPyMicrogridTopology(instanceId: string): Promise<PyMicrogridTopology> {
+  const res = await http.get(`/py-microgrid/${instanceId}/topology`)
+  return res.data
+}
+
+export async function getPyMicrogridDashboard(instanceId: string): Promise<PyMicrogridDashboard> {
+  const res = await http.get(`/py-microgrid/${instanceId}/dashboard`)
+  return res.data
+}
+
+export async function pyMicrogridControl(instanceId: string, ioa: number, value: number): Promise<void> {
+  await http.post(`/py-microgrid/${instanceId}/control`, { ioa, value })
+}
+
 // ─── Proxy API Tester ──────────────────────────────────────────────────────
 
 export interface ProxyRequest {

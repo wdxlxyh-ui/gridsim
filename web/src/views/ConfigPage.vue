@@ -88,7 +88,7 @@
               <el-button v-if="row.protocol === 'microgrid'" size="small" type="primary"
                 @click="openMicrogrid(row.id)">微电网</el-button>
               <el-button v-else-if="row.protocol === 'modbus_bridge'" size="small" type="primary"
-                @click="router.push('/detail/' + row.id)">Python仿真</el-button>
+                @click="router.push('/py-microgrid/' + row.id)">Python仿真</el-button>
               <template v-else>
                 <el-button size="small" @click="router.push('/detail/' + row.id)">详情</el-button>
                 <el-button size="small" :disabled="row.status === 'running'" @click="openPointTableEditor(row.id, row.protocol)">编辑点表</el-button>

@@ -236,6 +236,9 @@ func (ws *webServer) registerRoutes(mux *http.ServeMux, configDir string, httpAd
 	// Microgrid management routes
 	ws.registerMicrogridRoutes(mux)
 
+	// Python Microgrid (modbus_bridge) routes
+	ws.registerPyMicrogridRoutes(mux)
+
 	mux.Handle("/openapi.json", openapi.New(strings.TrimPrefix(httpAddr, ":")))
 	mux.HandleFunc("/api/v1/events", func(w http.ResponseWriter, r *http.Request) {
 		ws.eventBus.ServeSSE(w, r)
