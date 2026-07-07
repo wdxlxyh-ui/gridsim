@@ -5,15 +5,16 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"time"
 )
 
-// Process manages a Python subprocess.
+// Process manages the py-microgrid-sim subprocess.
 type Process struct {
-	pythonPath string
-	scriptDir  string
+	scriptDir string // working directory (contains config/device.json)
+	cfgDir    string // config directory (bin/py-microgrid-sim is relative to exe)
 
 	mu   sync.Mutex
 	cmd  *exec.Cmd
@@ -21,38 +22,79 @@ type Process struct {
 }
 
 // NewProcess creates a new process manager.
-func NewProcess(pythonPath, scriptDir string) *Process {
+func NewProcess(scriptDir, cfgDir string) *Process {
 	return &Process{
-		pythonPath: pythonPath,
-		scriptDir:  scriptDir,
-		done:       make(chan struct{}),
+		scriptDir: scriptDir,
+		cfgDir:    cfgDir,
+		done:      make(chan struct{}),
 	}
 }
 
-// Start launches the Python main.py subprocess.
+// findBinary locates the py-microgrid-sim executable.
+// Search order: 1) bin/py-microgrid-sim/ dir next to gridsim exe
+//               2) cfgDir/../bin/py-microgrid-sim/
+//               3) scriptDir itself (fallback to python3 main.py)
+func (p *Process) findBinary() (string, []string) {
+	// Get directory of the current executable
+	exePath, _ := os.Executable()
+	exeDir := filepath.Dir(exePath)
+
+	// Possible binary locations
+	binName := "py-microgrid-sim"
+	if runtime.GOOS == "windows" {
+		binName = "py-microgrid-sim.exe"
+	}
+
+	candidates := []string{
+		filepath.Join(exeDir, binName),                          // same dir as gridsim
+		filepath.Join(exeDir, "py-microgrid-sim", binName),     // subdir next to exe
+		filepath.Join(exeDir, "..", "bin", "py-microgrid-sim", binName), // ../bin/py-microgrid-sim/
+		filepath.Join(p.cfgDir, "..", "bin", "py-microgrid-sim", binName),
+	}
+
+	for _, path := range candidates {
+		if _, err := os.Stat(path); err == nil {
+			slog.Info("ModbusBridge: found binary", "path", path)
+			return path, nil
+		}
+	}
+
+	// Fallback: use python3 main.py (requires Python installed)
+	slog.Warn("ModbusBridge: compiled binary not found, falling back to python3")
+	return "python3", []string{"main.py"}
+}
+
+// Start launches the py-microgrid-sim subprocess.
 func (p *Process) Start() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	cmd := exec.Command(p.pythonPath, "main.py")
+	binary, args := p.findBinary()
+
+	var cmd *exec.Cmd
+	if len(args) > 0 {
+		cmd = exec.Command(binary, args...)
+	} else {
+		cmd = exec.Command(binary)
+	}
 	cmd.Dir = p.scriptDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Start(); err != nil {
-		return err
+		return fmt.Errorf("start %s: %w", binary, err)
 	}
 
 	p.cmd = cmd
-	slog.Info("ModbusBridge: Python process started", "pid", cmd.Process.Pid, "dir", p.scriptDir)
+	slog.Info("ModbusBridge: process started", "pid", cmd.Process.Pid, "binary", binary, "workdir", p.scriptDir)
 
 	// Monitor process in background
 	go func() {
 		err := cmd.Wait()
 		if err != nil {
-			slog.Warn("ModbusBridge: Python process exited", "error", err)
+			slog.Warn("ModbusBridge: process exited", "error", err)
 		} else {
-			slog.Info("ModbusBridge: Python process exited normally")
+			slog.Info("ModbusBridge: process exited normally")
 		}
 		close(p.done)
 	}()
@@ -60,7 +102,7 @@ func (p *Process) Start() error {
 	return nil
 }
 
-// Stop kills the Python subprocess.
+// Stop kills the subprocess.
 func (p *Process) Stop() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -69,16 +111,13 @@ func (p *Process) Stop() {
 		return
 	}
 
-	slog.Info("ModbusBridge: stopping Python process", "pid", p.cmd.Process.Pid)
+	slog.Info("ModbusBridge: stopping process", "pid", p.cmd.Process.Pid)
 
 	if runtime.GOOS == "windows" {
-		// On Windows, use taskkill to force kill the process tree
 		kill := exec.Command("taskkill", "/F", "/T", "/PID", fmt.Sprintf("%d", p.cmd.Process.Pid))
 		kill.Run()
 	} else {
-		// On Linux/Mac, send SIGTERM first
 		p.cmd.Process.Signal(os.Interrupt)
-		// Give it 3 seconds to exit gracefully
 		select {
 		case <-p.done:
 			return

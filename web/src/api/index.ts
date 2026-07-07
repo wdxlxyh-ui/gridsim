@@ -58,12 +58,10 @@ export interface IEC104ClientConfig {
 }
 
 export interface ModbusBridgeConfig {
-  python_path?: string
   script_dir?: string
   modbus_port?: number
   poll_interval_ms?: number
   start_time?: string
-  iec104_port?: number
   device_json?: string
 }
 

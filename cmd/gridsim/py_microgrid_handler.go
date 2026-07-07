@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	"gridsim/pkg/config"
@@ -65,7 +66,7 @@ func (ws *webServer) handlePyMicrogridDashboard(w http.ResponseWriter, r *http.R
 		scriptDir = "py_simulator"
 	}
 	if scriptDir != "" && scriptDir[0] != '/' && (len(scriptDir) < 2 || scriptDir[1] != ':') {
-		scriptDir = ws.cfgDir + "/" + scriptDir
+		scriptDir = filepath.Join(ws.cfgDir, scriptDir)
 	}
 	deviceJSON := bc.DeviceJSON
 	if deviceJSON == "" {
@@ -180,7 +181,7 @@ func (ws *webServer) handlePyMicrogridTopology(w http.ResponseWriter, r *http.Re
 		scriptDir = "py_simulator"
 	}
 	if scriptDir != "" && scriptDir[0] != '/' && (len(scriptDir) < 2 || scriptDir[1] != ':') {
-		scriptDir = ws.cfgDir + "/" + scriptDir
+		scriptDir = filepath.Join(ws.cfgDir, scriptDir)
 	}
 	deviceJSON := bc.DeviceJSON
 	if deviceJSON == "" {

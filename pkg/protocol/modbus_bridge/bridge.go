@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -39,9 +40,6 @@ type Bridge struct {
 // New creates a new ModbusBridge protocol instance.
 func New(cfg model.InstanceConfig, cfgDir string) *Bridge {
 	bc := cfg.ModbusBridgeConfig
-	if bc.PythonPath == "" {
-		bc.PythonPath = "python3"
-	}
 	if bc.ModbusPort == 0 {
 		bc.ModbusPort = 5021
 	}
@@ -89,9 +87,9 @@ func (b *Bridge) Start() error {
 	}
 
 	// Start Python subprocess
-	b.proc = NewProcess(b.cfg.PythonPath, scriptDir)
+	b.proc = NewProcess(b.resolveScriptDir(), b.cfgDir)
 	if err := b.proc.Start(); err != nil {
-		return fmt.Errorf("start python: %w", err)
+		return fmt.Errorf("start py-microgrid-sim: %w", err)
 	}
 
 	// Wait for Modbus port to be available
@@ -159,7 +157,7 @@ func (b *Bridge) Publish(point *config.Point) {
 func (b *Bridge) resolveScriptDir() string {
 	dir := b.cfg.ScriptDir
 	if dir != "" && dir[0] != '/' && (len(dir) < 2 || dir[1] != ':') {
-		return b.cfgDir + "/" + dir
+		return filepath.Join(b.cfgDir, dir)
 	}
 	return dir
 }

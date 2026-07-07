@@ -170,25 +170,17 @@
             </el-form-item>
           </template>
           <template v-else-if="form.protocol === 'modbus_bridge'">
-            <el-form-item label="Python路径">
-              <el-input v-model="bridgeConfig.python_path" placeholder="python3 (Linux) / python (Windows)" />
-              <div style="font-size:12px;color:#64748b;margin-top:4px">Python 3.6+ 解释器路径，留空使用系统默认 python3</div>
-            </el-form-item>
             <el-form-item label="Modbus端口">
               <el-input-number v-model="bridgeConfig.modbus_port" :min="1024" :max="65535" style="width: 100%" />
               <div style="font-size:12px;color:#64748b;margin-top:4px">Python 模拟器 Modbus TCP 监听端口</div>
             </el-form-item>
             <el-form-item label="轮询间隔(ms)">
               <el-input-number v-model="bridgeConfig.poll_interval_ms" :min="200" :max="10000" :step="100" style="width: 100%" />
-              <div style="font-size:12px;color:#64748b;margin-top:4px">Go 端从 Python 读取数据的周期，推荐 1000ms</div>
+              <div style="font-size:12px;color:#64748b;margin-top:4px">Go 端从模拟器读取数据的周期，推荐 1000ms</div>
             </el-form-item>
             <el-form-item label="仿真起始时间">
               <el-input v-model="bridgeConfig.start_time" placeholder="如 08:00，留空使用当前时间" />
               <div style="font-size:12px;color:#64748b;margin-top:4px">PV/Load 曲线从此时间开始演算（HH:MM 格式）</div>
-            </el-form-item>
-            <el-form-item label="IEC104端口">
-              <el-input-number v-model="bridgeConfig.iec104_port" :min="0" :max="65535" style="width: 100%" />
-              <div style="font-size:12px;color:#64748b;margin-top:4px">可选：填写后同时对外暴露 IEC104 协议，0 表示不启用</div>
             </el-form-item>
           </template>
           <template v-else>
@@ -493,12 +485,10 @@ const defaultClientConfig = (): IEC104ClientConfig => ({
 const clientConfig = ref<IEC104ClientConfig>(defaultClientConfig())
 
 const defaultBridgeConfig = (): ModbusBridgeConfig => ({
-  python_path: 'python3',
   script_dir: 'py_simulator',
   modbus_port: 5021,
   poll_interval_ms: 1000,
   start_time: '',
-  iec104_port: 0,
   device_json: 'config/device.json',
 })
 
@@ -687,9 +677,9 @@ async function handleSave() {
     }
     if (data.protocol === 'modbus_bridge') {
       data.modbus_bridge_config = { ...bridgeConfig.value }
-      // modbus_bridge doesn't need xlsx_file or iec104_port from main form
+      // modbus_bridge doesn't need xlsx_file, set a dummy port to pass validation
       data.xlsx_file = ''
-      data.iec104_port = bridgeConfig.value.iec104_port || 0
+      data.iec104_port = 0
     }
     if (editing.value) {
       await updateInstance(data.id!, data)

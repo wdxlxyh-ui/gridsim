@@ -45,12 +45,10 @@ type ModbusInstanceConfig struct {
 
 // ModbusBridgeConfig Python 微电网模拟器桥接配置
 type ModbusBridgeConfig struct {
-	PythonPath     string `json:"python_path,omitempty"`      // Python 解释器路径，默认 "python3"
-	ScriptDir      string `json:"script_dir,omitempty"`       // Python 项目目录（相对于 configDir）
+	ScriptDir      string `json:"script_dir,omitempty"`       // Python 项目目录（相对于 configDir），含 config/device.json
 	ModbusPort     int    `json:"modbus_port,omitempty"`      // Python Modbus 监听端口，默认 5021
 	PollIntervalMs int    `json:"poll_interval_ms,omitempty"` // 轮询间隔（ms），默认 1000
 	StartTime      string `json:"start_time,omitempty"`       // 仿真起始时间 HH:MM，空则用当前时间
-	IEC104Port     int    `json:"iec104_port,omitempty"`      // 可选：同时对外暴露 IEC104 端口
 	DeviceJSON     string `json:"device_json,omitempty"`      // device.json 相对路径
 }
 
