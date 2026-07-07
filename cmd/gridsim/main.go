@@ -1191,6 +1191,8 @@ func validateConfig(cfg model.InstanceConfig) error {
 	}
 	if proto == "iec104_client" {
 		// client mode connects to a remote slave, no local port needed
+	} else if proto == "modbus_bridge" {
+		// bridge mode uses its own modbus_port, iec104_port is optional
 	} else {
 		port := cfg.IEC104Port
 		if proto == "modbus_tcp" && cfg.ModbusConfig != nil && cfg.ModbusConfig.Port > 0 {
@@ -1200,7 +1202,7 @@ func validateConfig(cfg model.InstanceConfig) error {
 			return fmt.Errorf("port must be 1-65535")
 		}
 	}
-	if cfg.Protocol != "microgrid" && cfg.XLSXFile == "" {
+	if cfg.Protocol != "microgrid" && cfg.Protocol != "modbus_bridge" && cfg.XLSXFile == "" {
 		return fmt.Errorf("xlsx_file is required")
 	}
 	if cfg.HttpEnabled && (cfg.HttpPort < 1 || cfg.HttpPort > 65535) {

@@ -87,6 +87,8 @@
                 :loading="actionLoading === row.id" @click="handleStart(row.id)">启动</el-button>
               <el-button v-if="row.protocol === 'microgrid'" size="small" type="primary"
                 @click="openMicrogrid(row.id)">微电网</el-button>
+              <el-button v-else-if="row.protocol === 'modbus_bridge'" size="small" type="primary"
+                @click="router.push('/detail/' + row.id)">Python仿真</el-button>
               <template v-else>
                 <el-button size="small" @click="router.push('/detail/' + row.id)">详情</el-button>
                 <el-button size="small" :disabled="row.status === 'running'" @click="openPointTableEditor(row.id, row.protocol)">编辑点表</el-button>
@@ -118,11 +120,13 @@
               <el-radio-button value="iec104_client">IEC104 客户端</el-radio-button>
               <el-radio-button value="modbus_tcp">Modbus TCP</el-radio-button>
               <el-radio-button value="microgrid">微电网</el-radio-button>
+              <el-radio-button value="modbus_bridge">Python微电网</el-radio-button>
             </el-radio-group>
             <div style="font-size:12px;color:#64748b;margin-top:6px;line-height:1.4">
               <template v-if="form.protocol === 'iec104'">电力行业标准规约，适用于变电站自动化系统联调测试</template>
               <template v-else-if="form.protocol === 'iec104_client'">主站模式，连接真实 IEC104 从站设备，接收遥测/遥信并发送遥控/遥调</template>
               <template v-else-if="form.protocol === 'modbus_tcp'">工业自动化领域通用规约，适用于Modbus TCP设备仿真</template>
+              <template v-else-if="form.protocol === 'modbus_bridge'">Python 物理模型仿真（PV/BESS/EV/Load/Meter），内嵌 Python 模拟器，支持 CSV 功率曲线和 SOC 计算</template>
               <template v-else>微电网仿真场景，包含光伏、储能、负荷等设备的一体化仿真</template>
             </div>
           </el-form-item>
@@ -165,6 +169,28 @@
               <div style="font-size:12px;color:#64748b;margin-top:4px">选择执行：下发前需确认；直接执行：点击即发送</div>
             </el-form-item>
           </template>
+          <template v-else-if="form.protocol === 'modbus_bridge'">
+            <el-form-item label="Python路径">
+              <el-input v-model="bridgeConfig.python_path" placeholder="python3 (Linux) / python (Windows)" />
+              <div style="font-size:12px;color:#64748b;margin-top:4px">Python 3.6+ 解释器路径，留空使用系统默认 python3</div>
+            </el-form-item>
+            <el-form-item label="Modbus端口">
+              <el-input-number v-model="bridgeConfig.modbus_port" :min="1024" :max="65535" style="width: 100%" />
+              <div style="font-size:12px;color:#64748b;margin-top:4px">Python 模拟器 Modbus TCP 监听端口</div>
+            </el-form-item>
+            <el-form-item label="轮询间隔(ms)">
+              <el-input-number v-model="bridgeConfig.poll_interval_ms" :min="200" :max="10000" :step="100" style="width: 100%" />
+              <div style="font-size:12px;color:#64748b;margin-top:4px">Go 端从 Python 读取数据的周期，推荐 1000ms</div>
+            </el-form-item>
+            <el-form-item label="仿真起始时间">
+              <el-input v-model="bridgeConfig.start_time" placeholder="如 08:00，留空使用当前时间" />
+              <div style="font-size:12px;color:#64748b;margin-top:4px">PV/Load 曲线从此时间开始演算（HH:MM 格式）</div>
+            </el-form-item>
+            <el-form-item label="IEC104端口">
+              <el-input-number v-model="bridgeConfig.iec104_port" :min="0" :max="65535" style="width: 100%" />
+              <div style="font-size:12px;color:#64748b;margin-top:4px">可选：填写后同时对外暴露 IEC104 协议，0 表示不启用</div>
+            </el-form-item>
+          </template>
           <template v-else>
             <el-form-item :label="form.protocol === 'modbus_tcp' ? 'Modbus端口' : 'IEC104端口'" prop="iec104_port">
               <el-input-number v-model="form.iec104_port" :min="1" :max="65535" style="width: 100%" />
@@ -185,7 +211,7 @@
 
         <!-- Step 3: XLSX & HTTP -->
         <div v-show="wizardStep === 2">
-          <el-form-item label="点表文件" prop="xlsx_file" v-if="form.protocol !== 'microgrid'">
+          <el-form-item label="点表文件" prop="xlsx_file" v-if="form.protocol !== 'microgrid' && form.protocol !== 'modbus_bridge'">
             <el-select v-model="form.xlsx_file" placeholder="选择或上传文件" style="width: 100%" allow-create filterable @change="onFileSelected">
               <el-option v-for="f in availableFiles" :key="f.name" :label="f.name" :value="f.name" />
             </el-select>
@@ -196,7 +222,7 @@
               <div class="fp-row"><span class="fp-label">修改时间</span><span>{{ selectedFileInfo.modtime }}</span></div>
             </div>
           </el-form-item>
-          <el-form-item v-if="form.protocol !== 'microgrid'" label="上传新文件">
+          <el-form-item v-if="form.protocol !== 'microgrid' && form.protocol !== 'modbus_bridge'" label="上传新文件">
             <el-upload :auto-upload="false" :show-file-list="false" accept=".xlsx" :on-change="handleFileChange">
               <el-button type="primary" :loading="uploading" size="small">{{ uploading ? '上传中...' : '选择 Excel 文件' }}</el-button>
             </el-upload>
@@ -204,6 +230,12 @@
           <el-form-item v-if="form.protocol === 'microgrid'" label="微电网拓扑">
             <div style="color: var(--el-text-color-secondary); font-size: 13px;">
               微电网实例在创建后，需要进入微电网编辑器配置拓扑结构和设备参数。
+            </div>
+          </el-form-item>
+          <el-form-item v-if="form.protocol === 'modbus_bridge'" label="Python仿真">
+            <div style="color: var(--el-text-color-secondary); font-size: 13px;">
+              Python 微电网实例使用内置设备配置（PV/BESS/EV/Load/Meter），创建后可通过详情页查看实时数据。
+              点表由 device.json 自动生成，无需手动上传 xlsx 文件。
             </div>
           </el-form-item>
           <el-form-item label="HTTP接口">
@@ -245,9 +277,21 @@
               <div class="review-label">字节序</div>
               <div class="review-value">{{ modbusByteOrder }}</div>
             </div>
-            <div class="review-section" v-if="form.protocol !== 'microgrid'">
+            <div class="review-section" v-if="form.protocol !== 'microgrid' && form.protocol !== 'modbus_bridge'">
               <div class="review-label">点表文件</div>
               <div class="review-value">{{ form.xlsx_file || '未选择' }}</div>
+            </div>
+            <div class="review-section" v-if="form.protocol === 'modbus_bridge'">
+              <div class="review-label">Modbus端口</div>
+              <div class="review-value">{{ bridgeConfig.modbus_port }}</div>
+            </div>
+            <div class="review-section" v-if="form.protocol === 'modbus_bridge'">
+              <div class="review-label">轮询间隔</div>
+              <div class="review-value">{{ bridgeConfig.poll_interval_ms }}ms</div>
+            </div>
+            <div class="review-section" v-if="form.protocol === 'modbus_bridge' && bridgeConfig.start_time">
+              <div class="review-label">仿真起始时间</div>
+              <div class="review-value">{{ bridgeConfig.start_time }}</div>
             </div>
             <div class="review-section">
               <div class="review-label">HTTP接口</div>
@@ -367,6 +411,7 @@ import {
   getStatus,
   type InstanceConfig,
   type IEC104ClientConfig,
+  type ModbusBridgeConfig,
   type InstanceState,
   type GlobalStatus,
 } from '../api'
@@ -447,6 +492,18 @@ const defaultClientConfig = (): IEC104ClientConfig => ({
 
 const clientConfig = ref<IEC104ClientConfig>(defaultClientConfig())
 
+const defaultBridgeConfig = (): ModbusBridgeConfig => ({
+  python_path: 'python3',
+  script_dir: 'py_simulator',
+  modbus_port: 5021,
+  poll_interval_ms: 1000,
+  start_time: '',
+  iec104_port: 0,
+  device_json: 'config/device.json',
+})
+
+const bridgeConfig = ref<ModbusBridgeConfig>(defaultBridgeConfig())
+
 const form = ref<InstanceConfig>({
   name: '',
   iec104_port: 2404,
@@ -468,7 +525,7 @@ const rules = {
       message: '请选择点表文件',
       trigger: 'change',
       validator: (_rule: any, value: string, callback: any) => {
-        if (form.value.protocol === 'microgrid') {
+        if (form.value.protocol === 'microgrid' || form.value.protocol === 'modbus_bridge') {
           callback()
         } else if (!value) {
           callback(new Error('请选择点表文件'))
@@ -519,6 +576,8 @@ async function wizardNext() {
     if (form.value.protocol === 'iec104_client') {
       if (!clientConfig.value.remote_addr) { ElMessage.warning('请填写远端地址'); return }
       if (!clientConfig.value.remote_port) { ElMessage.warning('请填写远端端口'); return }
+    } else if (form.value.protocol === 'modbus_bridge') {
+      if (!bridgeConfig.value.modbus_port) { ElMessage.warning('请填写Modbus端口'); return }
     } else {
       if (!form.value.iec104_port) { ElMessage.warning('请填写端口号'); return }
     }
@@ -625,6 +684,12 @@ async function handleSave() {
     }
     if (data.protocol === 'iec104_client') {
       data.iec104_client_config = { ...clientConfig.value }
+    }
+    if (data.protocol === 'modbus_bridge') {
+      data.modbus_bridge_config = { ...bridgeConfig.value }
+      // modbus_bridge doesn't need xlsx_file or iec104_port from main form
+      data.xlsx_file = ''
+      data.iec104_port = bridgeConfig.value.iec104_port || 0
     }
     if (editing.value) {
       await updateInstance(data.id!, data)
@@ -752,6 +817,7 @@ function protoLabel(proto?: string): string {
   if (proto === 'modbus_tcp') return 'Modbus TCP'
   if (proto === 'microgrid') return '微电网'
   if (proto === 'iec104_client') return 'IEC104 客户端'
+  if (proto === 'modbus_bridge') return 'Python微电网'
   return 'IEC104'
 }
 
@@ -759,11 +825,13 @@ function protoTagType(proto?: string): 'success' | 'primary' | 'info' | 'warning
   if (proto === 'modbus_tcp') return 'success'
   if (proto === 'microgrid') return 'warning'
   if (proto === 'iec104_client') return 'info'
+  if (proto === 'modbus_bridge') return 'warning'
   return 'primary'
 }
 
 function displayPort(row: InstanceState): string {
   if (row.protocol === 'microgrid') return String(row.iec104_port)
+  if (row.protocol === 'modbus_bridge') return row.modbus_bridge_config ? String(row.modbus_bridge_config.modbus_port || 5021) : '5021'
   if (row.protocol === 'modbus_tcp' && row.iec104_port) return String(row.iec104_port)
   if (row.protocol === 'iec104_client') {
     if (row.iec104_client_config) {

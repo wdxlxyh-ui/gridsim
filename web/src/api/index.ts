@@ -57,6 +57,16 @@ export interface IEC104ClientConfig {
   control_mode: string
 }
 
+export interface ModbusBridgeConfig {
+  python_path?: string
+  script_dir?: string
+  modbus_port?: number
+  poll_interval_ms?: number
+  start_time?: string
+  iec104_port?: number
+  device_json?: string
+}
+
 export interface InstanceConfig {
   id?: string
   name: string
@@ -68,6 +78,7 @@ export interface InstanceConfig {
   protocol?: string
   modbus_config?: ModbusConfig
   iec104_client_config?: IEC104ClientConfig
+  modbus_bridge_config?: ModbusBridgeConfig
 }
 
 export interface InstanceStats {
@@ -93,6 +104,7 @@ export interface InstanceState {
   error?: string
   iec104_client_config?: IEC104ClientConfig
   modbus_config?: ModbusConfig
+  modbus_bridge_config?: ModbusBridgeConfig
 }
 
 export interface GlobalStatus {
