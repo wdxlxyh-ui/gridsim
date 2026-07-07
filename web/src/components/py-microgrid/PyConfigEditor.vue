@@ -1,5 +1,11 @@
 <template>
   <div class="py-config-editor">
+    <!-- Save button (always visible at top) -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <span style="font-size:14px;color:#6b7280">{{ disabled ? '⚠️ 实例运行中，配置为只读' : '编辑设备配置后点击保存' }}</span>
+      <el-button type="primary" :disabled="disabled" :loading="saving" @click="handleSave">💾 保存配置</el-button>
+    </div>
+
     <!-- Global config -->
     <el-card shadow="never" style="margin-bottom:12px">
       <template #header><span style="font-weight:600">全局设置</span></template>
@@ -116,11 +122,6 @@
         </el-upload>
       </div>
     </el-card>
-
-    <!-- Save button -->
-    <div style="text-align:right;margin-top:12px">
-      <el-button type="primary" size="large" :disabled="disabled" :loading="saving" @click="handleSave">保存配置</el-button>
-    </div>
   </div>
 </template>
 
@@ -150,7 +151,9 @@ const deviceTypes = [
 const localConfig = ref<any>({ start_time: '08:00', Devices: [] })
 
 watch(() => props.config, (val) => {
-  if (val) localConfig.value = JSON.parse(JSON.stringify(val))
+  if (val && val.Devices && val.Devices.length > 0) {
+    localConfig.value = JSON.parse(JSON.stringify(val))
+  }
 }, { immediate: true, deep: true })
 
 function getDevices(type: string): any[] {
