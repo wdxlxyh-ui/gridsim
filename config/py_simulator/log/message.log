@@ -1,0 +1,179 @@
+2025-10-24 05:35:52,409 - INFO - Initializing ModbusServer with 5 devices
+2025-10-24 05:35:52,409 - INFO - Device Meter_01: Slave ID 1, Data {0: 0.0, 2: 0.0, 4: 0.0, 6: 0.0, 8: 0.0, 10: 0.0, 12: 0.0, 14: 0.0, 16: 0.0, 18: 0.0, 20: 0.0, 22: 0.0, 24: 0.0, 26: 0.0, 28: 0.0, 30: 0.0, 32: 0.0, 34: 0.0, 36: 0.0, 38: 0.0, 40: 0.0, 42: 0.0, 44: 0.0, 46: 0.0, 48: 0.0, 50: 0.0, 52: 0.0, 54: 0.0, 56: 0.0, 58: 0.0, 60: 0.0, 62: 0.0, 64: 0.0, 66: 0.0, 68: 0.0, 70: 0.0, 72: 0.0, 74: 0.0, 76: 0.0, 78: 0.0, 80: 0.0, 82: 0.0, 84: 0.0, 86: 0.0, 88: 0.0, 90: 0.0, 92: 0.0, 94: 0.0, 96: 0.0, 98: 0.0}
+2025-10-24 05:35:52,409 - INFO - Device PV_01: Slave ID 2, Data {0: 0.0, 2: 0.0, 4: 0.0, 6: 0.0, 8: 0.0, 10: 0.0, 12: 0.0, 14: 0.0, 16: 0.0, 18: 0.0, 20: 0.0, 22: 0.0, 24: 0.0, 26: 0.0, 28: 0.0, 30: 0.0, 32: 0.0, 34: 0.0, 36: 0.0, 38: 0.0, 40: 0.0, 42: 0.0, 44: 0.0, 46: 0.0, 48: 0.0, 50: 0.0, 52: 0.0, 54: 0.0, 56: 0.0, 58: 0.0, 60: 0.0, 62: 0.0, 64: 0.0, 66: 0.0, 68: 0.0, 70: 0.0, 72: 0.0, 74: 0.0, 76: 0.0, 78: 0.0, 80: 0.0, 82: 0.0, 84: 0.0, 86: 0.0, 88: 0.0, 90: 0.0, 92: 0.0, 94: 0.0, 96: 0.0, 98: 0.0}
+2025-10-24 05:35:52,409 - INFO - Device EV_01: Slave ID 4, Data {0: 0.0, 2: 0.0, 4: 0.0, 6: 0.0, 8: 22, 10: 0.0, 12: 0.0, 14: 0.0, 16: 0.0, 18: 0.0, 20: 1, 22: 0.0, 24: 0.0, 26: 0.0, 28: 0.0, 30: 0.0, 32: 0.0, 34: 0.0, 36: 0.0, 38: 0.0, 40: 0.0, 42: 0.0, 44: 0.0, 46: 0.0, 48: 0.0, 50: 0.0, 52: 0.0, 54: 0.0, 56: 0.0, 58: 0.0, 60: 0.0, 62: 0.0, 64: 0.0, 66: 0.0, 68: 0.0, 70: 0.0, 72: 0.0, 74: 0.0, 76: 0.0, 78: 0.0, 80: 0.0, 82: 0.0, 84: 0.0, 86: 0.0, 88: 0.0, 90: 0.0, 92: 0.0, 94: 0.0, 96: 0.0, 98: 0.0}
+2025-10-24 05:35:52,409 - INFO - Device BESS_01: Slave ID 5, Data {0: 0.0, 2: 50.0, 4: 0.0, 6: 0.0, 8: 0.0, 10: 0.0, 12: 0.0, 14: 0.0, 16: 0.0, 18: 0.0, 20: 0.0, 22: 0.0, 24: 0.0, 26: 0.0, 28: 0.0, 30: 0.0, 32: 0.0, 34: 0.0, 36: 0.0, 38: 0.0, 40: 0.0, 42: 0.0, 44: 0.0, 46: 0.0, 48: 0.0, 50: 0.0, 52: 0.0, 54: 0.0, 56: 0.0, 58: 0.0, 60: 0.0, 62: 0.0, 64: 0.0, 66: 0.0, 68: 0.0, 70: 0.0, 72: 0.0, 74: 0.0, 76: 0.0, 78: 0.0, 80: 0.0, 82: 0.0, 84: 0.0, 86: 0.0, 88: 0.0, 90: 0.0, 92: 0.0, 94: 0.0, 96: 0.0, 98: 0.0}
+2025-10-24 05:35:52,409 - INFO - Device LOAD_001: Slave ID 8, Data {0: 0.0, 2: 0.0, 4: 0.0, 6: 0.0, 8: 0.0, 10: 0.0, 12: 0.0, 14: 0.0, 16: 0.0, 18: 0.0, 20: 0.0, 22: 0.0, 24: 0.0, 26: 0.0, 28: 0.0, 30: 0.0, 32: 0.0, 34: 0.0, 36: 0.0, 38: 0.0, 40: 0.0, 42: 0.0, 44: 0.0, 46: 0.0, 48: 0.0, 50: 0.0, 52: 0.0, 54: 0.0, 56: 0.0, 58: 0.0, 60: 0.0, 62: 0.0, 64: 0.0, 66: 0.0, 68: 0.0, 70: 0.0, 72: 0.0, 74: 0.0, 76: 0.0, 78: 0.0, 80: 0.0, 82: 0.0, 84: 0.0, 86: 0.0, 88: 0.0, 90: 0.0, 92: 0.0, 94: 0.0, 96: 0.0, 98: 0.0}
+2025-10-24 05:35:52,410 - INFO - Starting Modbus server on 0.0.0.0:5021...
+2025-10-24 05:35:52,413 - INFO - Modbus server listening on 0.0.0.0:5021 after attempt 1
+2025-10-24 05:36:53,916 - INFO - Accepted connection from 192.168.56.1:57276
+2025-10-24 05:36:53,939 - INFO - Processing request from ('192.168.56.1', 57276) for Slave ID: 4, data: 37bb00000006040300000018
+2025-10-24 05:36:53,939 - INFO - Processing request for EV_01, Function: 3, Address: 0, start time: 05:36:53, Slave ID: 4
+2025-10-24 05:36:53,940 - DEBUG - Read EV_01 reg 0: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:53,941 - DEBUG - Read EV_01 reg 2: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:53,941 - DEBUG - Read EV_01 reg 4: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:53,941 - DEBUG - Read EV_01 reg 6: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:53,941 - DEBUG - Read EV_01 reg 8: value=22.00, int_value=2200, bytes=00000898
+2025-10-24 05:36:53,941 - DEBUG - Read EV_01 reg 10: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:53,941 - DEBUG - Read EV_01 reg 12: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:53,941 - DEBUG - Read EV_01 reg 14: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:53,941 - DEBUG - Read EV_01 reg 16: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:53,941 - DEBUG - Read EV_01 reg 18: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:53,941 - DEBUG - Read EV_01 reg 20: value=1.00, int_value=100, bytes=00000064
+2025-10-24 05:36:53,941 - DEBUG - Read EV_01 reg 22: value=20000.00, int_value=2000000, bytes=001e8480
+2025-10-24 05:36:54,941 - INFO - Processing request from ('192.168.56.1', 57276) for Slave ID: 4, data: 37bc00000006040300000018
+2025-10-24 05:36:54,941 - INFO - Processing request for EV_01, Function: 3, Address: 0, start time: 05:36:54, Slave ID: 4
+2025-10-24 05:36:54,941 - DEBUG - Read EV_01 reg 0: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:54,941 - DEBUG - Read EV_01 reg 2: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:54,941 - DEBUG - Read EV_01 reg 4: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:54,941 - DEBUG - Read EV_01 reg 6: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:54,941 - DEBUG - Read EV_01 reg 8: value=22.00, int_value=2200, bytes=00000898
+2025-10-24 05:36:54,941 - DEBUG - Read EV_01 reg 10: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:54,942 - DEBUG - Read EV_01 reg 12: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:54,942 - DEBUG - Read EV_01 reg 14: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:54,942 - DEBUG - Read EV_01 reg 16: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:54,942 - DEBUG - Read EV_01 reg 18: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:54,942 - DEBUG - Read EV_01 reg 20: value=1.00, int_value=100, bytes=00000064
+2025-10-24 05:36:54,942 - DEBUG - Read EV_01 reg 22: value=20000.00, int_value=2000000, bytes=001e8480
+2025-10-24 05:36:55,947 - INFO - Processing request from ('192.168.56.1', 57276) for Slave ID: 4, data: 37bd00000006040300000018
+2025-10-24 05:36:55,947 - INFO - Processing request for EV_01, Function: 3, Address: 0, start time: 05:36:55, Slave ID: 4
+2025-10-24 05:36:55,947 - DEBUG - Read EV_01 reg 0: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:55,947 - DEBUG - Read EV_01 reg 2: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:55,947 - DEBUG - Read EV_01 reg 4: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:55,947 - DEBUG - Read EV_01 reg 6: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:55,947 - DEBUG - Read EV_01 reg 8: value=22.00, int_value=2200, bytes=00000898
+2025-10-24 05:36:55,947 - DEBUG - Read EV_01 reg 10: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:55,947 - DEBUG - Read EV_01 reg 12: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:55,947 - DEBUG - Read EV_01 reg 14: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:55,947 - DEBUG - Read EV_01 reg 16: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:55,947 - DEBUG - Read EV_01 reg 18: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:55,947 - DEBUG - Read EV_01 reg 20: value=1.00, int_value=100, bytes=00000064
+2025-10-24 05:36:55,947 - DEBUG - Read EV_01 reg 22: value=20000.00, int_value=2000000, bytes=001e8480
+2025-10-24 05:36:56,958 - INFO - Processing request from ('192.168.56.1', 57276) for Slave ID: 4, data: 37be00000006040300000018
+2025-10-24 05:36:56,958 - INFO - Processing request for EV_01, Function: 3, Address: 0, start time: 05:36:56, Slave ID: 4
+2025-10-24 05:36:56,958 - DEBUG - Read EV_01 reg 0: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:56,958 - DEBUG - Read EV_01 reg 2: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:56,958 - DEBUG - Read EV_01 reg 4: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:56,958 - DEBUG - Read EV_01 reg 6: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:56,958 - DEBUG - Read EV_01 reg 8: value=22.00, int_value=2200, bytes=00000898
+2025-10-24 05:36:56,958 - DEBUG - Read EV_01 reg 10: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:56,958 - DEBUG - Read EV_01 reg 12: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:56,958 - DEBUG - Read EV_01 reg 14: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:56,958 - DEBUG - Read EV_01 reg 16: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:56,958 - DEBUG - Read EV_01 reg 18: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:56,958 - DEBUG - Read EV_01 reg 20: value=1.00, int_value=100, bytes=00000064
+2025-10-24 05:36:56,958 - DEBUG - Read EV_01 reg 22: value=20000.00, int_value=2000000, bytes=001e8480
+2025-10-24 05:36:57,956 - INFO - Processing request from ('192.168.56.1', 57276) for Slave ID: 4, data: 37bf00000006040300000018
+2025-10-24 05:36:57,956 - INFO - Processing request for EV_01, Function: 3, Address: 0, start time: 05:36:57, Slave ID: 4
+2025-10-24 05:36:57,956 - DEBUG - Read EV_01 reg 0: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:57,956 - DEBUG - Read EV_01 reg 2: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:57,956 - DEBUG - Read EV_01 reg 4: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:57,956 - DEBUG - Read EV_01 reg 6: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:57,956 - DEBUG - Read EV_01 reg 8: value=22.00, int_value=2200, bytes=00000898
+2025-10-24 05:36:57,956 - DEBUG - Read EV_01 reg 10: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:57,956 - DEBUG - Read EV_01 reg 12: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:57,956 - DEBUG - Read EV_01 reg 14: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:57,956 - DEBUG - Read EV_01 reg 16: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:57,956 - DEBUG - Read EV_01 reg 18: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:57,956 - DEBUG - Read EV_01 reg 20: value=1.00, int_value=100, bytes=00000064
+2025-10-24 05:36:57,956 - DEBUG - Read EV_01 reg 22: value=20000.00, int_value=2000000, bytes=001e8480
+2025-10-24 05:36:58,949 - INFO - Processing request from ('192.168.56.1', 57276) for Slave ID: 4, data: 37c000000006040300000018
+2025-10-24 05:36:58,949 - INFO - Processing request for EV_01, Function: 3, Address: 0, start time: 05:36:58, Slave ID: 4
+2025-10-24 05:36:58,950 - DEBUG - Read EV_01 reg 0: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:58,950 - DEBUG - Read EV_01 reg 2: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:58,950 - DEBUG - Read EV_01 reg 4: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:58,950 - DEBUG - Read EV_01 reg 6: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:58,950 - DEBUG - Read EV_01 reg 8: value=22.00, int_value=2200, bytes=00000898
+2025-10-24 05:36:58,950 - DEBUG - Read EV_01 reg 10: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:58,950 - DEBUG - Read EV_01 reg 12: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:58,950 - DEBUG - Read EV_01 reg 14: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:58,950 - DEBUG - Read EV_01 reg 16: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:58,950 - DEBUG - Read EV_01 reg 18: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:58,950 - DEBUG - Read EV_01 reg 20: value=1.00, int_value=100, bytes=00000064
+2025-10-24 05:36:58,950 - DEBUG - Read EV_01 reg 22: value=20000.00, int_value=2000000, bytes=001e8480
+2025-10-24 05:36:59,946 - INFO - Processing request from ('192.168.56.1', 57276) for Slave ID: 4, data: 37c100000006040300000018
+2025-10-24 05:36:59,946 - INFO - Processing request for EV_01, Function: 3, Address: 0, start time: 05:36:59, Slave ID: 4
+2025-10-24 05:36:59,947 - DEBUG - Read EV_01 reg 0: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:59,947 - DEBUG - Read EV_01 reg 2: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:59,947 - DEBUG - Read EV_01 reg 4: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:59,947 - DEBUG - Read EV_01 reg 6: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:59,947 - DEBUG - Read EV_01 reg 8: value=22.00, int_value=2200, bytes=00000898
+2025-10-24 05:36:59,947 - DEBUG - Read EV_01 reg 10: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:59,947 - DEBUG - Read EV_01 reg 12: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:59,947 - DEBUG - Read EV_01 reg 14: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:59,947 - DEBUG - Read EV_01 reg 16: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:59,947 - DEBUG - Read EV_01 reg 18: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:36:59,947 - DEBUG - Read EV_01 reg 20: value=1.00, int_value=100, bytes=00000064
+2025-10-24 05:36:59,947 - DEBUG - Read EV_01 reg 22: value=20000.00, int_value=2000000, bytes=001e8480
+2025-10-24 05:37:00,949 - INFO - Processing request from ('192.168.56.1', 57276) for Slave ID: 4, data: 37c200000006040300000018
+2025-10-24 05:37:00,950 - INFO - Processing request for EV_01, Function: 3, Address: 0, start time: 05:37:00, Slave ID: 4
+2025-10-24 05:37:00,950 - DEBUG - Read EV_01 reg 0: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:00,950 - DEBUG - Read EV_01 reg 2: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:00,950 - DEBUG - Read EV_01 reg 4: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:00,950 - DEBUG - Read EV_01 reg 6: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:00,950 - DEBUG - Read EV_01 reg 8: value=22.00, int_value=2200, bytes=00000898
+2025-10-24 05:37:00,950 - DEBUG - Read EV_01 reg 10: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:00,950 - DEBUG - Read EV_01 reg 12: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:00,950 - DEBUG - Read EV_01 reg 14: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:00,950 - DEBUG - Read EV_01 reg 16: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:00,950 - DEBUG - Read EV_01 reg 18: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:00,950 - DEBUG - Read EV_01 reg 20: value=1.00, int_value=100, bytes=00000064
+2025-10-24 05:37:00,950 - DEBUG - Read EV_01 reg 22: value=20000.00, int_value=2000000, bytes=001e8480
+2025-10-24 05:37:01,946 - INFO - Processing request from ('192.168.56.1', 57276) for Slave ID: 4, data: 37c300000006040300000018
+2025-10-24 05:37:01,947 - INFO - Processing request for EV_01, Function: 3, Address: 0, start time: 05:37:01, Slave ID: 4
+2025-10-24 05:37:01,947 - DEBUG - Read EV_01 reg 0: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:01,947 - DEBUG - Read EV_01 reg 2: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:01,947 - DEBUG - Read EV_01 reg 4: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:01,947 - DEBUG - Read EV_01 reg 6: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:01,947 - DEBUG - Read EV_01 reg 8: value=22.00, int_value=2200, bytes=00000898
+2025-10-24 05:37:01,947 - DEBUG - Read EV_01 reg 10: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:01,947 - DEBUG - Read EV_01 reg 12: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:01,948 - DEBUG - Read EV_01 reg 14: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:01,948 - DEBUG - Read EV_01 reg 16: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:01,948 - DEBUG - Read EV_01 reg 18: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:01,948 - DEBUG - Read EV_01 reg 20: value=1.00, int_value=100, bytes=00000064
+2025-10-24 05:37:01,948 - DEBUG - Read EV_01 reg 22: value=20000.00, int_value=2000000, bytes=001e8480
+2025-10-24 05:37:02,945 - INFO - Processing request from ('192.168.56.1', 57276) for Slave ID: 4, data: 37c400000006040300000018
+2025-10-24 05:37:02,945 - INFO - Processing request for EV_01, Function: 3, Address: 0, start time: 05:37:02, Slave ID: 4
+2025-10-24 05:37:02,945 - DEBUG - Read EV_01 reg 0: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:02,945 - DEBUG - Read EV_01 reg 2: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:02,945 - DEBUG - Read EV_01 reg 4: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:02,945 - DEBUG - Read EV_01 reg 6: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:02,945 - DEBUG - Read EV_01 reg 8: value=22.00, int_value=2200, bytes=00000898
+2025-10-24 05:37:02,945 - DEBUG - Read EV_01 reg 10: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:02,945 - DEBUG - Read EV_01 reg 12: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:02,945 - DEBUG - Read EV_01 reg 14: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:02,945 - DEBUG - Read EV_01 reg 16: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:02,945 - DEBUG - Read EV_01 reg 18: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:02,945 - DEBUG - Read EV_01 reg 20: value=1.00, int_value=100, bytes=00000064
+2025-10-24 05:37:02,945 - DEBUG - Read EV_01 reg 22: value=20000.00, int_value=2000000, bytes=001e8480
+2025-10-24 05:37:03,962 - INFO - Processing request from ('192.168.56.1', 57276) for Slave ID: 4, data: 37c500000006040300000018
+2025-10-24 05:37:03,963 - INFO - Processing request for EV_01, Function: 3, Address: 0, start time: 05:37:03, Slave ID: 4
+2025-10-24 05:37:03,963 - DEBUG - Read EV_01 reg 0: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:03,963 - DEBUG - Read EV_01 reg 2: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:03,963 - DEBUG - Read EV_01 reg 4: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:03,963 - DEBUG - Read EV_01 reg 6: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:03,963 - DEBUG - Read EV_01 reg 8: value=22.00, int_value=2200, bytes=00000898
+2025-10-24 05:37:03,963 - DEBUG - Read EV_01 reg 10: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:03,963 - DEBUG - Read EV_01 reg 12: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:03,963 - DEBUG - Read EV_01 reg 14: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:03,963 - DEBUG - Read EV_01 reg 16: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:03,963 - DEBUG - Read EV_01 reg 18: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:03,963 - DEBUG - Read EV_01 reg 20: value=1.00, int_value=100, bytes=00000064
+2025-10-24 05:37:03,963 - DEBUG - Read EV_01 reg 22: value=20000.00, int_value=2000000, bytes=001e8480
+2025-10-24 05:37:04,459 - ERROR - Accept failed: [Errno 9] Bad file descriptor
+2025-10-24 05:37:04,961 - INFO - Processing request from ('192.168.56.1', 57276) for Slave ID: 4, data: 37c600000006040300000018
+2025-10-24 05:37:04,961 - INFO - Processing request for EV_01, Function: 3, Address: 0, start time: 05:37:04, Slave ID: 4
+2025-10-24 05:37:04,961 - DEBUG - Read EV_01 reg 0: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:04,961 - DEBUG - Read EV_01 reg 2: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:04,961 - DEBUG - Read EV_01 reg 4: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:04,962 - DEBUG - Read EV_01 reg 6: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:04,962 - DEBUG - Read EV_01 reg 8: value=22.00, int_value=2200, bytes=00000898
+2025-10-24 05:37:04,962 - DEBUG - Read EV_01 reg 10: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:04,962 - DEBUG - Read EV_01 reg 12: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:04,962 - DEBUG - Read EV_01 reg 14: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:04,962 - DEBUG - Read EV_01 reg 16: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:04,962 - DEBUG - Read EV_01 reg 18: value=0.00, int_value=0, bytes=00000000
+2025-10-24 05:37:04,962 - DEBUG - Read EV_01 reg 20: value=1.00, int_value=100, bytes=00000064
+2025-10-24 05:37:04,962 - DEBUG - Read EV_01 reg 22: value=20000.00, int_value=2000000, bytes=001e8480
+2025-10-24 05:37:05,460 - ERROR - Accept failed: [Errno 9] Bad file descriptor

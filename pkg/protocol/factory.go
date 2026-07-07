@@ -6,9 +6,15 @@ import (
 	"gridsim/internal/model"
 	"gridsim/pkg/iec104"
 	"gridsim/pkg/protocol/modbus"
+	"gridsim/pkg/protocol/modbus_bridge"
 )
 
 func New(cfg model.InstanceConfig) (Protocol, error) {
+	return NewWithCfgDir(cfg, "")
+}
+
+// NewWithCfgDir creates a protocol instance with access to the config directory.
+func NewWithCfgDir(cfg model.InstanceConfig, cfgDir string) (Protocol, error) {
 	switch cfg.Protocol {
 	case "modbus_tcp":
 		port := cfg.IEC104Port
@@ -26,6 +32,11 @@ func New(cfg model.InstanceConfig) (Protocol, error) {
 			}
 		}
 		return modbus.NewTCPServer(port, slaveID, byteOrder), nil
+	case "modbus_bridge":
+		if cfg.ModbusBridgeConfig == nil {
+			return nil, fmt.Errorf("modbus_bridge_config required for modbus_bridge protocol")
+		}
+		return modbus_bridge.New(cfg, cfgDir), nil
 	case "microgrid":
 		return NewIEC104Wrapper(cfg.IEC104Port), nil
 	case "iec104_client":
@@ -41,5 +52,5 @@ func New(cfg model.InstanceConfig) (Protocol, error) {
 }
 
 func SupportedProtocols() []string {
-	return []string{"iec104", "modbus_tcp", "microgrid", "iec104_client"}
+	return []string{"iec104", "modbus_tcp", "microgrid", "iec104_client", "modbus_bridge"}
 }

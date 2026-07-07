@@ -21,6 +21,7 @@ import (
 	"gridsim/pkg/firewall"
 	"gridsim/pkg/library"
 	"gridsim/pkg/protocol"
+	"gridsim/pkg/protocol/modbus_bridge"
 )
 
 func generateID() string {
@@ -116,6 +117,9 @@ func (m *Manager) StartInstance(id string) error {
 	}
 	if ok && cfg.Protocol == "iec104_client" {
 		return m.startClient(id)
+	}
+	if ok && cfg.Protocol == "modbus_bridge" {
+		return m.startBridge(id)
 	}
 
 	m.mu.Lock()
@@ -700,4 +704,102 @@ func (m *Manager) RegisterMicrogridInstance(id string, inst *Instance, eng *micr
 	defer m.mu.Unlock()
 	inst.Microgrid = eng
 	m.instances[id] = inst
+}
+
+// ─── Modbus Bridge (Python) Support ───
+
+func (m *Manager) startBridge(id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, ok := m.instances[id]; ok {
+		return fmt.Errorf("instance %s already running", id)
+	}
+
+	cfg, ok := m.store.Get(id)
+	if !ok {
+		return fmt.Errorf("instance %s not found", id)
+	}
+
+	if cfg.ModbusBridgeConfig == nil {
+		return fmt.Errorf("modbus_bridge_config not configured")
+	}
+
+	// Parse device.json to generate points
+	bc := cfg.ModbusBridgeConfig
+	scriptDir := bc.ScriptDir
+	if scriptDir == "" {
+		scriptDir = "py_simulator"
+	}
+	if !filepath.IsAbs(scriptDir) {
+		scriptDir = filepath.Join(m.cfgDir, scriptDir)
+	}
+	deviceJSON := bc.DeviceJSON
+	if deviceJSON == "" {
+		deviceJSON = "config/device.json"
+	}
+
+	devices, err := modbus_bridge.ParseDeviceJSON(scriptDir, deviceJSON)
+	if err != nil {
+		return fmt.Errorf("parse device.json: %w", err)
+	}
+
+	// Build store from device mappings
+	points := modbus_bridge.BuildStorePoints(devices)
+	if len(points) == 0 {
+		return fmt.Errorf("no points generated from device.json")
+	}
+	store := library.NewStore(points)
+
+	// Create and start bridge protocol
+	proto, err := protocol.NewWithCfgDir(cfg, m.cfgDir)
+	if err != nil {
+		return fmt.Errorf("create protocol: %w", err)
+	}
+	proto.SetStore(store)
+	if err := proto.Start(); err != nil {
+		return fmt.Errorf("start bridge: %w", err)
+	}
+
+	// Start auto-change engine
+	acStore := detail.NewAutoChangeStore(m.cfgDir)
+	engine := detail.NewEngine(cfg.ID, store, proto, acStore, m.cfgDir, m)
+	if err := engine.LoadAndStart(); err != nil {
+		slog.Warn("auto-change engine start failed for bridge", "id", id, "error", err)
+	}
+
+	inst := &Instance{
+		Config:     cfg,
+		Protocol:   proto,
+		Store:      store,
+		AutoEngine: engine,
+	}
+
+	// Optional: start per-instance HTTP API
+	if cfg.HttpEnabled && cfg.HttpPort > 0 {
+		ln, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.HttpPort))
+		if err != nil {
+			proto.Stop()
+			return fmt.Errorf("http port %d not available: %w", cfg.HttpPort, err)
+		}
+		ln.Close()
+		apiHandler := api.NewHandler(store, proto, proto)
+		detailHandler := detail.NewDetailHandler(cfg.ID, store, engine, m.cfgDir)
+		httpMux := http.NewServeMux()
+		apiHandler.Register(httpMux)
+		detailHandler.Register(httpMux)
+		httpSrv := &http.Server{Addr: fmt.Sprintf(":%d", cfg.HttpPort), Handler: httpMux}
+		go func() {
+			slog.Info("Bridge实例HTTP API已启动", "id", id, "port", cfg.HttpPort)
+			if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				slog.Error("Bridge实例HTTP API失败", "id", id, "error", err)
+			}
+		}()
+		inst.HTTPServer = httpSrv
+		firewall.EnsurePort(cfg.HttpPort, "gridsim-bridge")
+	}
+
+	m.instances[id] = inst
+	slog.Info("Bridge实例已启动", "id", id, "devices", len(devices), "points", len(points))
+	return nil
 }

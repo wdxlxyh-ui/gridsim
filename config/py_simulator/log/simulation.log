@@ -1,0 +1,601 @@
+2025-10-24 05:35:52,401 - INFO - Starting MicroGrid Simulator...
+2025-10-24 05:35:52,407 - INFO - Simulation start hour set to 14.316666666666666, start time: Fri Oct 24 05:35:52 2025
+2025-10-24 05:35:52,407 - INFO - MeterModel initialized for Meter_01: Start hour = 14.316666666666666, devices_data length: 1
+2025-10-24 05:35:52,408 - INFO - Loaded power curve from config/pv_curve.csv: 96 points, max power = 200.0 kW at hour 12.0
+2025-10-24 05:35:52,408 - INFO - PVModel initialized for PV_01: ratedPower = 100 kW, LimitPower = 100.0 kW, Mode = 0, Start hour = 14.316666666666666, Fixed curve 6:00-18:00 peak 12:00
+2025-10-24 05:35:52,408 - INFO - EVModel initialized for EV_01: ratedPower = 22 kW, minChargePW = 0 kW, charge_factor = 1.0, Charge schedule = [(3.5, 4.5), (5.5, 6.0), (12.0, 13.0), (18.0, 18.5)], Charger type = AC, Voltage = 230.0V, Power Factor = 0.98, Phase Mode = Single Phase, Start hour = 14.316666666666666
+2025-10-24 05:35:52,408 - INFO - BatteryModel initialized for BESS_01: ratedCapacity = 12000 kWh, Start hour = 14.316666666666666, Initial SOC = 50.0%, SOC range = [0.0, 10000.0]%
+2025-10-24 05:35:52,409 - INFO - Loaded power curve from config/load_curve.csv: 96 points, keys=[0.25, 0.5, 0.75, 1.0, 1.25]...
+2025-10-24 05:35:52,409 - INFO - LoadModel initialized for LOAD_001: base_power = 50 kW, Mode = 0, Start hour = 14.316666666666666
+2025-10-24 05:35:52,409 - INFO - Loaded devices with slave IDs: [('Meter_01', 1), ('PV_01', 2), ('EV_01', 4), ('BESS_01', 5), ('LOAD_001', 8)]
+2025-10-24 05:35:52,409 - INFO - Loaded devices: ['Meter_01', 'PV_01', 'EV_01', 'BESS_01', 'LOAD_001']
+2025-10-24 05:35:52,409 - INFO - Initializing Modbus server...
+2025-10-24 05:35:52,412 - INFO - Modbus server thread started
+2025-10-24 05:35:52,412 - INFO - Starting update thread...
+2025-10-24 05:35:52,412 - INFO - PVModel update: Received p_limit = 0.0, Current limit_power = 100.0 kW
+2025-10-24 05:35:52,412 - INFO - PVModel update: Elapsed seconds = 0.0, Current hour = 14.3167h
+2025-10-24 05:35:52,412 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.03 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:35:52,412 - INFO - EVModel update: Elapsed seconds = 0.0, Current hour = 14.3167h
+2025-10-24 05:35:52,412 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:35:52,412 - INFO - LoadModel update: Elapsed seconds = 0.0, Current hour = 14.32h
+2025-10-24 05:35:52,412 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:35:52,412 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:35:52,413 - INFO - Update thread started
+2025-10-24 05:35:53,416 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:35:53,416 - INFO - PVModel update: Elapsed seconds = 1.0, Current hour = 14.3169h
+2025-10-24 05:35:53,416 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.06 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:35:53,416 - INFO - EVModel update: Elapsed seconds = 1.0, Current hour = 14.3169h
+2025-10-24 05:35:53,416 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:35:53,416 - INFO - LoadModel update: Elapsed seconds = 1.0, Current hour = 14.32h
+2025-10-24 05:35:53,416 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:35:53,416 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:35:54,421 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:35:54,421 - INFO - PVModel update: Elapsed seconds = 2.0, Current hour = 14.3172h
+2025-10-24 05:35:54,421 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.08 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:35:54,421 - INFO - EVModel update: Elapsed seconds = 2.0, Current hour = 14.3172h
+2025-10-24 05:35:54,421 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:35:54,421 - INFO - LoadModel update: Elapsed seconds = 2.0, Current hour = 14.32h
+2025-10-24 05:35:54,422 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:35:54,422 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:35:55,423 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:35:55,423 - INFO - PVModel update: Elapsed seconds = 3.0, Current hour = 14.3175h
+2025-10-24 05:35:55,423 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.11 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:35:55,424 - INFO - EVModel update: Elapsed seconds = 3.0, Current hour = 14.3175h
+2025-10-24 05:35:55,424 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:35:55,424 - INFO - LoadModel update: Elapsed seconds = 3.0, Current hour = 14.32h
+2025-10-24 05:35:55,424 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:35:55,424 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:35:56,425 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:35:56,425 - INFO - PVModel update: Elapsed seconds = 4.0, Current hour = 14.3178h
+2025-10-24 05:35:56,425 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.14 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:35:56,425 - INFO - EVModel update: Elapsed seconds = 4.0, Current hour = 14.3178h
+2025-10-24 05:35:56,425 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:35:56,426 - INFO - LoadModel update: Elapsed seconds = 4.0, Current hour = 14.32h
+2025-10-24 05:35:56,426 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:35:56,426 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:35:57,427 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:35:57,427 - INFO - PVModel update: Elapsed seconds = 5.0, Current hour = 14.3181h
+2025-10-24 05:35:57,428 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.17 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:35:57,428 - INFO - EVModel update: Elapsed seconds = 5.0, Current hour = 14.3181h
+2025-10-24 05:35:57,428 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:35:57,428 - INFO - LoadModel update: Elapsed seconds = 5.0, Current hour = 14.32h
+2025-10-24 05:35:57,428 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:35:57,428 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:35:58,430 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:35:58,430 - INFO - PVModel update: Elapsed seconds = 6.0, Current hour = 14.3183h
+2025-10-24 05:35:58,430 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.19 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:35:58,430 - INFO - EVModel update: Elapsed seconds = 6.0, Current hour = 14.3183h
+2025-10-24 05:35:58,430 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:35:58,430 - INFO - LoadModel update: Elapsed seconds = 6.0, Current hour = 14.32h
+2025-10-24 05:35:58,430 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:35:58,430 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:35:59,433 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:35:59,433 - INFO - PVModel update: Elapsed seconds = 7.0, Current hour = 14.3186h
+2025-10-24 05:35:59,434 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.22 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:35:59,434 - INFO - EVModel update: Elapsed seconds = 7.0, Current hour = 14.3186h
+2025-10-24 05:35:59,434 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:35:59,434 - INFO - LoadModel update: Elapsed seconds = 7.0, Current hour = 14.32h
+2025-10-24 05:35:59,434 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:35:59,434 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:00,437 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:00,437 - INFO - PVModel update: Elapsed seconds = 8.0, Current hour = 14.3189h
+2025-10-24 05:36:00,437 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.25 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:00,437 - INFO - EVModel update: Elapsed seconds = 8.0, Current hour = 14.3189h
+2025-10-24 05:36:00,437 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:00,437 - INFO - LoadModel update: Elapsed seconds = 8.0, Current hour = 14.32h
+2025-10-24 05:36:00,437 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:00,437 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:01,438 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:01,438 - INFO - PVModel update: Elapsed seconds = 9.0, Current hour = 14.3192h
+2025-10-24 05:36:01,439 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.28 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:01,439 - INFO - EVModel update: Elapsed seconds = 9.0, Current hour = 14.3192h
+2025-10-24 05:36:01,439 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:01,439 - INFO - LoadModel update: Elapsed seconds = 9.0, Current hour = 14.32h
+2025-10-24 05:36:01,439 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:01,439 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:02,440 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:02,440 - INFO - PVModel update: Elapsed seconds = 10.0, Current hour = 14.3195h
+2025-10-24 05:36:02,440 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.31 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:02,440 - INFO - EVModel update: Elapsed seconds = 10.0, Current hour = 14.3195h
+2025-10-24 05:36:02,440 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:02,440 - INFO - LoadModel update: Elapsed seconds = 10.0, Current hour = 14.32h
+2025-10-24 05:36:02,440 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:02,440 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:03,442 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:03,442 - INFO - PVModel update: Elapsed seconds = 11.0, Current hour = 14.3197h
+2025-10-24 05:36:03,442 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.33 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:03,442 - INFO - EVModel update: Elapsed seconds = 11.0, Current hour = 14.3197h
+2025-10-24 05:36:03,442 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:03,442 - INFO - LoadModel update: Elapsed seconds = 11.0, Current hour = 14.32h
+2025-10-24 05:36:03,442 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:03,442 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:04,444 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:04,445 - INFO - PVModel update: Elapsed seconds = 12.0, Current hour = 14.3200h
+2025-10-24 05:36:04,445 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.36 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:04,445 - INFO - EVModel update: Elapsed seconds = 12.0, Current hour = 14.3200h
+2025-10-24 05:36:04,445 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:04,445 - INFO - LoadModel update: Elapsed seconds = 12.0, Current hour = 14.32h
+2025-10-24 05:36:04,445 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:04,445 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:05,445 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:05,445 - INFO - PVModel update: Elapsed seconds = 13.0, Current hour = 14.3203h
+2025-10-24 05:36:05,446 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.39 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:05,446 - INFO - EVModel update: Elapsed seconds = 13.0, Current hour = 14.3203h
+2025-10-24 05:36:05,446 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:05,446 - INFO - LoadModel update: Elapsed seconds = 13.0, Current hour = 14.32h
+2025-10-24 05:36:05,446 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:05,446 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:06,448 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:06,449 - INFO - PVModel update: Elapsed seconds = 14.0, Current hour = 14.3206h
+2025-10-24 05:36:06,449 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.42 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:06,449 - INFO - EVModel update: Elapsed seconds = 14.0, Current hour = 14.3206h
+2025-10-24 05:36:06,449 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:06,449 - INFO - LoadModel update: Elapsed seconds = 14.0, Current hour = 14.32h
+2025-10-24 05:36:06,449 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:06,449 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:07,453 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:07,453 - INFO - PVModel update: Elapsed seconds = 15.0, Current hour = 14.3208h
+2025-10-24 05:36:07,453 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.44 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:07,453 - INFO - EVModel update: Elapsed seconds = 15.0, Current hour = 14.3208h
+2025-10-24 05:36:07,453 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:07,454 - INFO - LoadModel update: Elapsed seconds = 15.0, Current hour = 14.32h
+2025-10-24 05:36:07,454 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:07,454 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:08,456 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:08,456 - INFO - PVModel update: Elapsed seconds = 16.0, Current hour = 14.3211h
+2025-10-24 05:36:08,456 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.47 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:08,457 - INFO - EVModel update: Elapsed seconds = 16.0, Current hour = 14.3211h
+2025-10-24 05:36:08,457 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:08,457 - INFO - LoadModel update: Elapsed seconds = 16.0, Current hour = 14.32h
+2025-10-24 05:36:08,457 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:08,457 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:09,459 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:09,459 - INFO - PVModel update: Elapsed seconds = 17.1, Current hour = 14.3214h
+2025-10-24 05:36:09,459 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.50 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:09,459 - INFO - EVModel update: Elapsed seconds = 17.1, Current hour = 14.3214h
+2025-10-24 05:36:09,459 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:09,459 - INFO - LoadModel update: Elapsed seconds = 17.1, Current hour = 14.32h
+2025-10-24 05:36:09,459 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:09,459 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:10,462 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:10,462 - INFO - PVModel update: Elapsed seconds = 18.1, Current hour = 14.3217h
+2025-10-24 05:36:10,462 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.53 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:10,462 - INFO - EVModel update: Elapsed seconds = 18.1, Current hour = 14.3217h
+2025-10-24 05:36:10,462 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:10,462 - INFO - LoadModel update: Elapsed seconds = 18.1, Current hour = 14.32h
+2025-10-24 05:36:10,462 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:10,462 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:11,464 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:11,464 - INFO - PVModel update: Elapsed seconds = 19.1, Current hour = 14.3220h
+2025-10-24 05:36:11,465 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.56 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:11,465 - INFO - EVModel update: Elapsed seconds = 19.1, Current hour = 14.3220h
+2025-10-24 05:36:11,465 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:11,465 - INFO - LoadModel update: Elapsed seconds = 19.1, Current hour = 14.32h
+2025-10-24 05:36:11,466 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:11,466 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:12,468 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:12,468 - INFO - PVModel update: Elapsed seconds = 20.1, Current hour = 14.3222h
+2025-10-24 05:36:12,468 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.58 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:12,468 - INFO - EVModel update: Elapsed seconds = 20.1, Current hour = 14.3222h
+2025-10-24 05:36:12,468 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:12,468 - INFO - LoadModel update: Elapsed seconds = 20.1, Current hour = 14.32h
+2025-10-24 05:36:12,468 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:12,468 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:13,470 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:13,470 - INFO - PVModel update: Elapsed seconds = 21.1, Current hour = 14.3225h
+2025-10-24 05:36:13,470 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.61 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:13,470 - INFO - EVModel update: Elapsed seconds = 21.1, Current hour = 14.3225h
+2025-10-24 05:36:13,470 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:13,470 - INFO - LoadModel update: Elapsed seconds = 21.1, Current hour = 14.32h
+2025-10-24 05:36:13,470 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:13,471 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:14,472 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:14,473 - INFO - PVModel update: Elapsed seconds = 22.1, Current hour = 14.3228h
+2025-10-24 05:36:14,473 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.64 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:14,473 - INFO - EVModel update: Elapsed seconds = 22.1, Current hour = 14.3228h
+2025-10-24 05:36:14,473 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:14,473 - INFO - LoadModel update: Elapsed seconds = 22.1, Current hour = 14.32h
+2025-10-24 05:36:14,473 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:14,473 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:15,474 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:15,474 - INFO - PVModel update: Elapsed seconds = 23.1, Current hour = 14.3231h
+2025-10-24 05:36:15,474 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.67 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:15,474 - INFO - EVModel update: Elapsed seconds = 23.1, Current hour = 14.3231h
+2025-10-24 05:36:15,474 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:15,475 - INFO - LoadModel update: Elapsed seconds = 23.1, Current hour = 14.32h
+2025-10-24 05:36:15,475 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:15,475 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:16,476 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:16,477 - INFO - PVModel update: Elapsed seconds = 24.1, Current hour = 14.3234h
+2025-10-24 05:36:16,477 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.69 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:16,477 - INFO - EVModel update: Elapsed seconds = 24.1, Current hour = 14.3234h
+2025-10-24 05:36:16,477 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:16,477 - INFO - LoadModel update: Elapsed seconds = 24.1, Current hour = 14.32h
+2025-10-24 05:36:16,477 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:16,477 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:17,479 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:17,480 - INFO - PVModel update: Elapsed seconds = 25.1, Current hour = 14.3236h
+2025-10-24 05:36:17,480 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.72 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:17,480 - INFO - EVModel update: Elapsed seconds = 25.1, Current hour = 14.3236h
+2025-10-24 05:36:17,480 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:17,480 - INFO - LoadModel update: Elapsed seconds = 25.1, Current hour = 14.32h
+2025-10-24 05:36:17,480 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:17,480 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:18,482 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:18,482 - INFO - PVModel update: Elapsed seconds = 26.1, Current hour = 14.3239h
+2025-10-24 05:36:18,482 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.75 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:18,482 - INFO - EVModel update: Elapsed seconds = 26.1, Current hour = 14.3239h
+2025-10-24 05:36:18,482 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:18,482 - INFO - LoadModel update: Elapsed seconds = 26.1, Current hour = 14.32h
+2025-10-24 05:36:18,482 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:18,482 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:19,484 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:19,484 - INFO - PVModel update: Elapsed seconds = 27.1, Current hour = 14.3242h
+2025-10-24 05:36:19,484 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.78 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:19,484 - INFO - EVModel update: Elapsed seconds = 27.1, Current hour = 14.3242h
+2025-10-24 05:36:19,484 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:19,484 - INFO - LoadModel update: Elapsed seconds = 27.1, Current hour = 14.32h
+2025-10-24 05:36:19,484 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:19,484 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:20,486 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:20,486 - INFO - PVModel update: Elapsed seconds = 28.1, Current hour = 14.3245h
+2025-10-24 05:36:20,486 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.81 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:20,486 - INFO - EVModel update: Elapsed seconds = 28.1, Current hour = 14.3245h
+2025-10-24 05:36:20,486 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:20,486 - INFO - LoadModel update: Elapsed seconds = 28.1, Current hour = 14.32h
+2025-10-24 05:36:20,486 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:20,486 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:21,487 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:21,488 - INFO - PVModel update: Elapsed seconds = 29.1, Current hour = 14.3247h
+2025-10-24 05:36:21,488 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.83 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:21,488 - INFO - EVModel update: Elapsed seconds = 29.1, Current hour = 14.3247h
+2025-10-24 05:36:21,488 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:21,488 - INFO - LoadModel update: Elapsed seconds = 29.1, Current hour = 14.32h
+2025-10-24 05:36:21,488 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:21,488 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:22,491 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:22,491 - INFO - PVModel update: Elapsed seconds = 30.1, Current hour = 14.3250h
+2025-10-24 05:36:22,491 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.86 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:22,491 - INFO - EVModel update: Elapsed seconds = 30.1, Current hour = 14.3250h
+2025-10-24 05:36:22,491 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:22,491 - INFO - LoadModel update: Elapsed seconds = 30.1, Current hour = 14.33h
+2025-10-24 05:36:22,491 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:22,491 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:23,493 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:23,494 - INFO - PVModel update: Elapsed seconds = 31.1, Current hour = 14.3253h
+2025-10-24 05:36:23,494 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.89 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:23,494 - INFO - EVModel update: Elapsed seconds = 31.1, Current hour = 14.3253h
+2025-10-24 05:36:23,494 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:23,494 - INFO - LoadModel update: Elapsed seconds = 31.1, Current hour = 14.33h
+2025-10-24 05:36:23,494 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:23,494 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:24,496 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:24,496 - INFO - PVModel update: Elapsed seconds = 32.1, Current hour = 14.3256h
+2025-10-24 05:36:24,496 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.92 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:24,496 - INFO - EVModel update: Elapsed seconds = 32.1, Current hour = 14.3256h
+2025-10-24 05:36:24,496 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:24,496 - INFO - LoadModel update: Elapsed seconds = 32.1, Current hour = 14.33h
+2025-10-24 05:36:24,496 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:24,496 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:25,498 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:25,498 - INFO - PVModel update: Elapsed seconds = 33.1, Current hour = 14.3259h
+2025-10-24 05:36:25,498 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.94 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:25,498 - INFO - EVModel update: Elapsed seconds = 33.1, Current hour = 14.3259h
+2025-10-24 05:36:25,498 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:25,498 - INFO - LoadModel update: Elapsed seconds = 33.1, Current hour = 14.33h
+2025-10-24 05:36:25,498 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:25,499 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:26,501 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:26,501 - INFO - PVModel update: Elapsed seconds = 34.1, Current hour = 14.3261h
+2025-10-24 05:36:26,501 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 0.97 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:26,501 - INFO - EVModel update: Elapsed seconds = 34.1, Current hour = 14.3261h
+2025-10-24 05:36:26,501 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:26,501 - INFO - LoadModel update: Elapsed seconds = 34.1, Current hour = 14.33h
+2025-10-24 05:36:26,501 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:26,501 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:27,503 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:27,503 - INFO - PVModel update: Elapsed seconds = 35.1, Current hour = 14.3264h
+2025-10-24 05:36:27,503 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.00 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:27,503 - INFO - EVModel update: Elapsed seconds = 35.1, Current hour = 14.3264h
+2025-10-24 05:36:27,503 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:27,503 - INFO - LoadModel update: Elapsed seconds = 35.1, Current hour = 14.33h
+2025-10-24 05:36:27,503 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:27,503 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:28,505 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:28,505 - INFO - PVModel update: Elapsed seconds = 36.1, Current hour = 14.3267h
+2025-10-24 05:36:28,505 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.03 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:28,505 - INFO - EVModel update: Elapsed seconds = 36.1, Current hour = 14.3267h
+2025-10-24 05:36:28,505 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:28,505 - INFO - LoadModel update: Elapsed seconds = 36.1, Current hour = 14.33h
+2025-10-24 05:36:28,505 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:28,505 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:29,507 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:29,508 - INFO - PVModel update: Elapsed seconds = 37.1, Current hour = 14.3270h
+2025-10-24 05:36:29,508 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.06 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:29,508 - INFO - EVModel update: Elapsed seconds = 37.1, Current hour = 14.3270h
+2025-10-24 05:36:29,508 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:29,508 - INFO - LoadModel update: Elapsed seconds = 37.1, Current hour = 14.33h
+2025-10-24 05:36:29,508 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:29,508 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:30,509 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:30,510 - INFO - PVModel update: Elapsed seconds = 38.1, Current hour = 14.3273h
+2025-10-24 05:36:30,510 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.08 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:30,510 - INFO - EVModel update: Elapsed seconds = 38.1, Current hour = 14.3273h
+2025-10-24 05:36:30,510 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:30,510 - INFO - LoadModel update: Elapsed seconds = 38.1, Current hour = 14.33h
+2025-10-24 05:36:30,510 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:30,510 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:31,512 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:31,512 - INFO - PVModel update: Elapsed seconds = 39.1, Current hour = 14.3275h
+2025-10-24 05:36:31,512 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.11 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:31,512 - INFO - EVModel update: Elapsed seconds = 39.1, Current hour = 14.3275h
+2025-10-24 05:36:31,512 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:31,512 - INFO - LoadModel update: Elapsed seconds = 39.1, Current hour = 14.33h
+2025-10-24 05:36:31,512 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:31,512 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:32,513 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:32,513 - INFO - PVModel update: Elapsed seconds = 40.1, Current hour = 14.3278h
+2025-10-24 05:36:32,513 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.14 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:32,513 - INFO - EVModel update: Elapsed seconds = 40.1, Current hour = 14.3278h
+2025-10-24 05:36:32,513 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:32,513 - INFO - LoadModel update: Elapsed seconds = 40.1, Current hour = 14.33h
+2025-10-24 05:36:32,514 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:32,514 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:33,516 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:33,516 - INFO - PVModel update: Elapsed seconds = 41.1, Current hour = 14.3281h
+2025-10-24 05:36:33,516 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.17 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:33,516 - INFO - EVModel update: Elapsed seconds = 41.1, Current hour = 14.3281h
+2025-10-24 05:36:33,516 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:33,516 - INFO - LoadModel update: Elapsed seconds = 41.1, Current hour = 14.33h
+2025-10-24 05:36:33,516 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:33,516 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:34,518 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:34,518 - INFO - PVModel update: Elapsed seconds = 42.1, Current hour = 14.3284h
+2025-10-24 05:36:34,518 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.19 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:34,518 - INFO - EVModel update: Elapsed seconds = 42.1, Current hour = 14.3284h
+2025-10-24 05:36:34,518 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:34,518 - INFO - LoadModel update: Elapsed seconds = 42.1, Current hour = 14.33h
+2025-10-24 05:36:34,518 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:34,518 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:35,521 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:35,521 - INFO - PVModel update: Elapsed seconds = 43.1, Current hour = 14.3286h
+2025-10-24 05:36:35,521 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.22 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:35,521 - INFO - EVModel update: Elapsed seconds = 43.1, Current hour = 14.3286h
+2025-10-24 05:36:35,521 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:35,521 - INFO - LoadModel update: Elapsed seconds = 43.1, Current hour = 14.33h
+2025-10-24 05:36:35,521 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:35,521 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:36,523 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:36,523 - INFO - PVModel update: Elapsed seconds = 44.1, Current hour = 14.3289h
+2025-10-24 05:36:36,523 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.25 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:36,523 - INFO - EVModel update: Elapsed seconds = 44.1, Current hour = 14.3289h
+2025-10-24 05:36:36,523 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:36,523 - INFO - LoadModel update: Elapsed seconds = 44.1, Current hour = 14.33h
+2025-10-24 05:36:36,523 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:36,523 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:37,525 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:37,525 - INFO - PVModel update: Elapsed seconds = 45.1, Current hour = 14.3292h
+2025-10-24 05:36:37,525 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.28 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:37,525 - INFO - EVModel update: Elapsed seconds = 45.1, Current hour = 14.3292h
+2025-10-24 05:36:37,525 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:37,525 - INFO - LoadModel update: Elapsed seconds = 45.1, Current hour = 14.33h
+2025-10-24 05:36:37,525 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:37,525 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:38,526 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:38,526 - INFO - PVModel update: Elapsed seconds = 46.1, Current hour = 14.3295h
+2025-10-24 05:36:38,526 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.31 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:38,526 - INFO - EVModel update: Elapsed seconds = 46.1, Current hour = 14.3295h
+2025-10-24 05:36:38,526 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:38,526 - INFO - LoadModel update: Elapsed seconds = 46.1, Current hour = 14.33h
+2025-10-24 05:36:38,526 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:38,526 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:39,528 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:39,528 - INFO - PVModel update: Elapsed seconds = 47.1, Current hour = 14.3298h
+2025-10-24 05:36:39,528 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.33 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:39,528 - INFO - EVModel update: Elapsed seconds = 47.1, Current hour = 14.3298h
+2025-10-24 05:36:39,528 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:39,528 - INFO - LoadModel update: Elapsed seconds = 47.1, Current hour = 14.33h
+2025-10-24 05:36:39,528 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:39,528 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:40,534 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:40,534 - INFO - PVModel update: Elapsed seconds = 48.1, Current hour = 14.3300h
+2025-10-24 05:36:40,535 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.36 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:40,535 - INFO - EVModel update: Elapsed seconds = 48.1, Current hour = 14.3300h
+2025-10-24 05:36:40,535 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:40,535 - INFO - LoadModel update: Elapsed seconds = 48.1, Current hour = 14.33h
+2025-10-24 05:36:40,535 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:40,535 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:41,536 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:41,536 - INFO - PVModel update: Elapsed seconds = 49.1, Current hour = 14.3303h
+2025-10-24 05:36:41,538 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.39 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:41,539 - INFO - EVModel update: Elapsed seconds = 49.1, Current hour = 14.3303h
+2025-10-24 05:36:41,539 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:41,539 - INFO - LoadModel update: Elapsed seconds = 49.1, Current hour = 14.33h
+2025-10-24 05:36:41,539 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:41,539 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:42,544 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:42,544 - INFO - PVModel update: Elapsed seconds = 50.1, Current hour = 14.3306h
+2025-10-24 05:36:42,544 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.42 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:42,544 - INFO - EVModel update: Elapsed seconds = 50.1, Current hour = 14.3306h
+2025-10-24 05:36:42,544 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:42,544 - INFO - LoadModel update: Elapsed seconds = 50.1, Current hour = 14.33h
+2025-10-24 05:36:42,545 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:42,545 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:43,547 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:43,547 - INFO - PVModel update: Elapsed seconds = 51.1, Current hour = 14.3309h
+2025-10-24 05:36:43,547 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.44 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:43,547 - INFO - EVModel update: Elapsed seconds = 51.1, Current hour = 14.3309h
+2025-10-24 05:36:43,547 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:43,547 - INFO - LoadModel update: Elapsed seconds = 51.1, Current hour = 14.33h
+2025-10-24 05:36:43,547 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:43,547 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:44,549 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:44,549 - INFO - PVModel update: Elapsed seconds = 52.1, Current hour = 14.3312h
+2025-10-24 05:36:44,549 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.47 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:44,549 - INFO - EVModel update: Elapsed seconds = 52.1, Current hour = 14.3312h
+2025-10-24 05:36:44,549 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:44,550 - INFO - LoadModel update: Elapsed seconds = 52.1, Current hour = 14.33h
+2025-10-24 05:36:44,550 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:44,550 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:45,552 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:45,552 - INFO - PVModel update: Elapsed seconds = 53.1, Current hour = 14.3314h
+2025-10-24 05:36:45,552 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.50 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:45,552 - INFO - EVModel update: Elapsed seconds = 53.1, Current hour = 14.3314h
+2025-10-24 05:36:45,552 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:45,552 - INFO - LoadModel update: Elapsed seconds = 53.1, Current hour = 14.33h
+2025-10-24 05:36:45,553 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:45,553 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:46,554 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:46,554 - INFO - PVModel update: Elapsed seconds = 54.1, Current hour = 14.3317h
+2025-10-24 05:36:46,554 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.53 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:46,554 - INFO - EVModel update: Elapsed seconds = 54.1, Current hour = 14.3317h
+2025-10-24 05:36:46,554 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:46,555 - INFO - LoadModel update: Elapsed seconds = 54.1, Current hour = 14.33h
+2025-10-24 05:36:46,555 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:46,555 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:47,558 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:47,558 - INFO - PVModel update: Elapsed seconds = 55.2, Current hour = 14.3320h
+2025-10-24 05:36:47,558 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.56 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:47,558 - INFO - EVModel update: Elapsed seconds = 55.1, Current hour = 14.3320h
+2025-10-24 05:36:47,558 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:47,558 - INFO - LoadModel update: Elapsed seconds = 55.1, Current hour = 14.33h
+2025-10-24 05:36:47,558 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:47,558 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:48,560 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:48,560 - INFO - PVModel update: Elapsed seconds = 56.2, Current hour = 14.3323h
+2025-10-24 05:36:48,560 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.58 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:48,560 - INFO - EVModel update: Elapsed seconds = 56.2, Current hour = 14.3323h
+2025-10-24 05:36:48,560 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:48,560 - INFO - LoadModel update: Elapsed seconds = 56.2, Current hour = 14.33h
+2025-10-24 05:36:48,560 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:48,560 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:49,562 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:49,562 - INFO - PVModel update: Elapsed seconds = 57.2, Current hour = 14.3325h
+2025-10-24 05:36:49,562 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.61 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:49,562 - INFO - EVModel update: Elapsed seconds = 57.2, Current hour = 14.3325h
+2025-10-24 05:36:49,562 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:49,562 - INFO - LoadModel update: Elapsed seconds = 57.2, Current hour = 14.33h
+2025-10-24 05:36:49,562 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:49,562 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:50,564 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:50,564 - INFO - PVModel update: Elapsed seconds = 58.2, Current hour = 14.3328h
+2025-10-24 05:36:50,564 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.64 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:50,564 - INFO - EVModel update: Elapsed seconds = 58.2, Current hour = 14.3328h
+2025-10-24 05:36:50,564 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:50,564 - INFO - LoadModel update: Elapsed seconds = 58.2, Current hour = 14.33h
+2025-10-24 05:36:50,564 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:50,564 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:51,566 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:51,566 - INFO - PVModel update: Elapsed seconds = 59.2, Current hour = 14.3331h
+2025-10-24 05:36:51,566 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.67 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:51,566 - INFO - EVModel update: Elapsed seconds = 59.2, Current hour = 14.3331h
+2025-10-24 05:36:51,567 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:51,567 - INFO - LoadModel update: Elapsed seconds = 59.2, Current hour = 14.33h
+2025-10-24 05:36:51,567 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:51,567 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:52,569 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:52,570 - INFO - PVModel update: Elapsed seconds = 60.2, Current hour = 14.3334h
+2025-10-24 05:36:52,570 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.69 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:52,570 - INFO - EVModel update: Elapsed seconds = 60.2, Current hour = 14.3334h
+2025-10-24 05:36:52,570 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:52,570 - INFO - LoadModel update: Elapsed seconds = 60.2, Current hour = 14.33h
+2025-10-24 05:36:52,570 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:52,570 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:53,572 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:53,572 - INFO - PVModel update: Elapsed seconds = 61.2, Current hour = 14.3337h
+2025-10-24 05:36:53,572 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.72 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:53,572 - INFO - EVModel update: Elapsed seconds = 61.2, Current hour = 14.3337h
+2025-10-24 05:36:53,572 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:53,572 - INFO - LoadModel update: Elapsed seconds = 61.2, Current hour = 14.33h
+2025-10-24 05:36:53,573 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:53,573 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:54,575 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:54,575 - INFO - PVModel update: Elapsed seconds = 62.2, Current hour = 14.3339h
+2025-10-24 05:36:54,575 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.75 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:54,575 - INFO - EVModel update: Elapsed seconds = 62.2, Current hour = 14.3339h
+2025-10-24 05:36:54,575 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:54,575 - INFO - LoadModel update: Elapsed seconds = 62.2, Current hour = 14.33h
+2025-10-24 05:36:54,575 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:54,575 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:55,579 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:55,579 - INFO - PVModel update: Elapsed seconds = 63.2, Current hour = 14.3342h
+2025-10-24 05:36:55,579 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.78 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:55,579 - INFO - EVModel update: Elapsed seconds = 63.2, Current hour = 14.3342h
+2025-10-24 05:36:55,579 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:55,579 - INFO - LoadModel update: Elapsed seconds = 63.2, Current hour = 14.33h
+2025-10-24 05:36:55,579 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:55,579 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:56,591 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:56,591 - INFO - PVModel update: Elapsed seconds = 64.2, Current hour = 14.3345h
+2025-10-24 05:36:56,591 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.81 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:56,591 - INFO - EVModel update: Elapsed seconds = 64.2, Current hour = 14.3345h
+2025-10-24 05:36:56,591 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:56,592 - INFO - LoadModel update: Elapsed seconds = 64.2, Current hour = 14.33h
+2025-10-24 05:36:56,592 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:56,592 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:57,602 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:57,602 - INFO - PVModel update: Elapsed seconds = 65.2, Current hour = 14.3348h
+2025-10-24 05:36:57,603 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.83 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:57,603 - INFO - EVModel update: Elapsed seconds = 65.2, Current hour = 14.3348h
+2025-10-24 05:36:57,603 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:57,603 - INFO - LoadModel update: Elapsed seconds = 65.2, Current hour = 14.33h
+2025-10-24 05:36:57,603 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:57,603 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:58,604 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:58,604 - INFO - PVModel update: Elapsed seconds = 66.2, Current hour = 14.3351h
+2025-10-24 05:36:58,604 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.86 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:58,604 - INFO - EVModel update: Elapsed seconds = 66.2, Current hour = 14.3351h
+2025-10-24 05:36:58,604 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:58,604 - INFO - LoadModel update: Elapsed seconds = 66.2, Current hour = 14.34h
+2025-10-24 05:36:58,605 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:58,605 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:36:59,607 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:36:59,607 - INFO - PVModel update: Elapsed seconds = 67.2, Current hour = 14.3353h
+2025-10-24 05:36:59,607 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.89 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:36:59,607 - INFO - EVModel update: Elapsed seconds = 67.2, Current hour = 14.3353h
+2025-10-24 05:36:59,607 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:36:59,607 - INFO - LoadModel update: Elapsed seconds = 67.2, Current hour = 14.34h
+2025-10-24 05:36:59,607 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:36:59,607 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:37:00,609 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:37:00,609 - INFO - PVModel update: Elapsed seconds = 68.2, Current hour = 14.3356h
+2025-10-24 05:37:00,609 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.92 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:37:00,609 - INFO - EVModel update: Elapsed seconds = 68.2, Current hour = 14.3356h
+2025-10-24 05:37:00,609 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:37:00,609 - INFO - LoadModel update: Elapsed seconds = 68.2, Current hour = 14.34h
+2025-10-24 05:37:00,609 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:37:00,609 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:37:01,611 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:37:01,611 - INFO - PVModel update: Elapsed seconds = 69.2, Current hour = 14.3359h
+2025-10-24 05:37:01,611 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.94 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:37:01,611 - INFO - EVModel update: Elapsed seconds = 69.2, Current hour = 14.3359h
+2025-10-24 05:37:01,611 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:37:01,611 - INFO - LoadModel update: Elapsed seconds = 69.2, Current hour = 14.34h
+2025-10-24 05:37:01,611 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:37:01,612 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:37:02,614 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:37:02,614 - INFO - PVModel update: Elapsed seconds = 70.2, Current hour = 14.3362h
+2025-10-24 05:37:02,614 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 1.97 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:37:02,614 - INFO - EVModel update: Elapsed seconds = 70.2, Current hour = 14.3362h
+2025-10-24 05:37:02,615 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:37:02,615 - INFO - LoadModel update: Elapsed seconds = 70.2, Current hour = 14.34h
+2025-10-24 05:37:02,615 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:37:02,615 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:37:03,617 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:37:03,617 - INFO - PVModel update: Elapsed seconds = 71.2, Current hour = 14.3364h
+2025-10-24 05:37:03,617 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 2.00 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:37:03,618 - INFO - EVModel update: Elapsed seconds = 71.2, Current hour = 14.3364h
+2025-10-24 05:37:03,618 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:37:03,618 - INFO - LoadModel update: Elapsed seconds = 71.2, Current hour = 14.34h
+2025-10-24 05:37:03,618 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:37:03,619 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
+2025-10-24 05:37:04,158 - INFO - Shutting down MicroGrid Simulator...
+2025-10-24 05:37:04,158 - INFO - Shutting down MicroGrid Simulator...
+2025-10-24 05:37:04,620 - INFO - PVModel update: Received p_limit = 100.0, Current limit_power = 100.0 kW
+2025-10-24 05:37:04,621 - INFO - PVModel update: Elapsed seconds = 72.2, Current hour = 14.3367h
+2025-10-24 05:37:04,621 - INFO - PVModel update: GenActivePW = 100.0 kW, LimitPower = 100.0 kW, TotalProductionKWH = 2.03 kWh, APProduction = 100.0 kW, Start = 1, Stop = 0
+2025-10-24 05:37:04,621 - INFO - EVModel update: Elapsed seconds = 72.2, Current hour = 14.3367h
+2025-10-24 05:37:04,621 - INFO - EVModel update: ChargePW = 0.0 kW, p_limit = 22 kW, Currents = 0.0A/0.0A/0.0A, Energy = 0.00 kWh, Start = 0, Stop = 1, OEM = 0, Ctrl = 0, PhaseMode = Single, ChargeCurSetL1 = 0.0A, Voltage = 200.0V
+2025-10-24 05:37:04,621 - INFO - LoadModel update: Elapsed seconds = 72.2, Current hour = 14.34h
+2025-10-24 05:37:04,621 - INFO - LoadModel update: Power = 110.0 kW
+2025-10-24 05:37:04,621 - INFO - Device States: Meter Meter_01 Total Power: 10.00 kW | PV PV_01 GenActivePW: 100.00 kW, LimitPower: 100.00 kW | EV EV_01 ChargePW: 0.00 kW | BESS BESS_01 ActivePW: 0.00 kW, SOC: 50.0%, ChargingEng: 0.00 kWh, DischargingEng: 0.00 kWh | Load LOAD_001 Power: 110.00 kW
