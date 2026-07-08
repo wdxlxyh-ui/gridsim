@@ -822,6 +822,7 @@ func (m *Manager) startBridge(id string) error {
 	}
 
 	m.instances[id] = inst
+	firewall.EnsurePort(bridgeCfg.ModbusPort, "gridsim-bridge-modbus")
 	slog.Info("Bridge实例已启动", "id", id, "devices", len(devices), "points", len(points))
 	return nil
 }
