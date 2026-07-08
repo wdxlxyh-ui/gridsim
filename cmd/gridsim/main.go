@@ -746,6 +746,9 @@ func (ws *webServer) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		if s.Config.ModbusConfig != nil && s.Config.ModbusConfig.Port > 0 {
 			port = s.Config.ModbusConfig.Port
 		}
+		if s.Config.ModbusBridgeConfig != nil && s.Config.ModbusBridgeConfig.ModbusPort > 0 {
+			port = s.Config.ModbusBridgeConfig.ModbusPort
+		}
 		bi := briefInstance{
 			ID:     s.Config.ID,
 			Name:   s.Config.Name,
@@ -1167,6 +1170,9 @@ func instanceStateToMap(s *model.InstanceState) map[string]interface{} {
 	}
 	if s.Config.IEC104ClientConfig != nil {
 		m["iec104_client_config"] = s.Config.IEC104ClientConfig
+	}
+	if s.Config.ModbusBridgeConfig != nil {
+		m["modbus_bridge_config"] = s.Config.ModbusBridgeConfig
 	}
 	if s.Status == model.StatusRunning {
 		m["stats"] = map[string]interface{}{

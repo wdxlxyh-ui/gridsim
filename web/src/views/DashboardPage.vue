@@ -168,6 +168,7 @@
             <div class="ic-port-info">
               <el-icon :size="11"><Coin /></el-icon>
               <span v-if="inst.protocol === 'iec104_client' && inst.remote_addr">远端 {{ inst.remote_addr }}</span>
+              <span v-else-if="inst.protocol === 'modbus_bridge'">Modbus端口 {{ inst.port }}</span>
               <span v-else>端口 {{ inst.port }}</span>
             </div>
             <div v-if="inst.error" class="ic-error">
