@@ -22,7 +22,8 @@
       <template #header>
         <div style="display:flex;justify-content:space-between;align-items:center">
           <span style="font-weight:600">{{ devType.icon }} {{ devType.label }} ({{ getDevices(devType.key).length }})</span>
-          <el-button size="small" type="primary" :disabled="disabled" @click="addDevice(devType.key)">添加{{ devType.label }}</el-button>
+          <el-button v-if="devType.key !== 'Meter'" size="small" type="primary" :disabled="disabled" @click="addDevice(devType.key)">添加{{ devType.label }}</el-button>
+          <span v-else style="font-size:12px;color:#94a3b8">固定1台，自动汇总功率</span>
         </div>
       </template>
       <div v-if="getDevices(devType.key).length === 0" style="color:#94a3b8;text-align:center;padding:12px">
@@ -31,7 +32,7 @@
       <div v-for="(dev, idx) in getDevices(devType.key)" :key="dev.DeviceKey" class="device-form-card">
         <div class="device-form-header">
           <span style="font-weight:600">{{ dev.DeviceKey }}</span>
-          <el-button size="small" type="danger" text :disabled="disabled" @click="removeDevice(devType.key, idx)">删除</el-button>
+          <el-button v-if="devType.key !== 'Meter'" size="small" type="danger" text :disabled="disabled" @click="removeDevice(devType.key, idx)">删除</el-button>
         </div>
         <!-- PV -->
         <el-form v-if="devType.key === 'PV'" label-width="110px" :disabled="disabled" size="small">
@@ -154,7 +155,22 @@ watch(() => props.config, (val) => {
   if (val && val.Devices && val.Devices.length > 0) {
     localConfig.value = JSON.parse(JSON.stringify(val))
   }
+  // Ensure exactly one Meter always exists
+  ensureMeter()
 }, { immediate: true, deep: true })
+
+function ensureMeter() {
+  const devices = localConfig.value.Devices || []
+  let hasMeter = false
+  for (const group of devices) {
+    if (group['Meter'] && group['Meter'].length > 0) { hasMeter = true; break }
+  }
+  if (!hasMeter) {
+    // Add default Meter at the beginning
+    devices.unshift({ Meter: [{ DeviceKey: 'Meter_01', slave_id: nextSlaveId() }] })
+    localConfig.value.Devices = devices
+  }
+}
 
 function getDevices(type: string): any[] {
   for (const group of localConfig.value.Devices || []) {

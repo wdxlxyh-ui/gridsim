@@ -180,17 +180,10 @@ func (ws *webServer) handlePyMicrogridTopology(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	bc := cfg.ModbusBridgeConfig
-	scriptDir := bc.ScriptDir
-	if scriptDir == "" {
-		scriptDir = "py_simulator"
-	}
-	if scriptDir != "" && scriptDir[0] != '/' && (len(scriptDir) < 2 || scriptDir[1] != ':') {
-		scriptDir = filepath.Join(ws.cfgDir, scriptDir)
-	}
-	deviceJSON := bc.DeviceJSON
-	if deviceJSON == "" {
-		deviceJSON = "config/device.json"
+	scriptDir, deviceJSON, err := ws.resolveScriptDir(id)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	switch r.Method {
@@ -229,8 +222,8 @@ func (ws *webServer) handlePyMicrogridTopology(w http.ResponseWriter, r *http.Re
 		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"bus_name":    "AC Bus",
 			"bus_voltage": 0.4,
-			"start_time":  bc.StartTime,
-			"modbus_port": bc.ModbusPort,
+			"start_time":  cfg.ModbusBridgeConfig.StartTime,
+			"modbus_port": cfg.ModbusBridgeConfig.ModbusPort,
 			"devices":     devList,
 		})
 
