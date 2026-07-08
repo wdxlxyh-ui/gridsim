@@ -491,7 +491,12 @@ func (ws *webServer) handlePyMicrogridExportPoints(w http.ResponseWriter, r *htt
 			f.SetCellValue("point", fmt.Sprintf("%s%d", col(8), rowIdx), pt.RegisterOffset)  // register-address
 			f.SetCellValue("point", fmt.Sprintf("%s%d", col(9), rowIdx), fc)                 // function-code
 			f.SetCellValue("point", fmt.Sprintf("%s%d", col(10), rowIdx), "SW_INT")          // value-type: 4字节整数大端序
-			// group-number, call-interval, user-defined-rule 留空(自动分组)
+			// group-number and call-interval for high-frequency points
+			if pt.HighFreq && !pt.Writable {
+				f.SetCellValue("point", fmt.Sprintf("%s%d", col(11), rowIdx), 1)    // group-number: 组1
+				f.SetCellValue("point", fmt.Sprintf("%s%d", col(12), rowIdx), 100)  // call-interval: 100ms
+			}
+			// user-defined-rule 留空
 			rowIdx++
 		}
 

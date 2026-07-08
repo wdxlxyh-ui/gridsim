@@ -18,6 +18,7 @@ type PointMapping struct {
 	PointType      config.PointType
 	Writable       bool
 	Description    string
+	HighFreq       bool // high-frequency collection group
 }
 
 // DeviceMapping represents one Python device with its slave ID and points.
@@ -44,52 +45,53 @@ type regDef struct {
 	Type     config.PointType
 	Writable bool
 	Desc     string
+	HighFreq bool // true = 高频采集组 (group 1, 100ms)
 }
 
 var registerDefs = map[string][]regDef{
 	"Meter": {
-		{"ActivePower", 0, config.TypeAI, false, "并网点有功功率 kW"},
+		{"METER.ActivePW", 0, config.TypeAI, false, "并网点有功功率 kW", true},
 	},
 	"PV": {
-		{"INV.GenActivePW", 0, config.TypeAI, false, "发电功率 kW"},
-		{"INV.APProductionKWH", 2, config.TypeAI, false, "累计发电量 kWh"},
-		{"INV.LimitPower", 4, config.TypeAO, true, "限功率 kW"},
-		{"INV.OemState", 6, config.TypeDI, false, "OEM状态"},
-		{"INV.CtrlState", 8, config.TypeDI, false, "控制状态"},
-		{"INV.Start", 10, config.TypeDI, false, "启动标志"},
-		{"INV.Stop", 12, config.TypeDI, false, "停止标志"},
-		{"INV.State", 14, config.TypeDI, false, "运行状态"},
-		{"INV.APProduction", 16, config.TypeAI, false, "瞬时发电 kW"},
+		{"INV.GenActivePW", 0, config.TypeAI, false, "发电功率 kW", true},
+		{"INV.APProductionKWH", 2, config.TypeAI, false, "累计发电量 kWh", false},
+		{"INV.LimitPower", 4, config.TypeAO, true, "限功率 kW", false},
+		{"INV.OemState", 6, config.TypeDI, false, "OEM状态", false},
+		{"INV.CtrlState", 8, config.TypeDI, false, "控制状态", true},
+		{"INV.Start", 10, config.TypeDI, false, "启动标志", false},
+		{"INV.Stop", 12, config.TypeDI, false, "停止标志", false},
+		{"INV.State", 14, config.TypeDI, false, "运行状态", false},
+		{"INV.APProduction", 16, config.TypeAI, false, "瞬时发电 kW", false},
 	},
 	"BESS": {
-		{"BS.ActivePW", 0, config.TypeAI, false, "有功功率 kW"},
-		{"BS.Soc", 2, config.TypeAI, false, "SOC %"},
-		{"BS.MaxChargePower", 4, config.TypeAI, false, "最大充电功率 kW"},
-		{"BS.MaxDischargePower", 6, config.TypeAI, false, "最大放电功率 kW"},
-		{"BS.EndChargeSOC", 8, config.TypeAI, false, "充电截止 SOC %"},
-		{"BS.EndDischargeSOC", 10, config.TypeAI, false, "放电截止 SOC %"},
-		{"BS.Soh", 12, config.TypeAI, false, "SOH %"},
-		{"BS.SysAPSetPoint", 14, config.TypeAO, true, "功率设定 kW"},
-		{"BS.OemState", 16, config.TypeDI, false, "OEM状态"},
-		{"BS.CtrlState", 18, config.TypeDI, false, "控制状态"},
-		{"BS.TotalChargingEng", 20, config.TypeAI, false, "累计充电 kWh"},
-		{"BS.TotalDischargingEng", 22, config.TypeAI, false, "累计放电 kWh"},
+		{"BS.ActivePW", 0, config.TypeAI, false, "有功功率 kW", true},
+		{"BS.Soc", 2, config.TypeAI, false, "SOC %", false},
+		{"BS.MaxChargePower", 4, config.TypeAI, false, "最大充电功率 kW", false},
+		{"BS.MaxDischargePower", 6, config.TypeAI, false, "最大放电功率 kW", false},
+		{"BS.EndChargeSOC", 8, config.TypeAI, false, "充电截止 SOC %", false},
+		{"BS.EndDischargeSOC", 10, config.TypeAI, false, "放电截止 SOC %", false},
+		{"BS.Soh", 12, config.TypeAI, false, "SOH %", false},
+		{"BS.SysAPSetPoint", 14, config.TypeAO, true, "功率设定 kW", false},
+		{"BS.OemState", 16, config.TypeDI, false, "OEM状态", false},
+		{"BS.CtrlState", 18, config.TypeDI, false, "控制状态", true},
+		{"BS.TotalChargingEng", 20, config.TypeAI, false, "累计充电 kWh", false},
+		{"BS.TotalDischargingEng", 22, config.TypeAI, false, "累计放电 kWh", false},
 	},
 	"EV": {
-		{"PUB_CONN.ChargePW", 0, config.TypeAI, false, "充电功率 kW"},
-		{"PUB_CONN.CurrentL1", 2, config.TypeAI, false, "L1电流 A"},
-		{"PUB_CONN.CurrentL2", 4, config.TypeAI, false, "L2电流 A"},
-		{"PUB_CONN.CurrentL3", 6, config.TypeAI, false, "L3电流 A"},
-		{"PUB_CONN.ChargePWSet", 8, config.TypeAO, true, "功率设定 kW"},
-		{"PUB_CONN.ChargeCurSetL1", 10, config.TypeAO, true, "电流设定 A"},
-		{"PUB_CONN.OemState", 12, config.TypeDI, false, "OEM状态"},
-		{"PUB_CONN.ChargeEnergyKWH", 14, config.TypeAI, false, "累计电量 kWh"},
-		{"PUB_CONN.CtrlState", 16, config.TypeDI, false, "控制状态"},
-		{"PUB_CONN.State", 18, config.TypeDI, false, "运行状态"},
-		{"PUB_CONN.PhaseMode", 20, config.TypeDI, false, "相模式"},
+		{"PUB_CONN.ChargePW", 0, config.TypeAI, false, "充电功率 kW", true},
+		{"PUB_CONN.CurrentL1", 2, config.TypeAI, false, "L1电流 A", false},
+		{"PUB_CONN.CurrentL2", 4, config.TypeAI, false, "L2电流 A", false},
+		{"PUB_CONN.CurrentL3", 6, config.TypeAI, false, "L3电流 A", false},
+		{"PUB_CONN.ChargePWSet", 8, config.TypeAO, true, "功率设定 kW", false},
+		{"PUB_CONN.ChargeCurSetL1", 10, config.TypeAO, true, "电流设定 A", false},
+		{"PUB_CONN.OemState", 12, config.TypeDI, false, "OEM状态", false},
+		{"PUB_CONN.ChargeEnergyKWH", 14, config.TypeAI, false, "累计电量 kWh", false},
+		{"PUB_CONN.CtrlState", 16, config.TypeDI, false, "控制状态", true},
+		{"PUB_CONN.State", 18, config.TypeDI, false, "运行状态", false},
+		{"PUB_CONN.PhaseMode", 20, config.TypeDI, false, "相模式", false},
 	},
 	"Load": {
-		{"Load.Power", 0, config.TypeAI, false, "负荷功率 kW"},
+		{"Load.Power", 0, config.TypeAI, false, "负荷功率 kW", true},
 	},
 }
 
@@ -141,6 +143,7 @@ func ParseDeviceJSON(scriptDir, deviceJSONPath string) ([]DeviceMapping, error) 
 						PointType:      reg.Type,
 						Writable:       reg.Writable,
 						Description:    reg.Desc,
+						HighFreq:       reg.HighFreq,
 					})
 				}
 
