@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GridSim-Python微电网使用指南</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.7; max-width: 900px; margin: 0 auto; padding: 40px 20px; color: #1a1a1a; background: #fafafa; }
+h1 { border-bottom: 3px solid #2563eb; padding-bottom: 12px; color: #1e293b; }
+h2 { border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin-top: 2.5em; color: #334155; }
+h3 { color: #475569; margin-top: 1.8em; }
+h4 { color: #64748b; }
+table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 14px; }
+th, td { border: 1px solid #cbd5e1; padding: 8px 12px; text-align: left; }
+th { background: #f1f5f9; font-weight: 600; }
+tr:nth-child(even) { background: #f8fafc; }
+code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; font-family: "JetBrains Mono", "Fira Code", Consolas, monospace; }
+pre { background: #1e293b; color: #e2e8f0; padding: 16px 20px; border-radius: 8px; overflow-x: auto; font-size: 13px; line-height: 1.5; }
+pre code { background: none; padding: 0; color: inherit; }
+blockquote { border-left: 4px solid #2563eb; margin: 16px 0; padding: 12px 20px; background: #eff6ff; color: #1e40af; border-radius: 0 8px 8px 0; }
+a { color: #2563eb; text-decoration: none; }
+a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<h1 id="gridsim-python">GridSim — Python 微电网实例使用指南</h1>
+<p>本文档说明如何在 GridSim 中创建、配置、运行 Python 微电网仿真实例，包括多实例管理和设备控制。</p>
+<h2 id="1">1. 概述</h2>
+<p>Python 微电网实例基于物理模型仿真器，每个实例独立运行一个 Python 进程，通过 Modbus TCP 协议对外暴露设备数据。支持以下设备类型：</p>
+<table>
+<thead>
+<tr>
+<th>设备类型</th>
+<th>缩写</th>
+<th>功能</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>电表 (Meter)</td>
+<td>Meter</td>
+<td>自动汇总所有设备功率，计算并网点净功率</td>
+</tr>
+<tr>
+<td>光伏 (PV)</td>
+<td>PV</td>
+<td>正弦曲线或 CSV 功率曲线回放，支持限功率控制</td>
+</tr>
+<tr>
+<td>储能 (BESS)</td>
+<td>BESS</td>
+<td>SOC 充放电计算、功率指令响应、电量统计</td>
+</tr>
+<tr>
+<td>充电桩 (EV)</td>
+<td>EV</td>
+<td>AC/DC 双模式、单相/三相、定时充电调度</td>
+</tr>
+<tr>
+<td>负荷 (Load)</td>
+<td>Load</td>
+<td>CSV 曲线回放或基础功率随机波动</td>
+</tr>
+</tbody>
+</table>
+<h3 id="11">1.1 多实例架构</h3>
+<p>每个 Python 微电网实例拥有：
+- 独立的 Modbus TCP 端口（如 5021、5022、5023...）
+- 独立的工作目录（<code>config/py_instances/&lt;instance-id&gt;/</code>）
+- 独立的设备配置文件（<code>config/device.json</code>）
+- 独立的日志目录（<code>log/</code>）
+- 独立的 Python 进程</p>
+<pre><code>Go 主程序
+├── 实例A → python3 main.py --port 5021  (工作目录: py_instances/abc123/)
+├── 实例B → python3 main.py --port 5022  (工作目录: py_instances/def456/)
+└── 实例C → python3 main.py --port 5023  (工作目录: py_instances/ghi789/)
+</code></pre>
+<h2 id="2">2. 创建实例</h2>
+<h3 id="21-web-ui">2.1 通过 Web UI 创建</h3>
+<ol>
+<li>打开 Web UI → "配置管理"页面</li>
+<li>点击"添加实例"按钮</li>
+<li><strong>第一步 — 规约与名称</strong>：</li>
+<li>规约类型选择"Python微电网"</li>
+<li>填写实例名称（如"微电网仿真-1号站"）</li>
+<li><strong>第二步 — 网络配置</strong>：</li>
+<li>Modbus 端口：填写该实例的 Modbus TCP 监听端口（默认 5021，多实例需填不同端口）</li>
+<li>轮询间隔：Go 端从模拟器读取数据的周期（默认 1000ms，推荐 500~2000ms）</li>
+<li>仿真起始时间：HH:MM 格式（如 08:00），PV/Load 曲线从此时刻开始演算，留空使用当前系统时间</li>
+<li><strong>第三步 — 点表与接口</strong>：</li>
+<li>Python 微电网无需上传点表文件（自动从 device.json 生成）</li>
+<li>可选启用 HTTP 接口（用于独立 REST API 访问）</li>
+<li><strong>第四步 — 确认</strong>：</li>
+<li>检查 Modbus 端口、轮询间隔、仿真起始时间</li>
+<li>Python 微电网不支持"创建后立即启动"（需先配置设备）</li>
+</ol>
+<blockquote>
+<p>创建第二个实例时，Modbus 端口必须与已有实例不同，否则会提示"端口冲突"。</p>
+</blockquote>
+<h3 id="22-rest-api">2.2 通过 REST API 创建</h3>
+<pre><code class="language-bash">curl -X POST http://localhost:8989/api/v1/instances \
+  -H &quot;Content-Type: application/json&quot; \
+  -d '{
+    &quot;name&quot;: &quot;微电网站A&quot;,
+    &quot;protocol&quot;: &quot;modbus_bridge&quot;,
+    &quot;iec104_port&quot;: 0,
+    &quot;xlsx_file&quot;: &quot;&quot;,
+    &quot;http_enabled&quot;: true,
+    &quot;http_port&quot;: 9001,
+    &quot;modbus_bridge_config&quot;: {
+      &quot;script_dir&quot;: &quot;py_simulator&quot;,
+      &quot;modbus_port&quot;: 5021,
+      &quot;poll_interval_ms&quot;: 1000,
+      &quot;start_time&quot;: &quot;08:00&quot;,
+      &quot;device_json&quot;: &quot;config/device.json&quot;
+    }
+  }'
+</code></pre>
+<h2 id="3">3. 配置设备</h2>
+<h3 id="31">3.1 进入配置界面</h3>
+<p>在配置管理列表中，点击 Python 微电网实例的"Python仿真"按钮 → 进入实例页面 → 切换到"配置管理" tab。</p>
+<h3 id="32">3.2 配置文件说明</h3>
+<p>每个实例使用独立的 <code>device.json</code> 文件，位于 <code>config/py_instances/&lt;id&gt;/config/device.json</code>（首次启动时从模板复制）。</p>
+<p><strong>JSON 格式示例</strong>：</p>
+<pre><code class="language-json">{
+  &quot;start_time&quot;: &quot;10:00&quot;,
+  &quot;Devices&quot;: [
+    { &quot;Meter&quot;: [{ &quot;DeviceKey&quot;: &quot;Meter_01&quot;, &quot;slave_id&quot;: 1 }] },
+    { &quot;PV&quot;: [{ &quot;DeviceKey&quot;: &quot;PV_01&quot;, &quot;ratedPower&quot;: 100, &quot;mode&quot;: 1, &quot;slave_id&quot;: 2 }] },
+    { &quot;BESS&quot;: [{ &quot;DeviceKey&quot;: &quot;BESS_01&quot;, &quot;ratedCapacity&quot;: 200, &quot;slave_id&quot;: 3 }] },
+    { &quot;EV&quot;: [{ &quot;DeviceKey&quot;: &quot;EV_01&quot;, &quot;PUB_CONN.RatedPW&quot;: 22, &quot;slave_id&quot;: 4 }] },
+    { &quot;Load&quot;: [{ &quot;DeviceKey&quot;: &quot;LOAD_01&quot;, &quot;base_power&quot;: 120, &quot;mode&quot;: 0, &quot;slave_id&quot;: 5 }] }
+  ]
+}
+</code></pre>
+<p>Web UI 配置管理界面直接读写此文件，两者完全等价。</p>
+<h3 id="33">3.3 全局设置</h3>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>仿真起始时间</td>
+<td>HH:MM 格式，PV/Load 曲线从此时刻开始演算</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>注意：实例级别的 <code>start_time</code> 配置优先级高于 device.json 中的值。修改仿真时间需在"编辑实例"中同步修改。</p>
+</blockquote>
+<h3 id="34">3.4 设备类型详细参数</h3>
+<h4 id="pv">PV 光伏</h4>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>JSON Key</th>
+<th>说明</th>
+<th>默认值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>设备标识</td>
+<td>DeviceKey</td>
+<td>唯一名称</td>
+<td>必填</td>
+</tr>
+<tr>
+<td>额定功率 (kW)</td>
+<td>ratedPower</td>
+<td>最大出力</td>
+<td><strong>必填</strong></td>
+</tr>
+<tr>
+<td>出力模式</td>
+<td>mode</td>
+<td>0=CSV 曲线回放, 1=正弦曲线</td>
+<td>1</td>
+</tr>
+<tr>
+<td>CSV 文件</td>
+<td>csv_file</td>
+<td>mode=0 时的曲线文件名</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Slave ID</td>
+<td>slave_id</td>
+<td>Modbus 从站地址 1~247</td>
+<td>自动分配</td>
+</tr>
+</tbody>
+</table>
+<p><strong>正弦模式</strong>：6:00~18:00 按 sin²(x) 曲线出力，叠加 ±5% 随机波动，夜间为 0。</p>
+<p><strong>CSV 模式</strong>：读取 <code>config/</code> 下的 CSV 文件，格式为 <code>小时,功率(kW)</code>，每 15 分钟一个点（0.25 步长），中间线性插值。</p>
+<h4 id="bess">BESS 储能</h4>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>JSON Key</th>
+<th>说明</th>
+<th>默认值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>设备标识</td>
+<td>DeviceKey</td>
+<td>唯一名称</td>
+<td>必填</td>
+</tr>
+<tr>
+<td>额定容量 (kWh)</td>
+<td>ratedCapacity</td>
+<td>电池容量</td>
+<td>200</td>
+</tr>
+<tr>
+<td>最大充电功率 (kW)</td>
+<td>maxChargePower</td>
+<td>—</td>
+<td>100</td>
+</tr>
+<tr>
+<td>最大放电功率 (kW)</td>
+<td>maxDischargePower</td>
+<td>—</td>
+<td>100</td>
+</tr>
+<tr>
+<td>SOC 上限 (%)</td>
+<td>socMax</td>
+<td>0~100</td>
+<td>90</td>
+</tr>
+<tr>
+<td>SOC 下限 (%)</td>
+<td>socMin</td>
+<td>0~100</td>
+<td>10</td>
+</tr>
+<tr>
+<td>初始 SOC</td>
+<td>initial_soc</td>
+<td>0~1（0.5 表示 50%）</td>
+<td>0.5</td>
+</tr>
+<tr>
+<td>标称电压 (V)</td>
+<td>voltage_nominal</td>
+<td>—</td>
+<td>48</td>
+</tr>
+<tr>
+<td>内阻 (Ω)</td>
+<td>resistance</td>
+<td>—</td>
+<td>0.01</td>
+</tr>
+<tr>
+<td>Slave ID</td>
+<td>slave_id</td>
+<td>—</td>
+<td>自动分配</td>
+</tr>
+</tbody>
+</table>
+<p><strong>运行逻辑</strong>：通过 Modbus 写入 <code>BS.SysAPSetPoint</code>（寄存器地址 14）下发功率指令，正值放电、负值充电。SOC 实时计算，到限值自动截止。</p>
+<h4 id="ev">EV 充电桩</h4>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>JSON Key</th>
+<th>说明</th>
+<th>默认值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>设备标识</td>
+<td>DeviceKey</td>
+<td>唯一名称</td>
+<td>必填</td>
+</tr>
+<tr>
+<td>额定功率 (kW)</td>
+<td>PUB_CONN.RatedPW</td>
+<td>—</td>
+<td><strong>必填</strong></td>
+</tr>
+<tr>
+<td>最小功率 (kW)</td>
+<td>PUB_CONN.MinChargePW</td>
+<td>—</td>
+<td>0</td>
+</tr>
+<tr>
+<td>充电系数</td>
+<td>charge_factor</td>
+<td>0~1</td>
+<td>1.0</td>
+</tr>
+<tr>
+<td>充电器类型</td>
+<td>charger_type</td>
+<td>"AC" 或 "DC"</td>
+<td>AC</td>
+</tr>
+<tr>
+<td>相模式</td>
+<td>phase_mode</td>
+<td>1=单相, 3=三相</td>
+<td>3</td>
+</tr>
+<tr>
+<td>电压 (V)</td>
+<td>voltage</td>
+<td>AC:200~250, DC:300~500</td>
+<td>AC:220</td>
+</tr>
+<tr>
+<td>功率因数</td>
+<td>power_factor</td>
+<td>0~1</td>
+<td>AC:0.95</td>
+</tr>
+<tr>
+<td>充电时段</td>
+<td>charge_schedule</td>
+<td>数组 [{start, stop}]</td>
+<td>[{8:00-10:00}]</td>
+</tr>
+<tr>
+<td>Slave ID</td>
+<td>slave_id</td>
+<td>—</td>
+<td>自动分配</td>
+</tr>
+</tbody>
+</table>
+<p><strong>充电时段格式</strong>：<code>[{"start":"08:00","stop":"10:00"}, {"start":"18:00","stop":"20:00"}]</code>，支持跨零点。仅在时段内充电，时段外功率为 0。</p>
+<h4 id="load">Load 负荷</h4>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>JSON Key</th>
+<th>说明</th>
+<th>默认值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>设备标识</td>
+<td>DeviceKey</td>
+<td>唯一名称</td>
+<td>必填</td>
+</tr>
+<tr>
+<td>基础功率 (kW)</td>
+<td>base_power</td>
+<td>mode=1 时的基准</td>
+<td>120</td>
+</tr>
+<tr>
+<td>出力模式</td>
+<td>mode</td>
+<td>0=CSV, 1=随机波动(±20%)</td>
+<td>0</td>
+</tr>
+<tr>
+<td>CSV 文件</td>
+<td>csv_file</td>
+<td>mode=0 时使用</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Slave ID</td>
+<td>slave_id</td>
+<td>—</td>
+<td>自动分配</td>
+</tr>
+</tbody>
+</table>
+<h4 id="meter">Meter 电表</h4>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>JSON Key</th>
+<th>说明</th>
+<th>默认值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>设备标识</td>
+<td>DeviceKey</td>
+<td>唯一名称</td>
+<td>必填</td>
+</tr>
+<tr>
+<td>Slave ID</td>
+<td>slave_id</td>
+<td>—</td>
+<td>自动分配</td>
+</tr>
+</tbody>
+</table>
+<p>电表无需额外配置，自动汇总：<code>并网功率 = 负荷 + 充电桩 - 光伏 - 储能放电 + 储能充电</code></p>
+<h3 id="35">3.5 保存与生效</h3>
+<p>编辑完成后点击"保存配置"按钮。保存后：
+- 配置写入实例的 <code>config/device.json</code>
+- 需要<strong>重启实例</strong>才能使新配置生效
+- 运行中的实例不允许编辑配置</p>
+<p><strong>修改配置流程</strong>：停止实例 → 修改配置 → 启动实例</p>
+<h2 id="4">4. 启动与运行</h2>
+<h3 id="41">4.1 启动实例</h3>
+<ol>
+<li>确保至少配置了 1 个设备</li>
+<li>在配置管理列表中点击"启动"</li>
+<li>系统自动执行：</li>
+<li>创建/复用实例隔离工作目录（<code>config/py_instances/&lt;id&gt;/</code>）</li>
+<li>启动 Python 进程：<code>python3 main.py --port &lt;配置的端口&gt;</code></li>
+<li>等待 Modbus TCP 端口就绪（最长 10 秒）</li>
+<li>Go 开始以配置的间隔轮询 Modbus 数据</li>
+<li>状态变为"运行中"</li>
+</ol>
+<h3 id="42">4.2 运行时数据查看</h3>
+<p>点击配置列表的"Python仿真"按钮进入实例页面：</p>
+<p><strong>拓扑组态 Tab</strong>：
+- 显示 SVG 组态图：电网 → 母线 → 各设备
+- 实时刷新功率值和 SOC</p>
+<p><strong>Dashboard 数据</strong>：
+- 并网总功率（正=用电，负=反送）
+- 各 PV 实时功率
+- 各 BESS 功率 + SOC + 充放模式
+- 充电桩功率
+- 负荷功率</p>
+<h3 id="43">4.3 设备控制</h3>
+<p>通过 API 或 Web 界面对运行中的设备下发指令：</p>
+<table>
+<thead>
+<tr>
+<th>设备</th>
+<th>控制项</th>
+<th>IOA 计算</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PV</td>
+<td>限功率</td>
+<td>2000 + (序号-1)×100 + 2</td>
+<td>限制最大出力 (kW)</td>
+</tr>
+<tr>
+<td>BESS</td>
+<td>功率设定</td>
+<td>3000 + (序号-1)×100 + 7</td>
+<td>正值放电、负值充电 (kW)</td>
+</tr>
+<tr>
+<td>EV</td>
+<td>充电功率设定</td>
+<td>4000 + (序号-1)×100 + 4</td>
+<td>设置最大充电功率 (kW)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>REST API 控制示例</strong>：</p>
+<pre><code class="language-bash"># 设置 BESS_01 放电 50kW（IOA=3007）
+curl -X POST http://localhost:8989/api/v1/py-microgrid/&lt;id&gt;/control \
+  -H &quot;Content-Type: application/json&quot; \
+  -d '{&quot;ioa&quot;: 3007, &quot;value&quot;: 50}'
+
+# 设置 PV_01 限功率 80kW（IOA=2002）
+curl -X POST http://localhost:8989/api/v1/py-microgrid/&lt;id&gt;/control \
+  -H &quot;Content-Type: application/json&quot; \
+  -d '{&quot;ioa&quot;: 2002, &quot;value&quot;: 80}'
+</code></pre>
+<h3 id="44">4.4 编辑实例配置</h3>
+<p>在实例停止状态下，点击"编辑"可修改：
+- 实例名称
+- Modbus 端口（需确保不与其他实例冲突）
+- 轮询间隔
+- 仿真起始时间
+- HTTP 接口开关和端口</p>
+<h2 id="5">5. 导出点表</h2>
+<p>运行中的实例可以导出 Modbus TCP 点表为 Excel 文件：</p>
+<ol>
+<li>进入 Python 仿真页面</li>
+<li>点击"导出点表"按钮</li>
+<li>下载 xlsx 文件</li>
+</ol>
+<h3 id="51-excel">5.1 点表 Excel 格式</h3>
+<p><strong>Sheet "说明"</strong>：协议类型、数据编码说明、设备列表概览</p>
+<p><strong>Sheet "point"</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>列</th>
+<th>字段</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A</td>
+<td>point-name</td>
+<td>测点名（设备名.测点名）</td>
+</tr>
+<tr>
+<td>B</td>
+<td>point-number</td>
+<td>IOA 序号</td>
+</tr>
+<tr>
+<td>C</td>
+<td>value-type</td>
+<td>float</td>
+</tr>
+<tr>
+<td>D</td>
+<td>point-type</td>
+<td>AI / AO / DI</td>
+</tr>
+<tr>
+<td>E</td>
+<td>coefficient</td>
+<td>系数（1）</td>
+</tr>
+<tr>
+<td>F</td>
+<td>base-value</td>
+<td>基值（0）</td>
+</tr>
+<tr>
+<td>G</td>
+<td>alias</td>
+<td>测点描述</td>
+</tr>
+<tr>
+<td>H</td>
+<td>register-address</td>
+<td>Modbus 寄存器起始地址</td>
+</tr>
+<tr>
+<td>I</td>
+<td>function-code</td>
+<td>3（读）/ 16（写）</td>
+</tr>
+<tr>
+<td>J</td>
+<td>value-type</td>
+<td>SW_FLOAT</td>
+</tr>
+</tbody>
+</table>
+<h3 id="52-modbus">5.2 Modbus 通信参数</h3>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>协议</td>
+<td>Modbus TCP</td>
+</tr>
+<tr>
+<td>端口</td>
+<td>实例配置的 Modbus 端口</td>
+</tr>
+<tr>
+<td>数据编码</td>
+<td>32-bit signed int（实际值 × 100）</td>
+</tr>
+<tr>
+<td>字节序</td>
+<td>Big-Endian (ABCD)</td>
+</tr>
+<tr>
+<td>寄存器宽度</td>
+<td>每测点 2 个 16-bit 寄存器</td>
+</tr>
+<tr>
+<td>读取功能码</td>
+<td>FC03 Read Holding Registers</td>
+</tr>
+<tr>
+<td>写入功能码</td>
+<td>FC16 Write Multiple Registers</td>
+</tr>
+</tbody>
+</table>
+<h3 id="53-ioa">5.3 IOA 分配规则</h3>
+<table>
+<thead>
+<tr>
+<th>设备类型</th>
+<th>IOA 基址</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Meter</td>
+<td>1000 + (设备序号-1) × 100</td>
+</tr>
+<tr>
+<td>PV</td>
+<td>2000 + (设备序号-1) × 100</td>
+</tr>
+<tr>
+<td>BESS</td>
+<td>3000 + (设备序号-1) × 100</td>
+</tr>
+<tr>
+<td>EV</td>
+<td>4000 + (设备序号-1) × 100</td>
+</tr>
+<tr>
+<td>Load</td>
+<td>5000 + (设备序号-1) × 100</td>
+</tr>
+</tbody>
+</table>
+<h2 id="6">6. 功率曲线管理</h2>
+<h3 id="61-csv">6.1 CSV 格式</h3>
+<pre><code class="language-csv">小时,功率(kW)
+0.0,0.0
+0.25,10.0
+0.5,20.0
+...
+24.0,0.0
+</code></pre>
+<ul>
+<li>第一行为表头（自动跳过）</li>
+<li>步长 0.25 小时（15 分钟）</li>
+<li>中间值线性插值</li>
+</ul>
+<h3 id="62">6.2 上传曲线</h3>
+<p>在 Python 仿真页面的"配置管理" tab 底部"功率曲线管理"区域，点击"上传 CSV 曲线"按钮上传文件。</p>
+<h3 id="63">6.3 内置曲线</h3>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>pv_curve.csv</td>
+<td>PV 功率曲线（6:00~18:00 发电，峰值约额定功率）</td>
+</tr>
+<tr>
+<td>load_curve.csv</td>
+<td>负荷曲线（凌晨低谷 20~30kW，白天高峰 100~120kW）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="7">7. 多实例使用示例</h2>
+<h3 id="71">7.1 创建两个不同配置的站</h3>
+<pre><code class="language-bash"># 站A：端口5021，当前时间开始
+curl -X POST http://localhost:8989/api/v1/instances \
+  -d '{&quot;name&quot;:&quot;站A&quot;,&quot;protocol&quot;:&quot;modbus_bridge&quot;,&quot;iec104_port&quot;:0,&quot;xlsx_file&quot;:&quot;&quot;,
+       &quot;http_enabled&quot;:true,&quot;http_port&quot;:9001,
+       &quot;modbus_bridge_config&quot;:{&quot;modbus_port&quot;:5021,&quot;poll_interval_ms&quot;:1000,&quot;start_time&quot;:&quot;&quot;}}'
+
+# 站B：端口5022，从12:00开始仿真
+curl -X POST http://localhost:8989/api/v1/instances \
+  -d '{&quot;name&quot;:&quot;站B&quot;,&quot;protocol&quot;:&quot;modbus_bridge&quot;,&quot;iec104_port&quot;:0,&quot;xlsx_file&quot;:&quot;&quot;,
+       &quot;http_enabled&quot;:true,&quot;http_port&quot;:9002,
+       &quot;modbus_bridge_config&quot;:{&quot;modbus_port&quot;:5022,&quot;poll_interval_ms&quot;:1000,&quot;start_time&quot;:&quot;12:00&quot;}}'
+</code></pre>
+<h3 id="72">7.2 验证独立性</h3>
+<p>两个实例：
+- 各自独立的 Python 进程（<code>python3 main.py --port 5021</code> / <code>--port 5022</code>）
+- 各自独立的 device.json 配置
+- 各自独立的日志文件
+- 对一个实例的控制操作不会影响另一个</p>
+<h2 id="8-python">8. 从手动 Python 配置迁移</h2>
+<p>如果你之前独立运行 Python 模拟器（<code>python3 main.py</code>），迁移步骤：</p>
+<ol>
+<li>将你的 <code>device.json</code> 复制到 <code>config/py_simulator/config/device.json</code></li>
+<li>将你的 CSV 曲线文件复制到同目录</li>
+<li>在 GridSim Web UI 创建 Python 微电网实例</li>
+<li>启动实例（系统会从模板复制配置到实例隔离目录）</li>
+<li>进入"配置管理" tab 验证配置是否正确加载</li>
+</ol>
+<p>配置文件格式完全兼容，无需修改。</p>
+<h2 id="9">9. 故障排查</h2>
+<h3 id="91">9.1 查看实例日志</h3>
+<pre><code class="language-bash"># 查看仿真状态日志
+cat config/py_instances/&lt;instance-id&gt;/log/simulation.log
+
+# 查看 Modbus 通信日志
+cat config/py_instances/&lt;instance-id&gt;/log/message.log
+
+# 查看主程序日志（Go 侧）
+cat logs/output.log | grep -i bridge
+</code></pre>
+<h3 id="92">9.2 常见问题</h3>
+<table>
+<thead>
+<tr>
+<th>问题</th>
+<th>原因</th>
+<th>解决</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>启动超时 "timeout waiting for port"</td>
+<td>Python 进程启动失败或崩溃</td>
+<td>检查实例日志中的错误信息</td>
+</tr>
+<tr>
+<td>端口冲突</td>
+<td>另一个实例使用了相同端口</td>
+<td>修改实例的 Modbus 端口</td>
+</tr>
+<tr>
+<td>device.json 解析失败</td>
+<td>JSON 格式错误</td>
+<td>检查 JSON 语法（括号匹配、逗号等）</td>
+</tr>
+<tr>
+<td>PV 功率一直为 0</td>
+<td>仿真时间在夜间（18:00~6:00）</td>
+<td>修改仿真起始时间到白天时段</td>
+</tr>
+<tr>
+<td>BESS 功率不响应</td>
+<td>IOA 地址不正确</td>
+<td>使用导出的点表确认正确的 IOA</td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>

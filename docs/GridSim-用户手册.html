@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GridSim-用户手册</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.7; max-width: 900px; margin: 0 auto; padding: 40px 20px; color: #1a1a1a; background: #fafafa; }
+h1 { border-bottom: 3px solid #2563eb; padding-bottom: 12px; color: #1e293b; }
+h2 { border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin-top: 2.5em; color: #334155; }
+h3 { color: #475569; margin-top: 1.8em; }
+h4 { color: #64748b; }
+table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 14px; }
+th, td { border: 1px solid #cbd5e1; padding: 8px 12px; text-align: left; }
+th { background: #f1f5f9; font-weight: 600; }
+tr:nth-child(even) { background: #f8fafc; }
+code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; font-family: "JetBrains Mono", "Fira Code", Consolas, monospace; }
+pre { background: #1e293b; color: #e2e8f0; padding: 16px 20px; border-radius: 8px; overflow-x: auto; font-size: 13px; line-height: 1.5; }
+pre code { background: none; padding: 0; color: inherit; }
+blockquote { border-left: 4px solid #2563eb; margin: 16px 0; padding: 12px 20px; background: #eff6ff; color: #1e40af; border-radius: 0 8px 8px 0; }
+a { color: #2563eb; text-decoration: none; }
+a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<h1 id="gridsim">GridSim 用户手册</h1>
+<h2 id="1">1. 介绍</h2>
+<p>GridSim 是一款多协议电力系统仿真工具，支持 IEC 60870-5-104、Modbus TCP、微电网仿真等多种协议的模拟器功能。主要用于：</p>
+<ul>
+<li>电力 SCADA/EMS 系统的联调测试</li>
+<li>Modbus TCP 设备仿真</li>
+<li>微电网场景（光伏、储能、充电桩、负荷）的物理模型仿真</li>
+<li>IEC104 主站/从站模式测试</li>
+</ul>
+<h3 id="11">1.1 支持的协议类型</h3>
+<table>
+<thead>
+<tr>
+<th>协议</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IEC104</td>
+<td>标准 IEC 60870-5-104 从站模式，响应总召、变化上送、AO/DO 控制</td>
+</tr>
+<tr>
+<td>IEC104 客户端</td>
+<td>主站模式，连接远端从站，接收遥测/遥信，发送遥控/遥调</td>
+</tr>
+<tr>
+<td>Modbus TCP</td>
+<td>Modbus TCP 从站，支持 FC01~06、0F、10 功能码</td>
+</tr>
+<tr>
+<td>微电网</td>
+<td>Go 原生微电网物理模型仿真（拓扑编辑器）</td>
+</tr>
+<tr>
+<td>Python 微电网</td>
+<td>基于 Python 物理模型的微电网仿真（PV/BESS/EV/Load/Meter），支持多实例</td>
+</tr>
+</tbody>
+</table>
+<h3 id="12">1.2 系统架构</h3>
+<pre><code>┌──────────────────────────────────────────────────────┐
+│               GridSim 主程序 (Go)                     │
+│  ┌────────────┐  ┌──────────────────┐                │
+│  │ 多实例管理  │  │ 自动变化策略引擎  │                │
+│  └────────────┘  └──────────────────┘                │
+│  ┌────────────────────────────────────────────────┐  │
+│  │ 协议层: IEC104 / Modbus / Bridge / Microgrid   │  │
+│  └────────────────────────────────────────────────┘  │
+│  ┌────────────┐  ┌──────────────────┐                │
+│  │  REST API  │  │  Web UI (Vue 3)  │                │
+│  └────────────┘  └──────────────────┘                │
+│  ┌────────────────────────────────────────────────┐  │
+│  │ Python 微电网进程池 (每实例独立 python3 进程)    │  │
+│  └────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────┘
+</code></pre>
+<h2 id="2">2. 部署</h2>
+<h3 id="21">2.1 系统要求</h3>
+<ul>
+<li>操作系统：Linux (amd64/arm64) 或 Windows (amd64)</li>
+<li>内存：≥ 512MB</li>
+<li>磁盘：≥ 100MB</li>
+<li>端口：8989（Web 管理）+ 各实例配置的协议端口</li>
+<li>Python 3.8+（仅 Python 微电网实例需要，如有编译二进制则不需要）</li>
+</ul>
+<h3 id="22">2.2 获取安装包</h3>
+<p><strong>方式一：自解压安装包（推荐，一键部署）</strong></p>
+<pre><code class="language-bash"># AMD64 服务器
+bash gridsim-install-vX.X.X-linux-amd64.sh
+
+# ARM64 服务器
+bash gridsim-install-vX.X.X-linux-arm64.sh
+
+# 指定部署目录
+bash gridsim-install-vX.X.X-linux-amd64.sh --target /opt/gridsim
+</code></pre>
+<p>自解压安装包会自动完成：停止旧服务 → 备份配置 → 解压部署 → 恢复配置 → 注册 systemd → 启动 → 健康检查。</p>
+<p><strong>方式二：手动解压</strong></p>
+<p>从构建产物中获取对应平台的压缩包：</p>
+<ul>
+<li><code>gridsim-vX.X.X-linux-amd64.tar.gz</code></li>
+<li><code>gridsim-vX.X.X-linux-arm64.tar.gz</code></li>
+<li><code>gridsim-vX.X.X-windows-amd64.zip</code></li>
+</ul>
+<h3 id="23">2.3 手动解压部署</h3>
+<p><strong>Linux:</strong></p>
+<pre><code class="language-bash">tar xzf gridsim-vX.X.X-linux-amd64.tar.gz
+cd gridsim-vX.X.X-linux-amd64/
+./bin/start.sh
+</code></pre>
+<p><strong>Windows:</strong>
+解压 zip 文件到任意目录，双击 <code>bin/gridsim.exe</code>。</p>
+<h3 id="24">2.4 目录结构</h3>
+<pre><code>gridsim/
+├── bin/
+│   ├── gridsim                 # 主程序
+│   ├── gridsim-mcp             # MCP Server（AI Agent 调用）
+│   ├── start.sh / start.bat    # 启动脚本
+│   ├── stop.sh / stop.bat      # 停止脚本
+│   ├── restart.sh              # 重启脚本
+│   └── VERSION                 # 版本号
+├── config/
+│   ├── instances.json          # 实例配置（自动生成）
+│   ├── users.json              # 用户认证配置
+│   ├── py_simulator/           # Python 微电网模板目录
+│   │   ├── main.py             # Python 模拟器入口
+│   │   ├── src/                # 设备模型代码
+│   │   ├── utils/              # 工具函数
+│   │   └── config/             # 默认设备配置
+│   │       ├── device.json     # 设备拓扑与参数
+│   │       ├── pv_curve.csv    # PV 功率曲线
+│   │       ├── load_curve.csv  # 负荷功率曲线
+│   │       └── modbus_registers.py  # Modbus 寄存器映射
+│   └── py_instances/           # [运行时生成] 每个 Python 实例的隔离工作目录
+│       ├── &lt;instance-id-1&gt;/
+│       │   ├── main.py         # 从模板复制
+│       │   ├── src/            # 从模板复制
+│       │   ├── config/         # 独立的设备配置
+│       │   └── log/            # 独立的日志目录
+│       └── &lt;instance-id-2&gt;/
+├── web/dist/                   # 前端静态文件
+├── logs/                       # 主程序运行日志
+├── backups/                    # 配置备份（部署脚本自动管理）
+├── GUIDE.md                    # 快速指南
+└── README.md                   # 项目说明
+</code></pre>
+<h3 id="25-deploy-localsh">2.5 使用 deploy-local.sh 部署</h3>
+<p>如果是在编译服务器本地部署：</p>
+<pre><code class="language-bash"># 自动选择最新版本部署
+bash deploy-local.sh
+
+# 指定包部署
+bash deploy-local.sh dist/gridsim-v3.2.0-dev-15.120a9ca-linux-amd64.tar.gz
+
+# 查看可用版本
+bash deploy-local.sh --list
+
+# 回滚
+bash deploy-local.sh --rollback
+</code></pre>
+<h2 id="3">3. 启动与停止</h2>
+<h3 id="31-linux">3.1 Linux 启动</h3>
+<pre><code class="language-bash"># 使用启动脚本（推荐）
+./bin/start.sh
+
+# 或通过 systemd
+systemctl start gridsim
+systemctl enable gridsim   # 开机自启
+</code></pre>
+<p>直接运行（调试用）：</p>
+<pre><code class="language-bash">./bin/gridsim serve --http :8989 --config-dir ./config --log-dir ./logs --log info
+</code></pre>
+<h3 id="32-windows">3.2 Windows 启动</h3>
+<p>双击 <code>bin/gridsim.exe</code> 即可（GUI 模式，自动在系统托盘运行）。</p>
+<p>命令行模式：</p>
+<pre><code class="language-cmd">bin\gridsim.exe serve --http :8989 --config-dir config
+</code></pre>
+<h3 id="33">3.3 启动参数</h3>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--http</code></td>
+<td><code>:8989</code></td>
+<td>Web 管理 API 监听地址</td>
+</tr>
+<tr>
+<td><code>--config-dir</code></td>
+<td><code>./config</code></td>
+<td>配置文件目录</td>
+</tr>
+<tr>
+<td><code>--log-dir</code></td>
+<td><code>./logs</code></td>
+<td>日志目录</td>
+</tr>
+<tr>
+<td><code>--log</code></td>
+<td><code>info</code></td>
+<td>日志级别：debug/info/warn/error</td>
+</tr>
+</tbody>
+</table>
+<h3 id="34">3.4 停止</h3>
+<pre><code class="language-bash">./bin/stop.sh
+# 或
+systemctl stop gridsim
+</code></pre>
+<h3 id="35-web-ui">3.5 访问 Web UI</h3>
+<p>启动后打开浏览器访问：<code>http://&lt;服务器IP&gt;:8989</code></p>
+<p>默认账号：<code>admin</code> / <code>admin123</code></p>
+<h2 id="4">4. 使用指南</h2>
+<h3 id="41">4.1 仪表盘</h3>
+<p>首页展示所有实例的概览卡片：</p>
+<ul>
+<li>运行状态（运行中/已停止/错误）</li>
+<li>协议类型标签</li>
+<li>连接状态（在线/离线）</li>
+<li>测点数量</li>
+<li>运行时长</li>
+<li>端口信息：</li>
+<li>IEC104/Modbus 实例显示对应端口号</li>
+<li>Python 微电网实例显示 Modbus 端口号</li>
+<li>IEC104 客户端显示远端地址</li>
+</ul>
+<h3 id="42">4.2 配置管理</h3>
+<p>通过"配置管理"页面管理所有实例。</p>
+<h4 id="_1">创建实例（四步向导）</h4>
+<p><strong>第一步 — 规约与名称：</strong>
+1. 选择规约类型（IEC104 / IEC104 客户端 / Modbus TCP / 微电网 / Python 微电网）
+2. 填写实例名称</p>
+<p><strong>第二步 — 网络配置：</strong>
+- IEC104：填写 IEC104 端口（默认 2404）
+- IEC104 客户端：填写远端地址、端口、公共地址、重连间隔、总召周期、控制模式
+- Modbus TCP：填写 Modbus 端口、从站地址、字节序
+- Python 微电网：填写 Modbus 端口（默认 5021）、轮询间隔（默认 1000ms）、仿真起始时间</p>
+<p><strong>第三步 — 点表与接口：</strong>
+- IEC104/Modbus：选择或上传 xlsx 点表文件
+- 微电网/Python 微电网：无需点表，使用专属编辑器配置
+- HTTP 接口开关和端口</p>
+<p><strong>第四步 — 确认：</strong>
+- 检查配置摘要
+- IEC104/Modbus 可选"创建后立即启动"
+- Python 微电网/微电网类型需先配置设备，不支持立即启动</p>
+<h4 id="_2">编辑实例</h4>
+<p>在配置列表中点击"编辑"按钮（实例需先停止）：
+- 规约类型不可修改
+- IEC104 客户端：可修改远端地址、端口等连接参数
+- Python 微电网：可修改 Modbus 端口、轮询间隔、仿真起始时间
+- 其他类型：可修改端口号</p>
+<h4 id="_3">批量操作</h4>
+<ul>
+<li>勾选多个实例 → 批量启动/停止/删除</li>
+<li>全选/取消选择</li>
+</ul>
+<h3 id="43">4.3 运行监控</h3>
+<p>"运行监控"页面提供所有实例的实时状态监控卡片：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Modbus 端口 / IEC104 端口</td>
+<td>根据协议类型显示对应端口</td>
+</tr>
+<tr>
+<td>HTTP 端口</td>
+<td>如果启用</td>
+</tr>
+<tr>
+<td>客户端状态</td>
+<td>在线/未连接</td>
+</tr>
+<tr>
+<td>测点数</td>
+<td>总测点数量</td>
+</tr>
+<tr>
+<td>运行时间</td>
+<td>自启动以来的时间</td>
+</tr>
+<tr>
+<td>轮询次数/总召次数</td>
+<td>根据协议类型显示（Python 微电网为轮询次数）</td>
+</tr>
+<tr>
+<td>变化上送</td>
+<td>主动上送的测点变化数</td>
+</tr>
+</tbody>
+</table>
+<p>操作按钮：
+- 运行中实例：详情/Python仿真/微电网 + 重启 + 停止
+- 停止实例：启动</p>
+<h3 id="44">4.4 实例详情</h3>
+<p>点击运行中的 IEC104/Modbus 实例进入详情页：
+- 实时测点数据表格
+- 自动变化策略配置（随机/递增/CSV 回放/自定义公式等）
+- CSV 多测点同步回放
+- 趋势图</p>
+<h3 id="45">4.5 接口测试</h3>
+<p>内置 API 测试工具（代理页面），支持发送 HTTP 请求测试远端接口。</p>
+<h2 id="5">5. 多实例端口管理</h2>
+<h3 id="51">5.1 端口规划建议</h3>
+<table>
+<thead>
+<tr>
+<th>用途</th>
+<th>建议范围</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Web 管理 API</td>
+<td>8989（固定）</td>
+</tr>
+<tr>
+<td>IEC104 实例</td>
+<td>2404~2499</td>
+</tr>
+<tr>
+<td>Modbus TCP 实例</td>
+<td>502, 5502~5599</td>
+</tr>
+<tr>
+<td>Python 微电网 Modbus 端口</td>
+<td>5021~5099</td>
+</tr>
+<tr>
+<td>实例 HTTP API</td>
+<td>9001~9099</td>
+</tr>
+</tbody>
+</table>
+<h3 id="52">5.2 端口冲突检测</h3>
+<p>系统自动检测以下冲突：
+- IEC104/Modbus 端口不能与其他实例重复
+- Python 微电网的 Modbus 端口不能与其他 Python 实例重复
+- HTTP 端口不能重复
+- 创建时发现冲突会报错提示</p>
+<h2 id="6">6. 构建与发布</h2>
+<h3 id="61">6.1 一键发布</h3>
+<pre><code class="language-bash"># 完整构建 + 双架构安装包
+bash release.sh
+
+# 快速构建（跳过前端类型检查）
+bash release.sh --fast
+
+# 仅后端构建
+bash release.sh --skip-web
+</code></pre>
+<p>产物：
+- <code>gridsim-install-vX.X.X-linux-amd64.sh</code>（AMD64 自解压安装包）
+- <code>gridsim-install-vX.X.X-linux-arm64.sh</code>（ARM64 自解压安装包）</p>
+<h3 id="62">6.2 单独构建</h3>
+<pre><code class="language-bash"># 完整构建
+bash build.sh
+
+# 仅后端
+bash build.sh --skip-web
+
+# 快速（跳过类型检查）
+bash build.sh --fast
+</code></pre>
+<h3 id="63">6.3 单独生成安装包</h3>
+<pre><code class="language-bash"># 双架构
+bash make-installer.sh --all
+
+# 仅 amd64
+bash make-installer.sh
+
+# 指定架构
+bash make-installer.sh --arch arm64
+</code></pre>
+<h2 id="7">7. 常见问题</h2>
+<h3 id="q-python-timeout-waiting-for-port">Q: Python 微电网实例启动失败，提示"timeout waiting for port"</h3>
+<p>A: 检查：
+1. 目标服务器是否安装了 Python 3.8+（<code>python3 --version</code>）
+2. 端口是否被其他进程占用（<code>ss -tlnp | grep 5021</code>）
+3. 查看实例日志：<code>config/py_instances/&lt;id&gt;/log/simulation.log</code></p>
+<h3 id="q-python">Q: 修改了 Python 微电网设备配置但没生效</h3>
+<p>A: 配置修改需要重启实例才能生效。流程：停止实例 → 修改配置 → 启动实例。</p>
+<h3 id="q-python-python">Q: 如何在没有 Python 的服务器上运行 Python 微电网</h3>
+<p>A: 需要将 <code>bin/py-microgrid-sim/</code> 目录（PyInstaller 编译的二进制）放入部署包。如果没有此目录，系统会 fallback 到调用系统 <code>python3</code>。</p>
+<h3 id="q-python_1">Q: 两个 Python 微电网实例能否使用相同端口</h3>
+<p>A: 不能。系统创建时会检测 Modbus 端口冲突，相同端口会被拒绝。</p>
+</body>
+</html>
