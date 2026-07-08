@@ -95,7 +95,7 @@ fmt_size() {
 extract_archive() {
     local target="$1"
     local archive_line
-    archive_line=$(grep -n "^${ARCHIVE_MARKER}$" "$0" | tail -1 | cut -d: -f1)
+    archive_line=$(grep -an "^${ARCHIVE_MARKER}$" "$0" | tail -1 | cut -d: -f1)
     [ -z "$archive_line" ] && err "无法找到内嵌的压缩包数据"
     tail -n +$((archive_line + 1)) "$0" | tar xzf - -C "$target" --strip-components=1
 }
