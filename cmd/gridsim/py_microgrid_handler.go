@@ -425,7 +425,7 @@ func (ws *webServer) handlePyMicrogridExportPoints(w http.ResponseWriter, r *htt
 	zipWriter := zip.NewWriter(w)
 	defer zipWriter.Close()
 
-	headers := []string{"point-name", "point-number", "value-type", "point-type", "coefficient", "base-value", "alias", "register-address", "function-code", "data-format", "slave-id", "device-type", "device-key"}
+	headers := []string{"point-name", "point-number", "value-type", "point-type", "coefficient", "base-value", "alias", "register-address", "function-code", "value-type", "group-number", "call-interval", "user-defined-rule"}
 
 	for _, dev := range devices {
 		// Create xlsx for this device
@@ -433,55 +433,65 @@ func (ws *webServer) handlePyMicrogridExportPoints(w http.ResponseWriter, r *htt
 
 		// Sheet "说明"
 		f.SetSheetName("Sheet1", "说明")
-		f.SetCellValue("说明", "A1", "Python微电网模拟器点表")
+		f.SetCellValue("说明", "A1", "Python微电网模拟器点表 (EnOS Modbus TCP)")
 		f.SetCellValue("说明", "A2", fmt.Sprintf("设备: %s", dev.DeviceKey))
 		f.SetCellValue("说明", "A3", fmt.Sprintf("类型: %s", dev.DeviceType))
 		f.SetCellValue("说明", "A4", fmt.Sprintf("Slave ID: %d", dev.SlaveID))
 		f.SetCellValue("说明", "A5", fmt.Sprintf("测点数: %d", len(dev.Points)))
 		f.SetCellValue("说明", "A7", "协议: Modbus TCP")
-		f.SetCellValue("说明", "A8", "数据编码: INT32 (实际值×100)")
-		f.SetCellValue("说明", "A9", "字节序: Big-Endian (ABCD)")
-		f.SetCellValue("说明", "A10", "每测点占2个Holding Registers")
+		f.SetCellValue("说明", "A8", "数据编码: INT32 有符号整数 (实际值×100)")
+		f.SetCellValue("说明", "A9", "字节序: Big-Endian (ABCD) → value-type 使用 SW_INT")
+		f.SetCellValue("说明", "A10", "每测点占2个Holding Registers (4字节)")
+		f.SetCellValue("说明", "A11", "系数 coefficient=0.01 (采集原始值÷100=实际物理值)")
 
-		// Sheet "point" (必须)
+		// Sheet "point" (必须, EnOS标准格式)
 		f.NewSheet("point")
 		for i, h := range headers {
 			col, _ := excelize.ColumnNumberToName(i + 1)
 			f.SetCellValue("point", col+"1", h)
 		}
 
+		// point-number per point-type: AI from 0, AO from 0, DI from 0
+		aiIdx, aoIdx, diIdx := 0, 0, 0
+
 		rowIdx := 2
 		for _, pt := range dev.Points {
 			pointType := "AI"
+			pointNumber := 0
 			if pt.PointType == config.TypeAO {
 				pointType = "AO"
+				pointNumber = aoIdx
+				aoIdx++
 			} else if pt.PointType == config.TypeDI {
 				pointType = "DI"
+				pointNumber = diIdx
+				diIdx++
+			} else {
+				pointNumber = aiIdx
+				aiIdx++
 			}
 			fc := 3
 			if pt.Writable {
 				fc = 16
 			}
-			// alias = register identifier (e.g., BS.ActivePW)
+			// point-name and alias = register identifier (e.g., BS.ActivePW)
 			regName := pt.Name
 			if dotIdx := len(dev.DeviceKey) + 1; dotIdx < len(pt.Name) {
 				regName = pt.Name[dotIdx:]
 			}
 
 			col := func(n int) string { c, _ := excelize.ColumnNumberToName(n); return c }
-			f.SetCellValue("point", fmt.Sprintf("%s%d", col(1), rowIdx), pt.Name)
-			f.SetCellValue("point", fmt.Sprintf("%s%d", col(2), rowIdx), pt.IOA)
-			f.SetCellValue("point", fmt.Sprintf("%s%d", col(3), rowIdx), "float")
-			f.SetCellValue("point", fmt.Sprintf("%s%d", col(4), rowIdx), pointType)
-			f.SetCellValue("point", fmt.Sprintf("%s%d", col(5), rowIdx), 1)
-			f.SetCellValue("point", fmt.Sprintf("%s%d", col(6), rowIdx), 0)
-			f.SetCellValue("point", fmt.Sprintf("%s%d", col(7), rowIdx), regName)
-			f.SetCellValue("point", fmt.Sprintf("%s%d", col(8), rowIdx), pt.RegisterOffset)
-			f.SetCellValue("point", fmt.Sprintf("%s%d", col(9), rowIdx), fc)
-			f.SetCellValue("point", fmt.Sprintf("%s%d", col(10), rowIdx), "SW_FLOAT")
-			f.SetCellValue("point", fmt.Sprintf("%s%d", col(11), rowIdx), dev.SlaveID)
-			f.SetCellValue("point", fmt.Sprintf("%s%d", col(12), rowIdx), dev.DeviceType)
-			f.SetCellValue("point", fmt.Sprintf("%s%d", col(13), rowIdx), dev.DeviceKey)
+			f.SetCellValue("point", fmt.Sprintf("%s%d", col(1), rowIdx), regName)            // point-name: 测点标识符
+			f.SetCellValue("point", fmt.Sprintf("%s%d", col(2), rowIdx), pointNumber)        // point-number: 同类型从0递增
+			f.SetCellValue("point", fmt.Sprintf("%s%d", col(3), rowIdx), "float")            // value-type(第3列): 保留
+			f.SetCellValue("point", fmt.Sprintf("%s%d", col(4), rowIdx), pointType)          // point-type
+			f.SetCellValue("point", fmt.Sprintf("%s%d", col(5), rowIdx), 0.01)               // coefficient: 原始值*0.01=实际值
+			f.SetCellValue("point", fmt.Sprintf("%s%d", col(6), rowIdx), 0)                  // base-value
+			f.SetCellValue("point", fmt.Sprintf("%s%d", col(7), rowIdx), regName)            // alias: 测点标识符(模型映射用)
+			f.SetCellValue("point", fmt.Sprintf("%s%d", col(8), rowIdx), pt.RegisterOffset)  // register-address
+			f.SetCellValue("point", fmt.Sprintf("%s%d", col(9), rowIdx), fc)                 // function-code
+			f.SetCellValue("point", fmt.Sprintf("%s%d", col(10), rowIdx), "SW_INT")          // value-type: 4字节整数大端序
+			// group-number, call-interval, user-defined-rule 留空(自动分组)
 			rowIdx++
 		}
 
