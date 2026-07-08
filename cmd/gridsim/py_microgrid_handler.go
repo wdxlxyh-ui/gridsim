@@ -1,6 +1,7 @@
 package main
 
 import (
+	"archive/zip"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -417,35 +418,36 @@ func (ws *webServer) handlePyMicrogridExportPoints(w http.ResponseWriter, r *htt
 		return
 	}
 
-	f := excelize.NewFile()
-	// Sheet 1: 说明
-	f.SetSheetName("Sheet1", "说明")
-	f.SetCellValue("说明", "A1", "Python微电网模拟器点表")
-	f.SetCellValue("说明", "A3", "协议: Modbus TCP")
-	f.SetCellValue("说明", "A4", "数据编码: INT32 (实际值×100)")
-	f.SetCellValue("说明", "A5", "字节序: Big-Endian (ABCD)")
-	f.SetCellValue("说明", "A6", "每测点占2个Holding Registers")
-	f.SetCellValue("说明", "A8", "设备列表:")
-	row := 9
-	for _, dev := range devices {
-		f.SetCellValue("说明", fmt.Sprintf("A%d", row), fmt.Sprintf("%s (Slave ID: %d, 类型: %s, 测点数: %d)", dev.DeviceKey, dev.SlaveID, dev.DeviceType, len(dev.Points)))
-		row++
-	}
+	// Create a zip archive containing one xlsx per device
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", "attachment; filename=py-microgrid-points.zip")
+
+	zipWriter := zip.NewWriter(w)
+	defer zipWriter.Close()
 
 	headers := []string{"point-name", "point-number", "value-type", "point-type", "coefficient", "base-value", "alias", "register-address", "function-code", "data-format", "slave-id", "device-type", "device-key"}
 
-	// Create a sheet per device
 	for _, dev := range devices {
-		sheetName := dev.DeviceKey
-		// Excel sheet name max 31 chars
-		if len(sheetName) > 31 {
-			sheetName = sheetName[:31]
-		}
-		f.NewSheet(sheetName)
+		// Create xlsx for this device
+		f := excelize.NewFile()
 
+		// Sheet "说明"
+		f.SetSheetName("Sheet1", "说明")
+		f.SetCellValue("说明", "A1", "Python微电网模拟器点表")
+		f.SetCellValue("说明", "A2", fmt.Sprintf("设备: %s", dev.DeviceKey))
+		f.SetCellValue("说明", "A3", fmt.Sprintf("类型: %s", dev.DeviceType))
+		f.SetCellValue("说明", "A4", fmt.Sprintf("Slave ID: %d", dev.SlaveID))
+		f.SetCellValue("说明", "A5", fmt.Sprintf("测点数: %d", len(dev.Points)))
+		f.SetCellValue("说明", "A7", "协议: Modbus TCP")
+		f.SetCellValue("说明", "A8", "数据编码: INT32 (实际值×100)")
+		f.SetCellValue("说明", "A9", "字节序: Big-Endian (ABCD)")
+		f.SetCellValue("说明", "A10", "每测点占2个Holding Registers")
+
+		// Sheet "point" (必须)
+		f.NewSheet("point")
 		for i, h := range headers {
 			col, _ := excelize.ColumnNumberToName(i + 1)
-			f.SetCellValue(sheetName, col+"1", h)
+			f.SetCellValue("point", col+"1", h)
 		}
 
 		rowIdx := 2
@@ -460,32 +462,35 @@ func (ws *webServer) handlePyMicrogridExportPoints(w http.ResponseWriter, r *htt
 			if pt.Writable {
 				fc = 16
 			}
-			// Extract register identifier (e.g., "BS.ActivePW") from the point name
-			// pt.Name is "DeviceKey.RegisterName", we want just the RegisterName part as alias
+			// alias = register identifier (e.g., BS.ActivePW)
 			regName := pt.Name
 			if dotIdx := len(dev.DeviceKey) + 1; dotIdx < len(pt.Name) {
 				regName = pt.Name[dotIdx:]
 			}
 
 			col := func(n int) string { c, _ := excelize.ColumnNumberToName(n); return c }
-			f.SetCellValue(sheetName, fmt.Sprintf("%s%d", col(1), rowIdx), pt.Name)
-			f.SetCellValue(sheetName, fmt.Sprintf("%s%d", col(2), rowIdx), pt.IOA)
-			f.SetCellValue(sheetName, fmt.Sprintf("%s%d", col(3), rowIdx), "float")
-			f.SetCellValue(sheetName, fmt.Sprintf("%s%d", col(4), rowIdx), pointType)
-			f.SetCellValue(sheetName, fmt.Sprintf("%s%d", col(5), rowIdx), 1)
-			f.SetCellValue(sheetName, fmt.Sprintf("%s%d", col(6), rowIdx), 0)
-			f.SetCellValue(sheetName, fmt.Sprintf("%s%d", col(7), rowIdx), regName)
-			f.SetCellValue(sheetName, fmt.Sprintf("%s%d", col(8), rowIdx), pt.RegisterOffset)
-			f.SetCellValue(sheetName, fmt.Sprintf("%s%d", col(9), rowIdx), fc)
-			f.SetCellValue(sheetName, fmt.Sprintf("%s%d", col(10), rowIdx), "SW_FLOAT")
-			f.SetCellValue(sheetName, fmt.Sprintf("%s%d", col(11), rowIdx), dev.SlaveID)
-			f.SetCellValue(sheetName, fmt.Sprintf("%s%d", col(12), rowIdx), dev.DeviceType)
-			f.SetCellValue(sheetName, fmt.Sprintf("%s%d", col(13), rowIdx), dev.DeviceKey)
+			f.SetCellValue("point", fmt.Sprintf("%s%d", col(1), rowIdx), pt.Name)
+			f.SetCellValue("point", fmt.Sprintf("%s%d", col(2), rowIdx), pt.IOA)
+			f.SetCellValue("point", fmt.Sprintf("%s%d", col(3), rowIdx), "float")
+			f.SetCellValue("point", fmt.Sprintf("%s%d", col(4), rowIdx), pointType)
+			f.SetCellValue("point", fmt.Sprintf("%s%d", col(5), rowIdx), 1)
+			f.SetCellValue("point", fmt.Sprintf("%s%d", col(6), rowIdx), 0)
+			f.SetCellValue("point", fmt.Sprintf("%s%d", col(7), rowIdx), regName)
+			f.SetCellValue("point", fmt.Sprintf("%s%d", col(8), rowIdx), pt.RegisterOffset)
+			f.SetCellValue("point", fmt.Sprintf("%s%d", col(9), rowIdx), fc)
+			f.SetCellValue("point", fmt.Sprintf("%s%d", col(10), rowIdx), "SW_FLOAT")
+			f.SetCellValue("point", fmt.Sprintf("%s%d", col(11), rowIdx), dev.SlaveID)
+			f.SetCellValue("point", fmt.Sprintf("%s%d", col(12), rowIdx), dev.DeviceType)
+			f.SetCellValue("point", fmt.Sprintf("%s%d", col(13), rowIdx), dev.DeviceKey)
 			rowIdx++
 		}
-	}
 
-	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	w.Header().Set("Content-Disposition", "attachment; filename=py-microgrid-points.xlsx")
-	f.Write(w)
+		// Write xlsx into the zip archive
+		zipEntry, err := zipWriter.Create(dev.DeviceKey + ".xlsx")
+		if err != nil {
+			continue
+		}
+		f.Write(zipEntry)
+		f.Close()
+	}
 }

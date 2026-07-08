@@ -207,7 +207,7 @@ async function handleExportPoints() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `${instanceName.value || 'py-microgrid'}-点表.xlsx`
+    a.download = `${instanceName.value || 'py-microgrid'}-点表.zip`
     a.click()
     URL.revokeObjectURL(url)
   } catch (e: any) { ElMessage.error('导出失败: ' + (e?.response?.data?.error || e.message)) }
