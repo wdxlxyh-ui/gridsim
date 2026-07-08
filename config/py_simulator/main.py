@@ -6,6 +6,7 @@ import logging
 import logging.handlers
 import json
 import os
+import sys
 from src.communication.modbus_server import ModbusServer
 from utils.config_loader import load_devices_config
 from utils.locks import data_lock
@@ -242,12 +243,24 @@ def update_device_data():
             last_log_timestamp = current_time
         time.sleep(1.0)
 
+def get_cli_port():
+    """Parse --port argument from command line, default 5021."""
+    for i, arg in enumerate(sys.argv):
+        if arg == '--port' and i + 1 < len(sys.argv):
+            try:
+                return int(sys.argv[i + 1])
+            except ValueError:
+                pass
+    return int(os.environ.get('MODBUS_PORT', '5021'))
+
+
 def main():
     global modbus_server
     state_logger.info("Starting MicroGrid Simulator...")
     load_config()
     state_logger.info("Loaded devices: {}".format(list(devices_data.keys())))
-    modbus_server = ModbusServer(devices_data, data_lock)
+    port = get_cli_port()
+    modbus_server = ModbusServer(devices_data, data_lock, port=port)
     state_logger.info("Initializing Modbus server...")
     server_thread = threading.Thread(target=modbus_server.run, daemon=False)
     server_thread.start()

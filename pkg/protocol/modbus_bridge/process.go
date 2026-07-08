@@ -13,8 +13,9 @@ import (
 
 // Process manages the py-microgrid-sim subprocess.
 type Process struct {
-	scriptDir string // working directory (contains config/device.json)
-	cfgDir    string // config directory (bin/py-microgrid-sim is relative to exe)
+	scriptDir  string // working directory (contains config/device.json)
+	cfgDir     string // config directory (bin/py-microgrid-sim is relative to exe)
+	modbusPort int    // Modbus TCP port to pass to the subprocess
 
 	mu   sync.Mutex
 	cmd  *exec.Cmd
@@ -22,11 +23,12 @@ type Process struct {
 }
 
 // NewProcess creates a new process manager.
-func NewProcess(scriptDir, cfgDir string) *Process {
+func NewProcess(scriptDir, cfgDir string, modbusPort int) *Process {
 	return &Process{
-		scriptDir: scriptDir,
-		cfgDir:    cfgDir,
-		done:      make(chan struct{}),
+		scriptDir:  scriptDir,
+		cfgDir:     cfgDir,
+		modbusPort: modbusPort,
+		done:       make(chan struct{}),
 	}
 }
 
@@ -71,6 +73,9 @@ func (p *Process) Start() error {
 	defer p.mu.Unlock()
 
 	binary, args := p.findBinary()
+
+	// Append --port argument so each instance can use a different Modbus port
+	args = append(args, "--port", fmt.Sprintf("%d", p.modbusPort))
 
 	var cmd *exec.Cmd
 	if len(args) > 0 {

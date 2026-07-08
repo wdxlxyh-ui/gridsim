@@ -72,17 +72,10 @@ func (ws *webServer) handlePyMicrogridDashboard(w http.ResponseWriter, r *http.R
 	}
 
 	// Parse device mappings to know which IOAs belong to which device type
-	bc := cfg.ModbusBridgeConfig
-	scriptDir := bc.ScriptDir
-	if scriptDir == "" {
-		scriptDir = "py_simulator"
-	}
-	if scriptDir != "" && scriptDir[0] != '/' && (len(scriptDir) < 2 || scriptDir[1] != ':') {
-		scriptDir = filepath.Join(ws.cfgDir, scriptDir)
-	}
-	deviceJSON := bc.DeviceJSON
-	if deviceJSON == "" {
-		deviceJSON = "config/device.json"
+	scriptDir, deviceJSON, err := ws.resolveScriptDir(id)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	devices, err := modbus_bridge.ParseDeviceJSON(scriptDir, deviceJSON)
@@ -297,6 +290,18 @@ func (ws *webServer) resolveScriptDir(id string) (string, string, error) {
 	if bc == nil {
 		return "", "", fmt.Errorf("modbus_bridge_config is nil")
 	}
+
+	// Prefer per-instance isolated workspace (py_instances/<id>/) if it exists
+	instanceWorkDir := filepath.Join(ws.cfgDir, "py_instances", id)
+	if info, err := os.Stat(instanceWorkDir); err == nil && info.IsDir() {
+		deviceJSON := bc.DeviceJSON
+		if deviceJSON == "" {
+			deviceJSON = "config/device.json"
+		}
+		return instanceWorkDir, deviceJSON, nil
+	}
+
+	// Fallback to configured or default script_dir
 	scriptDir := bc.ScriptDir
 	if scriptDir == "" {
 		scriptDir = "py_simulator"

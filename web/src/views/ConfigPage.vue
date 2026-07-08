@@ -249,7 +249,7 @@
               <div class="review-label">实例名称</div>
               <div class="review-value">{{ form.name }}</div>
             </div>
-            <div class="review-section" v-if="form.protocol !== 'iec104_client'">
+            <div class="review-section" v-if="form.protocol !== 'iec104_client' && form.protocol !== 'modbus_bridge'">
               <div class="review-label">{{ form.protocol === 'modbus_tcp' ? 'Modbus端口' : 'IEC104端口' }}</div>
               <div class="review-value">{{ form.iec104_port }}</div>
             </div>
@@ -290,10 +290,13 @@
               <div class="review-value">{{ form.http_enabled ? `已启用 (端口 ${form.http_port})` : '未启用' }}</div>
             </div>
           </div>
-          <div class="wizard-start-option">
+          <div class="wizard-start-option" v-if="form.protocol !== 'modbus_bridge' && form.protocol !== 'microgrid'">
             <el-switch v-model="startAfterCreate" active-text="创建后立即启动" />
             <div class="start-hint" v-if="!startAfterCreate">实例创建后为停止状态，需手动启动</div>
-            <div class="start-hint" v-else>实例创建后将自动启动 IEC104 服务</div>
+            <div class="start-hint" v-else>实例创建后将自动启动服务</div>
+          </div>
+          <div class="wizard-start-option" v-else>
+            <div class="start-hint" style="color: #e6a23c;">该类型实例创建后需先配置设备，再手动启动</div>
           </div>
         </div>
       </el-form>
@@ -337,6 +340,21 @@
               <el-radio-button value="direct">直接执行</el-radio-button>
             </el-radio-group>
             <div style="font-size:12px;color:#64748b;margin-top:4px">选择执行：下发前需确认；直接执行：点击即发送</div>
+          </el-form-item>
+        </template>
+        <!-- Python微电网 modbus_bridge: show modbus port & bridge config -->
+        <template v-else-if="form.protocol === 'modbus_bridge'">
+          <el-form-item label="Modbus端口">
+            <el-input-number v-model="bridgeConfig.modbus_port" :min="1024" :max="65535" style="width: 100%" />
+            <div style="font-size:12px;color:#64748b;margin-top:4px">Python 模拟器 Modbus TCP 监听端口</div>
+          </el-form-item>
+          <el-form-item label="轮询间隔(ms)">
+            <el-input-number v-model="bridgeConfig.poll_interval_ms" :min="200" :max="10000" :step="100" style="width: 100%" />
+            <div style="font-size:12px;color:#64748b;margin-top:4px">Go 端从模拟器读取数据的周期，推荐 1000ms</div>
+          </el-form-item>
+          <el-form-item label="仿真起始时间">
+            <el-input v-model="bridgeConfig.start_time" placeholder="如 08:00，留空使用当前时间" />
+            <div style="font-size:12px;color:#64748b;margin-top:4px">PV/Load 曲线从此时间开始演算（HH:MM 格式）</div>
           </el-form-item>
         </template>
         <template v-else>
@@ -652,6 +670,12 @@ function handleEdit(row: InstanceState) {
   } else {
     clientConfig.value = defaultClientConfig()
   }
+  // Restore bridge config if editing modbus_bridge instance
+  if (row.protocol === 'modbus_bridge' && row.modbus_bridge_config) {
+    bridgeConfig.value = { ...defaultBridgeConfig(), ...row.modbus_bridge_config }
+  } else {
+    bridgeConfig.value = defaultBridgeConfig()
+  }
   modbusSlaveId.value = 1
   modbusByteOrder.value = 'ABCD'
   showAddDialog.value = true
@@ -697,7 +721,7 @@ async function handleSave() {
         i.iec104_port === createData.iec104_port &&
         i.protocol === createData.protocol
       )
-      if (startAfterCreate.value && newInstance) {
+      if (startAfterCreate.value && newInstance && form.value.protocol !== 'modbus_bridge' && form.value.protocol !== 'microgrid') {
         try {
           await startInstance(newInstance.id)
           ElMessage.success('已创建并启动')

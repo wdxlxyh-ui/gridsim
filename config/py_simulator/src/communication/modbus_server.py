@@ -9,30 +9,31 @@ traffic_logger = logging.getLogger('traffic')
 COEFFICIENT = 100
 
 class ModbusServer:
-    def __init__(self, devices_data, data_lock):
+    def __init__(self, devices_data, data_lock, port=5021):
         self.devices_data = devices_data
         self.data_lock = data_lock
+        self.port = port
         self.sock = None
-        logger.info("Initializing ModbusServer with %d devices", len(devices_data))
+        logger.info("Initializing ModbusServer with %d devices, port %d", len(devices_data), port)
         for key, value in self.devices_data.items():
             logger.info("Device %s: Slave ID %d, Data %s", key, value['slave_id'], str(value['data']))
 
     def run(self):
-        logger.info("Starting Modbus server on 0.0.0.0:5021...")
+        logger.info("Starting Modbus server on 0.0.0.0:%d...", self.port)
         max_attempts = 3
         for attempt in range(max_attempts):
             try:
                 self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 self.sock.settimeout(0.5)
-                self.sock.bind(('0.0.0.0', 5021))
+                self.sock.bind(('0.0.0.0', self.port))
                 self.sock.listen(5)
-                logger.info("Modbus server listening on 0.0.0.0:5021 after attempt %d", attempt + 1)
+                logger.info("Modbus server listening on 0.0.0.0:%d after attempt %d", self.port, attempt + 1)
                 break
             except socket.error as e:
-                logger.warning("Attempt %d failed to bind port 5021: %s", attempt + 1, str(e))
+                logger.warning("Attempt %d failed to bind port %d: %s", attempt + 1, self.port, str(e))
                 if attempt == max_attempts - 1:
-                    logger.error("Failed to bind port 5021 after %d attempts", max_attempts)
+                    logger.error("Failed to bind port %d after %d attempts", self.port, max_attempts)
                     raise
                 time.sleep(1)
         while True:
@@ -123,7 +124,7 @@ class ModbusServer:
                                  address, quantity, min_address, max_address, device_key)
                     self.send_error_response(transaction_id, dev_info['slave_id'], 0x02, conn)
                     return
-                n_data_bytes = quantity * 2  # Ã¿¸ö¼Ä´æÆ÷2×Ö½Ú£¬×Ü×Ö½ÚÊý
+                n_data_bytes = quantity * 2  # Ã¿ï¿½ï¿½ï¿½Ä´ï¿½ï¿½ï¿½2ï¿½Ö½Ú£ï¿½ï¿½ï¿½ï¿½Ö½ï¿½ï¿½ï¿½
                 length = 3 + n_data_bytes
                 response = bytearray(transaction_id)
                 response.extend(b'\x00\x00')

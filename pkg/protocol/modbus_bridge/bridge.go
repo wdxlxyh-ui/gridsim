@@ -87,7 +87,7 @@ func (b *Bridge) Start() error {
 	}
 
 	// Start Python subprocess
-	b.proc = NewProcess(b.resolveScriptDir(), b.cfgDir)
+	b.proc = NewProcess(b.resolveScriptDir(), b.cfgDir, b.cfg.ModbusPort)
 	if err := b.proc.Start(); err != nil {
 		return fmt.Errorf("start py-microgrid-sim: %w", err)
 	}
