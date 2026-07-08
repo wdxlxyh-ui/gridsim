@@ -268,8 +268,8 @@ for entry in "${PLATFORMS[@]}"; do
     # the Go bridge will fallback to `python3 main.py` (requires Python3 on target).
     if [ "$goos" = "linux" ] && [ -d "$ROOT/bin/py-microgrid-sim" ]; then
         # Only include binary if it was rebuilt after the latest main.py change
-        local bin_mtime=$(stat -c%Y "$ROOT/bin/py-microgrid-sim/py-microgrid-sim" 2>/dev/null || echo 0)
-        local src_mtime=$(stat -c%Y "$ROOT/config/py_simulator/main.py" 2>/dev/null || echo 999999999)
+        bin_mtime=$(stat -c%Y "$ROOT/bin/py-microgrid-sim/py-microgrid-sim" 2>/dev/null || echo 0)
+        src_mtime=$(stat -c%Y "$ROOT/config/py_simulator/main.py" 2>/dev/null || echo 999999999)
         if [ "$bin_mtime" -ge "$src_mtime" ]; then
             cp -r "$ROOT/bin/py-microgrid-sim" "$STAGING/bin/py-microgrid-sim"
             chmod +x "$STAGING/bin/py-microgrid-sim/py-microgrid-sim" 2>/dev/null || true
