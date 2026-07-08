@@ -432,16 +432,23 @@ func (ws *webServer) handlePyMicrogridExportPoints(w http.ResponseWriter, r *htt
 		row++
 	}
 
-	// Sheet 2: point
-	f.NewSheet("point")
-	headers := []string{"point-name", "point-number", "value-type", "point-type", "coefficient", "base-value", "alias", "register-address", "function-code", "value-type", "group-number", "call-interval", "user-defined-rule"}
-	for i, h := range headers {
-		col, _ := excelize.ColumnNumberToName(i + 1)
-		f.SetCellValue("point", col+"1", h)
-	}
+	headers := []string{"point-name", "point-number", "value-type", "point-type", "coefficient", "base-value", "alias", "register-address", "function-code", "data-format", "slave-id", "device-type", "device-key"}
 
-	rowIdx := 2
+	// Create a sheet per device
 	for _, dev := range devices {
+		sheetName := dev.DeviceKey
+		// Excel sheet name max 31 chars
+		if len(sheetName) > 31 {
+			sheetName = sheetName[:31]
+		}
+		f.NewSheet(sheetName)
+
+		for i, h := range headers {
+			col, _ := excelize.ColumnNumberToName(i + 1)
+			f.SetCellValue(sheetName, col+"1", h)
+		}
+
+		rowIdx := 2
 		for _, pt := range dev.Points {
 			pointType := "AI"
 			if pt.PointType == config.TypeAO {
@@ -453,17 +460,27 @@ func (ws *webServer) handlePyMicrogridExportPoints(w http.ResponseWriter, r *htt
 			if pt.Writable {
 				fc = 16
 			}
-			f.SetCellValue("point", fmt.Sprintf("A%d", rowIdx), pt.Name)
-			f.SetCellValue("point", fmt.Sprintf("B%d", rowIdx), pt.IOA)
-			f.SetCellValue("point", fmt.Sprintf("C%d", rowIdx), "float")
-			f.SetCellValue("point", fmt.Sprintf("D%d", rowIdx), pointType)
-			f.SetCellValue("point", fmt.Sprintf("E%d", rowIdx), 1)
-			f.SetCellValue("point", fmt.Sprintf("F%d", rowIdx), 0)
-			f.SetCellValue("point", fmt.Sprintf("G%d", rowIdx), pt.Description)
-			f.SetCellValue("point", fmt.Sprintf("H%d", rowIdx), pt.RegisterOffset)
-			f.SetCellValue("point", fmt.Sprintf("I%d", rowIdx), fc)
-			f.SetCellValue("point", fmt.Sprintf("J%d", rowIdx), "SW_FLOAT")
-			// K, L, M left empty
+			// Extract register identifier (e.g., "BS.ActivePW") from the point name
+			// pt.Name is "DeviceKey.RegisterName", we want just the RegisterName part as alias
+			regName := pt.Name
+			if dotIdx := len(dev.DeviceKey) + 1; dotIdx < len(pt.Name) {
+				regName = pt.Name[dotIdx:]
+			}
+
+			col := func(n int) string { c, _ := excelize.ColumnNumberToName(n); return c }
+			f.SetCellValue(sheetName, fmt.Sprintf("%s%d", col(1), rowIdx), pt.Name)
+			f.SetCellValue(sheetName, fmt.Sprintf("%s%d", col(2), rowIdx), pt.IOA)
+			f.SetCellValue(sheetName, fmt.Sprintf("%s%d", col(3), rowIdx), "float")
+			f.SetCellValue(sheetName, fmt.Sprintf("%s%d", col(4), rowIdx), pointType)
+			f.SetCellValue(sheetName, fmt.Sprintf("%s%d", col(5), rowIdx), 1)
+			f.SetCellValue(sheetName, fmt.Sprintf("%s%d", col(6), rowIdx), 0)
+			f.SetCellValue(sheetName, fmt.Sprintf("%s%d", col(7), rowIdx), regName)
+			f.SetCellValue(sheetName, fmt.Sprintf("%s%d", col(8), rowIdx), pt.RegisterOffset)
+			f.SetCellValue(sheetName, fmt.Sprintf("%s%d", col(9), rowIdx), fc)
+			f.SetCellValue(sheetName, fmt.Sprintf("%s%d", col(10), rowIdx), "SW_FLOAT")
+			f.SetCellValue(sheetName, fmt.Sprintf("%s%d", col(11), rowIdx), dev.SlaveID)
+			f.SetCellValue(sheetName, fmt.Sprintf("%s%d", col(12), rowIdx), dev.DeviceType)
+			f.SetCellValue(sheetName, fmt.Sprintf("%s%d", col(13), rowIdx), dev.DeviceKey)
 			rowIdx++
 		}
 	}
