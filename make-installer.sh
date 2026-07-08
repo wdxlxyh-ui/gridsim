@@ -4,17 +4,20 @@
 #
 #  用法：
 #    bash make-installer.sh [tar.gz包路径]
+#    bash make-installer.sh --all       # 生成 amd64 + arm64 两个安装包
+#    bash make-installer.sh --arch arm64   # 指定架构
 #
 #  示例：
-#    bash make-installer.sh dist/gridsim-v3.1.0-dev-14.5ea5bbe-linux-amd64.tar.gz
-#    bash make-installer.sh   # 自动选择 dist/ 下最新的 linux-amd64 包
+#    bash make-installer.sh dist/gridsim-v3.2.0-dev-14.e723e61-linux-amd64.tar.gz
+#    bash make-installer.sh --all       # 自动从 dist/ 选择最新包，生成双架构
+#    bash make-installer.sh             # 只生成 amd64（默认）
 #
 #  输出：
-#    gridsim-install-v{version}.sh  （一个可执行的自解压安装脚本）
+#    gridsim-install-v{version}-{arch}.sh  （可执行的自解压安装脚本）
 #
 #  使用生成的安装包：
-#    scp gridsim-install-v3.1.0.sh user@newserver:/tmp/
-#    ssh user@newserver "bash /tmp/gridsim-install-v3.1.0.sh"
+#    scp gridsim-install-v3.2.0-linux-amd64.sh user@newserver:/tmp/
+#    ssh user@newserver "bash /tmp/gridsim-install-v3.2.0-linux-amd64.sh"
 # ============================================================
 set -euo pipefail
 
@@ -25,27 +28,23 @@ RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
 info()  { echo -e "${GREEN}[INFO]${NC} $*"; }
 err()   { echo -e "${RED}[ERR]${NC} $*" >&2; exit 1; }
 
-# 确定源包
-if [ -n "${1:-}" ]; then
-    PKG_PATH="$1"
-else
-    PKG_PATH=$(ls -t "${DIST_DIR}"/gridsim-v*-linux-amd64.tar.gz 2>/dev/null | head -1)
-fi
+# ─── 生成单个架构的安装包 ─────────────────────────────────────────────────
+generate_installer() {
+    local PKG_PATH="$1"
+    local PKG_NAME=$(basename "$PKG_PATH")
 
-[ -z "$PKG_PATH" ] && err "未找到安装包。用法: bash $0 <gridsim-v*-linux-amd64.tar.gz>"
-[ ! -f "$PKG_PATH" ] && err "文件不存在: $PKG_PATH"
+    # 提取版本号和架构
+    local VERSION=$(echo "$PKG_NAME" | sed -n 's/gridsim-v\(.*\)-linux-\(amd64\|arm64\)\.tar\.gz/\1/p')
+    local ARCH=$(echo "$PKG_NAME" | sed -n 's/gridsim-v.*-linux-\(amd64\|arm64\)\.tar\.gz/\1/p')
+    [ -z "$VERSION" ] && err "无法从文件名提取版本号: $PKG_NAME"
+    [ -z "$ARCH" ] && err "无法从文件名提取架构: $PKG_NAME"
 
-# 提取版本号
-PKG_NAME=$(basename "$PKG_PATH")
-VERSION=$(echo "$PKG_NAME" | sed -n 's/gridsim-v\(.*\)-linux-amd64\.tar\.gz/\1/p')
-[ -z "$VERSION" ] && err "无法从文件名提取版本号: $PKG_NAME"
+    local OUTPUT="gridsim-install-v${VERSION}-linux-${ARCH}.sh"
+    local PKG_SIZE=$(stat -c%s "$PKG_PATH" 2>/dev/null || stat -f%z "$PKG_PATH" 2>/dev/null)
 
-OUTPUT="gridsim-install-v${VERSION}.sh"
-PKG_SIZE=$(stat -c%s "$PKG_PATH" 2>/dev/null || stat -f%z "$PKG_PATH" 2>/dev/null)
-
-info "源包: $PKG_NAME ($(numfmt --to=iec $PKG_SIZE 2>/dev/null || echo "${PKG_SIZE} bytes"))"
-info "版本: $VERSION"
-info "生成: $OUTPUT"
+    info "源包: $PKG_NAME ($(numfmt --to=iec $PKG_SIZE 2>/dev/null || echo "${PKG_SIZE} bytes"))"
+    info "版本: $VERSION | 架构: $ARCH"
+    info "生成: $OUTPUT"
 
 # 生成自解压脚本头部
 cat > "$OUTPUT" << 'INSTALLER_HEAD'
@@ -440,17 +439,68 @@ chmod +x "$OUTPUT"
 # 输出结果
 OUTPUT_SIZE=$(stat -c%s "$OUTPUT" 2>/dev/null || stat -f%z "$OUTPUT" 2>/dev/null)
 echo ""
-info "═══════════════════════════════════════════════════════════════"
-info "  自解压安装包生成完毕!"
-info "═══════════════════════════════════════════════════════════════"
-info "  文件: $(pwd)/$OUTPUT"
-info "  大小: $(numfmt --to=iec $OUTPUT_SIZE 2>/dev/null || echo "$OUTPUT_SIZE bytes")"
-info "  版本: $VERSION"
-info ""
-info "  使用方法："
-info "    scp $OUTPUT user@target-server:/tmp/"
-info "    ssh user@target-server 'bash /tmp/$OUTPUT'"
-info ""
-info "  或指定部署目录："
-info "    bash $OUTPUT --target /opt/gridsim"
-info "═══════════════════════════════════════════════════════════════"
+info "  ✔ ${OUTPUT} ($(numfmt --to=iec $OUTPUT_SIZE 2>/dev/null || echo "${OUTPUT_SIZE} bytes"))"
+echo ""
+}
+
+# ─── 入口 ──────────────────────────────────────────────────────────────────
+ALL_ARCHS=false
+TARGET_ARCH=""
+PKG_ARG=""
+
+for arg in "$@"; do
+    case "$arg" in
+        --all|-a)    ALL_ARCHS=true ;;
+        --arch)      shift; TARGET_ARCH="${1:-}" ;;
+        --help|-h)
+            echo "GridSim 自解压安装包生成器"
+            echo ""
+            echo "用法:"
+            echo "  bash $0                           生成 amd64 安装包（默认）"
+            echo "  bash $0 --all                     生成 amd64 + arm64 两个安装包"
+            echo "  bash $0 --arch arm64              指定架构"
+            echo "  bash $0 <file.tar.gz>             指定包文件"
+            echo ""
+            exit 0
+            ;;
+        *)           PKG_ARG="$arg" ;;
+    esac
+done
+
+if [ -n "$PKG_ARG" ] && [ -f "$PKG_ARG" ]; then
+    # 直接指定包文件
+    generate_installer "$PKG_ARG"
+elif [ "$ALL_ARCHS" = true ]; then
+    # 生成 amd64 + arm64
+    echo ""
+    info "═══════════════════════════════════════════════════════════════"
+    info "  生成双架构安装包"
+    info "═══════════════════════════════════════════════════════════════"
+    echo ""
+    GENERATED=0
+    for arch in amd64 arm64; do
+        PKG=$(ls -t "${DIST_DIR}"/gridsim-v*-linux-${arch}.tar.gz 2>/dev/null | head -1)
+        if [ -n "$PKG" ]; then
+            generate_installer "$PKG"
+            GENERATED=$((GENERATED + 1))
+        else
+            echo -e "${YELLOW}[WARN]${NC} 未找到 linux-${arch} 包，跳过"
+        fi
+    done
+    echo ""
+    info "═══════════════════════════════════════════════════════════════"
+    info "  完成! 共生成 ${GENERATED} 个安装包"
+    info "═══════════════════════════════════════════════════════════════"
+    ls -lh gridsim-install-*.sh 2>/dev/null | awk '{printf "  %s  %s\n", $5, $9}'
+    echo ""
+elif [ -n "$TARGET_ARCH" ]; then
+    # 指定架构
+    PKG=$(ls -t "${DIST_DIR}"/gridsim-v*-linux-${TARGET_ARCH}.tar.gz 2>/dev/null | head -1)
+    [ -z "$PKG" ] && err "未找到 linux-${TARGET_ARCH} 包"
+    generate_installer "$PKG"
+else
+    # 默认：只生成 amd64
+    PKG=$(ls -t "${DIST_DIR}"/gridsim-v*-linux-amd64.tar.gz 2>/dev/null | head -1)
+    [ -z "$PKG" ] && err "未找到安装包。用法: bash $0 <gridsim-v*-linux-amd64.tar.gz> 或 bash $0 --all"
+    generate_installer "$PKG"
+fi
