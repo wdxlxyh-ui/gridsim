@@ -71,6 +71,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   remove: [panelId: string]
   addTrace: [panelId: string]
+  tracesChanged: [panelId: string, traces: TraceConfig[]]
 }>()
 
 const panelTraces = ref<Trace[]>([])
@@ -247,6 +248,11 @@ function clearAllData() {
 
 function removeTrace(i: number) {
   panelTraces.value.splice(i, 1)
+  // Notify parent of trace removal so template save reflects the change
+  emit('tracesChanged', props.panelId, panelTraces.value.map(t => ({
+    instId: t.instId, inst: t.inst, ioa: t.ioa, name: t.name,
+    unit: t.unit, alias: t.alias, colorIdx: t.colorIdx,
+  })))
   if (panelTraces.value.length === 0) {
     if (chartInstance) { chartInstance.dispose(); chartInstance = null }
   } else {

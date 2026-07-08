@@ -21,6 +21,7 @@ import (
 	"gridsim/pkg/firewall"
 	"gridsim/pkg/library"
 	"gridsim/pkg/protocol"
+	"gridsim/pkg/protocol/modbus_bridge"
 )
 
 func generateID() string {
@@ -88,13 +89,19 @@ func (m *Manager) CreateConfig(cfg model.InstanceConfig) (model.InstanceConfig, 
 
 	// Check IEC104 port conflict with other configs (skip for client mode, no server port needed)
 	for _, existing := range m.store.List() {
-		if cfg.Protocol == "iec104_client" {
-			// client mode doesn't use a server port, skip port collision check
-		} else if existing.IEC104Port == cfg.IEC104Port {
+		if cfg.Protocol == "iec104_client" || cfg.Protocol == "modbus_bridge" {
+			// client mode and modbus_bridge don't use IEC104 server port, skip IEC104 port collision check
+		} else if existing.IEC104Port == cfg.IEC104Port && cfg.IEC104Port != 0 {
 			return model.InstanceConfig{}, fmt.Errorf("port %d already configured for instance %s", cfg.IEC104Port, existing.ID)
 		}
 		if cfg.HttpEnabled && existing.HttpEnabled && existing.HttpPort == cfg.HttpPort {
 			return model.InstanceConfig{}, fmt.Errorf("http port %d already configured for instance %s", cfg.HttpPort, existing.ID)
+		}
+		// Check Modbus bridge port collision
+		if cfg.Protocol == "modbus_bridge" && existing.Protocol == "modbus_bridge" &&
+			cfg.ModbusBridgeConfig != nil && existing.ModbusBridgeConfig != nil &&
+			cfg.ModbusBridgeConfig.ModbusPort == existing.ModbusBridgeConfig.ModbusPort {
+			return model.InstanceConfig{}, fmt.Errorf("modbus port %d already configured for instance %s", cfg.ModbusBridgeConfig.ModbusPort, existing.ID)
 		}
 	}
 
@@ -116,6 +123,9 @@ func (m *Manager) StartInstance(id string) error {
 	}
 	if ok && cfg.Protocol == "iec104_client" {
 		return m.startClient(id)
+	}
+	if ok && cfg.Protocol == "modbus_bridge" {
+		return m.startBridge(id)
 	}
 
 	m.mu.Lock()
@@ -700,4 +710,215 @@ func (m *Manager) RegisterMicrogridInstance(id string, inst *Instance, eng *micr
 	defer m.mu.Unlock()
 	inst.Microgrid = eng
 	m.instances[id] = inst
+}
+
+// ─── Modbus Bridge (Python) Support ───
+
+func (m *Manager) startBridge(id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, ok := m.instances[id]; ok {
+		return fmt.Errorf("instance %s already running", id)
+	}
+
+	cfg, ok := m.store.Get(id)
+	if !ok {
+		return fmt.Errorf("instance %s not found", id)
+	}
+
+	if cfg.ModbusBridgeConfig == nil {
+		return fmt.Errorf("modbus_bridge_config not configured")
+	}
+
+	// Parse device.json to generate points
+	bc := cfg.ModbusBridgeConfig
+	scriptDir := bc.ScriptDir
+	if scriptDir == "" {
+		scriptDir = "py_simulator"
+	}
+	if !filepath.IsAbs(scriptDir) {
+		scriptDir = filepath.Join(m.cfgDir, scriptDir)
+	}
+
+	// Multi-instance isolation: create per-instance workspace
+	// Each instance gets its own directory under py_instances/<id>/
+	// with independent config/ and log/ but shared code (main.py, src/, utils/)
+	instanceWorkDir, err := m.ensureBridgeWorkspace(id, scriptDir)
+	if err != nil {
+		slog.Warn("failed to create isolated workspace, using shared dir", "id", id, "error", err)
+		instanceWorkDir = scriptDir
+	}
+
+	deviceJSON := bc.DeviceJSON
+	if deviceJSON == "" {
+		deviceJSON = "config/device.json"
+	}
+
+	devices, err := modbus_bridge.ParseDeviceJSON(instanceWorkDir, deviceJSON)
+	if err != nil {
+		return fmt.Errorf("parse device.json: %w", err)
+	}
+
+	// Build store from device mappings
+	points := modbus_bridge.BuildStorePoints(devices)
+	if len(points) == 0 {
+		return fmt.Errorf("no points generated from device.json")
+	}
+	store := library.NewStore(points)
+
+	// Override script_dir to point to the isolated instance workspace
+	bridgeCfg := *cfg.ModbusBridgeConfig
+	bridgeCfg.ScriptDir = instanceWorkDir
+	cfgForProto := cfg
+	cfgForProto.ModbusBridgeConfig = &bridgeCfg
+
+	// Create and start bridge protocol
+	proto, err := protocol.NewWithCfgDir(cfgForProto, m.cfgDir)
+	if err != nil {
+		return fmt.Errorf("create protocol: %w", err)
+	}
+	proto.SetStore(store)
+	if err := proto.Start(); err != nil {
+		return fmt.Errorf("start bridge: %w", err)
+	}
+
+	// Start auto-change engine
+	acStore := detail.NewAutoChangeStore(m.cfgDir)
+	engine := detail.NewEngine(cfg.ID, store, proto, acStore, m.cfgDir, m)
+	if err := engine.LoadAndStart(); err != nil {
+		slog.Warn("auto-change engine start failed for bridge", "id", id, "error", err)
+	}
+
+	inst := &Instance{
+		Config:     cfg,
+		Protocol:   proto,
+		Store:      store,
+		AutoEngine: engine,
+	}
+
+	// Optional: start per-instance HTTP API
+	if cfg.HttpEnabled && cfg.HttpPort > 0 {
+		ln, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.HttpPort))
+		if err != nil {
+			proto.Stop()
+			return fmt.Errorf("http port %d not available: %w", cfg.HttpPort, err)
+		}
+		ln.Close()
+		apiHandler := api.NewHandler(store, proto, proto)
+		detailHandler := detail.NewDetailHandler(cfg.ID, store, engine, m.cfgDir)
+		httpMux := http.NewServeMux()
+		apiHandler.Register(httpMux)
+		detailHandler.Register(httpMux)
+		httpSrv := &http.Server{Addr: fmt.Sprintf(":%d", cfg.HttpPort), Handler: httpMux}
+		go func() {
+			slog.Info("Bridge实例HTTP API已启动", "id", id, "port", cfg.HttpPort)
+			if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				slog.Error("Bridge实例HTTP API失败", "id", id, "error", err)
+			}
+		}()
+		inst.HTTPServer = httpSrv
+		firewall.EnsurePort(cfg.HttpPort, "gridsim-bridge")
+	}
+
+	m.instances[id] = inst
+	firewall.EnsurePort(bridgeCfg.ModbusPort, "gridsim-bridge-modbus")
+	slog.Info("Bridge实例已启动", "id", id, "devices", len(devices), "points", len(points))
+	return nil
+}
+
+// ensureBridgeWorkspace creates an isolated per-instance workspace directory for Python
+// microgrid simulator. It copies config/ independently while sharing code files via
+// file copy from the template directory. This enables multiple instances to run
+// simultaneously with independent device configurations and log directories.
+func (m *Manager) ensureBridgeWorkspace(instanceID, templateDir string) (string, error) {
+	instancesDir := filepath.Join(m.cfgDir, "py_instances")
+	workDir := filepath.Join(instancesDir, instanceID)
+
+	// If workspace already exists, just return it
+	if _, err := os.Stat(workDir); err == nil {
+		return workDir, nil
+	}
+
+	// Create workspace structure
+	if err := os.MkdirAll(filepath.Join(workDir, "config"), 0755); err != nil {
+		return "", fmt.Errorf("create config dir: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Join(workDir, "log"), 0755); err != nil {
+		return "", fmt.Errorf("create log dir: %w", err)
+	}
+
+	// Copy main.py from template
+	if err := copyFile(filepath.Join(templateDir, "main.py"), filepath.Join(workDir, "main.py")); err != nil {
+		return "", fmt.Errorf("copy main.py: %w", err)
+	}
+
+	// Copy src/ directory (code shared across instances)
+	if err := copyDir(filepath.Join(templateDir, "src"), filepath.Join(workDir, "src")); err != nil {
+		return "", fmt.Errorf("copy src: %w", err)
+	}
+
+	// Copy utils/ directory
+	if err := copyDir(filepath.Join(templateDir, "utils"), filepath.Join(workDir, "utils")); err != nil {
+		return "", fmt.Errorf("copy utils: %w", err)
+	}
+
+	// Copy config/ directory (each instance gets its own config copy)
+	if err := copyDir(filepath.Join(templateDir, "config"), filepath.Join(workDir, "config")); err != nil {
+		return "", fmt.Errorf("copy config: %w", err)
+	}
+
+	slog.Info("Bridge工作目录已创建", "id", instanceID, "path", workDir)
+	return workDir, nil
+}
+
+// copyFile copies a single file from src to dst.
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = out.ReadFrom(in)
+	return err
+}
+
+// copyDir recursively copies a directory from src to dst.
+func copyDir(src, dst string) error {
+	srcInfo, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(dst, srcInfo.Mode()); err != nil {
+		return err
+	}
+
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		srcPath := filepath.Join(src, entry.Name())
+		dstPath := filepath.Join(dst, entry.Name())
+
+		if entry.IsDir() {
+			if err := copyDir(srcPath, dstPath); err != nil {
+				return err
+			}
+		} else {
+			if err := copyFile(srcPath, dstPath); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

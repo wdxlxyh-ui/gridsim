@@ -7,7 +7,7 @@
         <el-select v-model="activeTemplateId" size="small" style="width: 200px" @change="loadTemplate" clearable placeholder="无模板">
           <el-option v-for="tpl in templates" :key="tpl.id" :label="tpl.name" :value="tpl.id" />
         </el-select>
-        <el-button size="small" @click="saveTemplate" :disabled="allTraces.length === 0">💾 覆盖保存</el-button>
+        <el-button size="small" @click="saveTemplate" :disabled="!activeTemplateId || allTraces.length === 0">💾 覆盖保存</el-button>
         <el-button size="small" @click="showSaveAs = true">📋 另存为</el-button>
         <el-button size="small" @click="deleteTemplate" :disabled="!activeTemplateId" type="danger" text>🗑</el-button>
         <el-divider direction="vertical" />
@@ -34,6 +34,7 @@
         :poll-interval="1000"
         @remove="removePanel"
         @add-trace="onAddTrace"
+        @traces-changed="onTracesChanged"
       />
     </div>
 
@@ -158,10 +159,14 @@ function loadTemplate(id: string) {
     panels.value[0].traceConfigs = JSON.parse(JSON.stringify(tpl.traces))
     panels.value[0].templateId = tpl.id
   }
+  debouncedSave()
 }
 
 function saveTemplate() {
-  if (!activeTemplateId.value) return
+  if (!activeTemplateId.value) {
+    ElMessage.warning('请先选择一个模板，或使用「另存为」创建新模板')
+    return
+  }
   const tpl = templates.value.find(t => t.id === activeTemplateId.value)
   if (!tpl) return
   tpl.traces = JSON.parse(JSON.stringify(allTraces.value))
@@ -198,6 +203,7 @@ function deleteTemplate() {
 function addEmptyPanel() {
   if (panels.value.length >= 4) { ElMessage.warning('最多 4 个面板'); return }
   panels.value.push({ id: genId(), templateId: '', traceConfigs: [] })
+  debouncedSave()
 }
 
 function addPanel() {
@@ -219,6 +225,16 @@ function addPanel() {
 function removePanel(panelId: string) {
   const idx = panels.value.findIndex(p => p.id === panelId)
   if (idx !== -1) panels.value.splice(idx, 1)
+  debouncedSave()
+}
+
+// Handle trace removal/change from child TrendPanel
+function onTracesChanged(panelId: string, traces: TraceConfig[]) {
+  const panel = panels.value.find(p => p.id === panelId)
+  if (panel) {
+    panel.traceConfigs = traces
+    debouncedSave()
+  }
 }
 
 // ── Add trace ──
@@ -270,9 +286,16 @@ function confirmAddTrace() {
     }]
   }
   showAddTrace.value = false
+  debouncedSave()
 }
 
 // ── Persistence ──
+let saveTimer: ReturnType<typeof setTimeout> | null = null
+function debouncedSave() {
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => { savePanels(); saveTemplates() }, 500)
+}
+
 function savePanels() {
   try {
     const save = panels.value.map(p => ({
@@ -338,6 +361,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  if (saveTimer) clearTimeout(saveTimer)
   savePanels()
   saveTemplates()
 })

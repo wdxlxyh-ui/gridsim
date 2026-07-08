@@ -14,6 +14,7 @@ type InstanceConfig struct {
 	ModbusConfig       *ModbusInstanceConfig    `json:"modbus_config,omitempty"`
 	MicrogridConfig    *MicrogridInstanceConfig `json:"microgrid_config,omitempty"`
 	IEC104ClientConfig *IEC104ClientConfig      `json:"iec104_client_config,omitempty"`
+	ModbusBridgeConfig *ModbusBridgeConfig      `json:"modbus_bridge_config,omitempty"`
 }
 
 // IEC104ClientConfig 客户端实例配置（主站模式）
@@ -40,6 +41,15 @@ type ModbusInstanceConfig struct {
 	Port      int    `json:"port,omitempty"`
 	ByteOrder string `json:"byte_order,omitempty"`
 	SlaveID   uint8  `json:"slave_id,omitempty"`
+}
+
+// ModbusBridgeConfig Python 微电网模拟器桥接配置
+type ModbusBridgeConfig struct {
+	ScriptDir      string `json:"script_dir,omitempty"`       // Python 项目目录（相对于 configDir），含 config/device.json
+	ModbusPort     int    `json:"modbus_port,omitempty"`      // Python Modbus 监听端口，默认 5021
+	PollIntervalMs int    `json:"poll_interval_ms,omitempty"` // 轮询间隔（ms），默认 1000
+	StartTime      string `json:"start_time,omitempty"`       // 仿真起始时间 HH:MM，空则用当前时间
+	DeviceJSON     string `json:"device_json,omitempty"`      // device.json 相对路径
 }
 
 // InstanceStatus represents the runtime status of an instance.

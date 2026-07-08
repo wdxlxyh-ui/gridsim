@@ -11,6 +11,7 @@ const routes = [
   { path: '/proxy', name: 'proxy', component: () => import('@/views/ProxyPage.vue'), meta: { title: '接口测试' } },
   { path: '/detail/:id', name: 'detail', component: () => import('@/views/DetailPage.vue'), meta: { title: '实例详情' } },
   { path: '/microgrid/:id', name: 'microgrid', component: () => import('@/views/MicrogridEditor.vue'), meta: { title: '微电网编辑' } },
+  { path: '/py-microgrid/:id', name: 'py-microgrid', component: () => import('@/views/PyMicrogridEditor.vue'), meta: { title: 'Python微电网' } },
 ]
 
 const router = createRouter({

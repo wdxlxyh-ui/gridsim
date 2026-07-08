@@ -45,7 +45,7 @@
           </div>
           <div class="topo-right">
             <MicrogridDashboardCard :running="running" :dash="dash" />
-            <MicrogridSvgTopology :devices="devices" :dash="dash" :running="running" :bus-name="busName" :bus-voltage="busVoltage" :grid-meter-capacity="gridMeter.rated_capacity_kw" />
+            <MicrogridSvgTopology :devices="devices" :dash="dash" :running="running" :bus-name="busName" :bus-voltage="busVoltage" />
             <MicrogridFormulaPreview :devices="devices" />
           </div>
         </div>
@@ -297,7 +297,7 @@ async function fetchInstance() {
 }
 
 async function fetchDashboard() {
-  try { Object.assign(dash.value, await getMicrogridDashboard(instanceId)) } catch {}
+  try { dash.value = await getMicrogridDashboard(instanceId) } catch {}
 }
 
 async function fetchPoints(reloading = false) {

@@ -121,7 +121,7 @@ jobs:
 
       - name: Build Windows AMD64
         run: |
-          GOOS=windows GOARCH=amd64 go build -o bin/gridsim-windows-amd64.exe ./cmd/gridsim/
+          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -X main.version=${GITHUB_REF_NAME} -H windowsgui" -o bin/gridsim-windows-amd64.exe ./cmd/gridsim/
           cd dist && powershell -Command "Compress-Archive -Path ../bin/gridsim-windows-amd64.exe -DestinationPath gridsim-${GITHUB_REF_NAME}-windows-amd64.zip"
 
       - name: Create Release

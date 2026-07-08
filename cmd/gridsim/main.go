@@ -48,13 +48,7 @@ var (
 	gitBranch  = "unknown"
 )
 
-func main() {
-	if len(os.Args) > 1 && os.Args[1] == "serve" {
-		runServerMode()
-	} else {
-		runLegacyMode()
-	}
-}
+// main() is defined in entry_default.go (Linux/Mac) and entry_windows.go (Windows GUI)
 
 // ─── Legacy Mode (backward compatible) ─────────────────────────────────────
 
@@ -241,6 +235,9 @@ func (ws *webServer) registerRoutes(mux *http.ServeMux, configDir string, httpAd
 
 	// Microgrid management routes
 	ws.registerMicrogridRoutes(mux)
+
+	// Python Microgrid (modbus_bridge) routes
+	ws.registerPyMicrogridRoutes(mux)
 
 	mux.Handle("/openapi.json", openapi.New(strings.TrimPrefix(httpAddr, ":")))
 	mux.HandleFunc("/api/v1/events", func(w http.ResponseWriter, r *http.Request) {
@@ -749,6 +746,9 @@ func (ws *webServer) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		if s.Config.ModbusConfig != nil && s.Config.ModbusConfig.Port > 0 {
 			port = s.Config.ModbusConfig.Port
 		}
+		if s.Config.ModbusBridgeConfig != nil && s.Config.ModbusBridgeConfig.ModbusPort > 0 {
+			port = s.Config.ModbusBridgeConfig.ModbusPort
+		}
 		bi := briefInstance{
 			ID:     s.Config.ID,
 			Name:   s.Config.Name,
@@ -1171,6 +1171,9 @@ func instanceStateToMap(s *model.InstanceState) map[string]interface{} {
 	if s.Config.IEC104ClientConfig != nil {
 		m["iec104_client_config"] = s.Config.IEC104ClientConfig
 	}
+	if s.Config.ModbusBridgeConfig != nil {
+		m["modbus_bridge_config"] = s.Config.ModbusBridgeConfig
+	}
 	if s.Status == model.StatusRunning {
 		m["stats"] = map[string]interface{}{
 			"uptime_seconds":   s.UptimeSeconds,
@@ -1197,6 +1200,8 @@ func validateConfig(cfg model.InstanceConfig) error {
 	}
 	if proto == "iec104_client" {
 		// client mode connects to a remote slave, no local port needed
+	} else if proto == "modbus_bridge" {
+		// bridge mode uses its own modbus_port, iec104_port is optional
 	} else {
 		port := cfg.IEC104Port
 		if proto == "modbus_tcp" && cfg.ModbusConfig != nil && cfg.ModbusConfig.Port > 0 {
@@ -1206,7 +1211,7 @@ func validateConfig(cfg model.InstanceConfig) error {
 			return fmt.Errorf("port must be 1-65535")
 		}
 	}
-	if cfg.Protocol != "microgrid" && cfg.XLSXFile == "" {
+	if cfg.Protocol != "microgrid" && cfg.Protocol != "modbus_bridge" && cfg.XLSXFile == "" {
 		return fmt.Errorf("xlsx_file is required")
 	}
 	if cfg.HttpEnabled && (cfg.HttpPort < 1 || cfg.HttpPort > 65535) {

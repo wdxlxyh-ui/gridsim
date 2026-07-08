@@ -1,6 +1,13 @@
 @echo off
 chcp 65001 >nul
 
+:: =====================================================================
+:: GridSim Windows Start Script (headless server mode)
+::
+:: NOTE: You can also double-click gridsim.exe directly for GUI mode.
+::       This script is for headless/background server operation.
+:: =====================================================================
+
 :: Switch to package root so web/dist resolves correctly
 set DIR=%~dp0..
 cd /d "%DIR%" || exit /b 1

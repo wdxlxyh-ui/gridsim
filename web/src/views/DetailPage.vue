@@ -48,10 +48,18 @@
             <el-form-item label="CSV文件">
               <div style="display: flex; gap: 8px; align-items: center">
                 <el-select v-model="csvMultiForm.csv_file" placeholder="选择已有 CSV 文件" filterable clearable style="width: 200px" @visible-change="loadCSVFileList">
-                  <el-option v-for="f in csvFileList" :key="f.name" :label="f.name + (f.shared ? ' (共享)' : '')" :value="f.name">
-                    <span>{{ f.name }}</span>
-                    <span v-if="f.shared" style="color: #909399; font-size: 11px; margin-left: 6px">共享</span>
-                  </el-option>
+                  <el-option-group v-if="csvInstanceFiles.length > 0" label="实例文件">
+                    <el-option v-for="f in csvInstanceFiles" :key="f.name" :label="f.name" :value="f.name">
+                      <span>{{ f.name }}</span>
+                      <span style="color: #909399; font-size: 11px; float: right">{{ formatFileSize(f.size) }}</span>
+                    </el-option>
+                  </el-option-group>
+                  <el-option-group v-if="csvSharedFiles.length > 0" label="共享文件">
+                    <el-option v-for="f in csvSharedFiles" :key="f.name" :label="f.name" :value="f.name">
+                      <span>{{ f.name }}</span>
+                      <span style="color: #909399; font-size: 11px; float: right">{{ formatFileSize(f.size) }}</span>
+                    </el-option>
+                  </el-option-group>
                 </el-select>
                 <el-button size="small" type="success" @click="loadCSVMappings" :disabled="!csvMultiForm.csv_file || csvUploading">加载映射</el-button>
                 <el-button size="small" @click="triggerCsvMultiUpload" :disabled="csvUploading">上传</el-button>
@@ -448,10 +456,18 @@
             <el-form-item label="CSV文件">
               <div style="display: flex; gap: 8px">
                 <el-select v-model="autoForm.csv_file" placeholder="选择已有 CSV 文件" filterable clearable style="width: 200px" @visible-change="loadCSVFileList">
-                  <el-option v-for="f in csvFileList" :key="f.name" :label="f.name + (f.shared ? ' (共享)' : '')" :value="f.name">
-                    <span>{{ f.name }}</span>
-                    <span v-if="f.shared" style="color: #909399; font-size: 11px; margin-left: 6px">共享</span>
-                  </el-option>
+                  <el-option-group v-if="csvInstanceFiles.length > 0" label="实例文件">
+                    <el-option v-for="f in csvInstanceFiles" :key="f.name" :label="f.name" :value="f.name">
+                      <span>{{ f.name }}</span>
+                      <span style="color: #909399; font-size: 11px; float: right">{{ formatFileSize(f.size) }}</span>
+                    </el-option>
+                  </el-option-group>
+                  <el-option-group v-if="csvSharedFiles.length > 0" label="共享文件">
+                    <el-option v-for="f in csvSharedFiles" :key="f.name" :label="f.name" :value="f.name">
+                      <span>{{ f.name }}</span>
+                      <span style="color: #909399; font-size: 11px; float: right">{{ formatFileSize(f.size) }}</span>
+                    </el-option>
+                  </el-option-group>
                 </el-select>
                 <el-button size="small" @click="triggerCSVUpload">上传</el-button>
                 <input ref="csvUploadRef" type="file" accept=".csv" style="display: none" @change="uploadCSVFile" />
@@ -797,6 +813,8 @@ const autoForm = reactive({
 
 // ---- CSV 文件列表 ----
 const csvFileList = ref<{ name: string; size: number; modtime: string; shared: boolean }[]>([])
+const csvInstanceFiles = computed(() => csvFileList.value.filter(f => !f.shared))
+const csvSharedFiles = computed(() => csvFileList.value.filter(f => f.shared))
 let csvFilesLoaded = false
 async function loadCSVFileList(visible?: boolean) {
   if (visible === false) return
@@ -805,6 +823,11 @@ async function loadCSVFileList(visible?: boolean) {
     csvFileList.value = await listCSVFiles(instanceId.value)
     csvFilesLoaded = true
   } catch { /* ignore */ }
+}
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+  return (bytes / 1024 / 1024).toFixed(1) + ' MB'
 }
 
 // ---- 自定义公式相关状态 ----

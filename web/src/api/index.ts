@@ -57,6 +57,14 @@ export interface IEC104ClientConfig {
   control_mode: string
 }
 
+export interface ModbusBridgeConfig {
+  script_dir?: string
+  modbus_port?: number
+  poll_interval_ms?: number
+  start_time?: string
+  device_json?: string
+}
+
 export interface InstanceConfig {
   id?: string
   name: string
@@ -68,6 +76,7 @@ export interface InstanceConfig {
   protocol?: string
   modbus_config?: ModbusConfig
   iec104_client_config?: IEC104ClientConfig
+  modbus_bridge_config?: ModbusBridgeConfig
 }
 
 export interface InstanceStats {
@@ -93,6 +102,7 @@ export interface InstanceState {
   error?: string
   iec104_client_config?: IEC104ClientConfig
   modbus_config?: ModbusConfig
+  modbus_bridge_config?: ModbusBridgeConfig
 }
 
 export interface GlobalStatus {
@@ -501,6 +511,54 @@ export async function deleteMicrogridFormula(instanceId: string, formulaId: stri
   await http.delete(`/microgrid/${instanceId}/formulas/${formulaId}`)
 }
 
+// ─── Python Microgrid (modbus_bridge) API ──────────────────────────────────
+
+export interface PyMicrogridDevice {
+  id: string
+  type: string
+  name: string
+  slave_id: number
+  point_count: number
+  ioa_base: number
+}
+
+export interface PyMicrogridTopology {
+  bus_name: string
+  bus_voltage: number
+  start_time: string
+  modbus_port: number
+  devices: PyMicrogridDevice[]
+}
+
+export interface PyMicrogridDashboard {
+  status: string
+  grid_power_kw: number
+  total_pv_kw: number
+  total_bat_kw: number
+  total_load_kw: number
+  total_charger_kw: number
+  battery_soc: number
+  pv?: { id: string; name: string; power_kw: number; closed: boolean; mode?: string }[]
+  battery?: { id: string; name: string; power_kw: number; closed: boolean; soc?: number; mode?: string }[]
+  load?: { id: string; name: string; power_kw: number; closed: boolean; mode?: string }[]
+  charger?: { id: string; name: string; power_kw: number; closed: boolean; mode?: string }[]
+  device_count: number
+}
+
+export async function getPyMicrogridTopology(instanceId: string): Promise<PyMicrogridTopology> {
+  const res = await http.get(`/py-microgrid/${instanceId}/topology`)
+  return res.data
+}
+
+export async function getPyMicrogridDashboard(instanceId: string): Promise<PyMicrogridDashboard> {
+  const res = await http.get(`/py-microgrid/${instanceId}/dashboard`)
+  return res.data
+}
+
+export async function pyMicrogridControl(instanceId: string, ioa: number, value: number): Promise<void> {
+  await http.post(`/py-microgrid/${instanceId}/control`, { ioa, value })
+}
+
 // ─── Proxy API Tester ──────────────────────────────────────────────────────
 
 export interface ProxyRequest {
@@ -645,5 +703,32 @@ export async function savePointTable(instanceId: string, points: PointTableRow[]
 
 export async function sendCommand(instanceId: string, payload: { ioa: number; value?: number; bool_value?: boolean }): Promise<{ success: boolean; ioa: number }> {
   const res = await http.put(`/instances/${instanceId}/command`, payload)
+  return res.data
+}
+
+// ─── Python Microgrid Config/Export API ────────────────────────────────────
+
+export async function getPyMicrogridConfig(instanceId: string): Promise<any> {
+  const res = await http.get(`/py-microgrid/${instanceId}/config`)
+  return res.data
+}
+
+export async function savePyMicrogridConfig(instanceId: string, config: any): Promise<void> {
+  await http.put(`/py-microgrid/${instanceId}/config`, config)
+}
+
+export async function getPyMicrogridCurves(instanceId: string): Promise<string[]> {
+  const res = await http.get(`/py-microgrid/${instanceId}/curves`)
+  return res.data.files || []
+}
+
+export async function uploadPyMicrogridCurve(instanceId: string, file: File): Promise<void> {
+  const form = new FormData()
+  form.append('file', file)
+  await http.post(`/py-microgrid/${instanceId}/upload-curve`, form, { headers: { 'Content-Type': 'multipart/form-data' } })
+}
+
+export async function exportPyMicrogridPoints(instanceId: string): Promise<Blob> {
+  const res = await http.get(`/py-microgrid/${instanceId}/export-points`, { responseType: 'blob' })
   return res.data
 }

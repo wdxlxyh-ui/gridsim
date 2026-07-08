@@ -57,8 +57,8 @@
             <!-- Server mode: standard display -->
             <template v-else>
               <el-descriptions :column="1" size="small" border style="margin-bottom: 12px">
-                <el-descriptions-item label="IEC104端口">
-                  <el-tag size="small">{{ inst.iec104_port }}</el-tag>
+                <el-descriptions-item :label="inst.protocol === 'modbus_bridge' ? 'Modbus端口' : inst.protocol === 'modbus_tcp' ? 'Modbus端口' : 'IEC104端口'">
+                  <el-tag size="small">{{ inst.protocol === 'modbus_bridge' ? (inst.modbus_bridge_config?.modbus_port || 5021) : inst.iec104_port }}</el-tag>
                 </el-descriptions-item>
                 <el-descriptions-item label="HTTP端口" v-if="inst.http_enabled">
                   <el-tag size="small" type="warning">{{ inst.http_port }}</el-tag>
@@ -70,7 +70,7 @@
                 </el-descriptions-item>
                 <el-descriptions-item label="测点数">{{ inst.stats.total_points }}</el-descriptions-item>
                 <el-descriptions-item label="运行时间">{{ fmtUptime(inst.stats.uptime_seconds) }}</el-descriptions-item>
-                <el-descriptions-item label="总召次数">{{ inst.stats.interrogations }}</el-descriptions-item>
+                <el-descriptions-item :label="inst.protocol === 'modbus_bridge' ? '轮询次数' : '总召次数'">{{ inst.stats.interrogations }}</el-descriptions-item>
                 <el-descriptions-item label="变化上送">{{ inst.stats.spontaneous }}</el-descriptions-item>
               </el-descriptions>
             </template>
@@ -88,7 +88,7 @@
               size="small"
               @click="openInstance(inst)"
             >
-              {{ inst.protocol === 'microgrid' ? '微电网' : '详情' }}
+              {{ inst.protocol === 'microgrid' ? '微电网' : inst.protocol === 'modbus_bridge' ? 'Python仿真' : '详情' }}
             </el-button>
             <el-button
               v-if="inst.status === 'running'"
@@ -150,12 +150,14 @@ function protoLabel(proto?: string): string {
   if (proto === 'modbus_tcp') return 'Modbus TCP'
   if (proto === 'microgrid') return '微电网'
   if (proto === 'iec104_client') return 'IEC104 客户端'
+  if (proto === 'modbus_bridge') return 'Python微电网'
   return 'IEC104'
 }
 
 function protoTag(proto?: string): 'success' | 'warning' | 'info' | 'primary' {
   if (proto === 'modbus_tcp') return 'success'
   if (proto === 'microgrid') return 'warning'
+  if (proto === 'modbus_bridge') return 'warning'
   if (proto === 'iec104_client') return 'info'
   return 'primary'
 }
@@ -163,6 +165,8 @@ function protoTag(proto?: string): 'success' | 'warning' | 'info' | 'primary' {
 function openInstance(inst: InstanceState) {
   if (inst.protocol === 'microgrid') {
     router.push('/microgrid/' + inst.id)
+  } else if (inst.protocol === 'modbus_bridge') {
+    router.push('/py-microgrid/' + inst.id)
   } else {
     router.push('/detail/' + inst.id)
   }

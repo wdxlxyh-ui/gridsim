@@ -123,6 +123,7 @@ fi
 
 # ─── 2. Go binaries (parallel) ────────────────────────────────────────────
 LDFLAGS="-ldflags=-s -w -X main.version=$VERSION -X main.gitCommit=$GIT_COMMIT -X main.gitBranch=$GIT_BRANCH"
+LDFLAGS_WIN="-ldflags=-s -w -X main.version=$VERSION -X main.gitCommit=$GIT_COMMIT -X main.gitBranch=$GIT_BRANCH -H windowsgui"
 echo "[2/3] Go builds ── compiling for ${#PLATFORMS[@]} platforms ..."
 
 mkdir -p "$DIST_DIR/bin"
@@ -134,9 +135,13 @@ for entry in "${PLATFORMS[@]}"; do
     bin_name="$PROJECT"
     [ "$goos" = "windows" ] && bin_name="$PROJECT.exe"
 
+    # Windows uses GUI subsystem (no console on double-click)
+    BUILD_LDFLAGS="$LDFLAGS"
+    [ "$goos" = "windows" ] && BUILD_LDFLAGS="$LDFLAGS_WIN"
+
     (
         GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 \
-            $GO_CMD build "$LDFLAGS" \
+            $GO_CMD build "$BUILD_LDFLAGS" \
             -o "$DIST_DIR/bin/$PROJECT-$suffix${bin_name#$PROJECT}" \
             "$ROOT/cmd/gridsim/"
         echo "    ✔ $goos/$goarch  →  $(ls -lh "$DIST_DIR/bin/$PROJECT-$suffix${bin_name#$PROJECT}" | awk '{print $5}')"
@@ -257,6 +262,29 @@ for entry in "${PLATFORMS[@]}"; do
     # Config
     echo '[]' > "$STAGING/config/instances.json"
     [ -f "$ROOT/config/users.json" ] && cp "$ROOT/config/users.json" "$STAGING/config/"
+
+    # Python microgrid simulator (PyInstaller binary — only if up-to-date)
+    # NOTE: If the binary is outdated and doesn't support --port arg,
+    # the Go bridge will fallback to `python3 main.py` (requires Python3 on target).
+    if [ "$goos" = "linux" ] && [ -d "$ROOT/bin/py-microgrid-sim" ]; then
+        # Only include binary if it was rebuilt after the latest main.py change
+        bin_mtime=$(stat -c%Y "$ROOT/bin/py-microgrid-sim/py-microgrid-sim" 2>/dev/null || echo 0)
+        src_mtime=$(stat -c%Y "$ROOT/config/py_simulator/main.py" 2>/dev/null || echo 999999999)
+        if [ "$bin_mtime" -ge "$src_mtime" ]; then
+            cp -r "$ROOT/bin/py-microgrid-sim" "$STAGING/bin/py-microgrid-sim"
+            chmod +x "$STAGING/bin/py-microgrid-sim/py-microgrid-sim" 2>/dev/null || true
+        else
+            echo "    ⚠ py-microgrid-sim binary outdated, skipping (will use python3 fallback)"
+        fi
+    fi
+    if [ -d "$ROOT/config/py_simulator" ]; then
+        cp -r "$ROOT/config/py_simulator" "$STAGING/config/py_simulator"
+        # Remove __pycache__, build artifacts, and log files
+        find "$STAGING/config/py_simulator" -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+        rm -rf "$STAGING/config/py_simulator/build" "$STAGING/config/py_simulator/"*.spec 2>/dev/null || true
+        # Clean log files (they are runtime artifacts, not needed in distribution)
+        find "$STAGING/config/py_simulator/log" -name "*.log" -delete 2>/dev/null || true
+    fi
 
     # Logs & resources placeholders
     touch "$STAGING/logs/.gitkeep"

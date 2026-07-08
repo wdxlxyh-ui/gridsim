@@ -168,6 +168,7 @@
             <div class="ic-port-info">
               <el-icon :size="11"><Coin /></el-icon>
               <span v-if="inst.protocol === 'iec104_client' && inst.remote_addr">远端 {{ inst.remote_addr }}</span>
+              <span v-else-if="inst.protocol === 'modbus_bridge'">Modbus端口 {{ inst.port }}</span>
               <span v-else>端口 {{ inst.port }}</span>
             </div>
             <div v-if="inst.error" class="ic-error">
@@ -287,12 +288,14 @@ function protoLabel(proto?: string): string {
   if (proto === 'modbus_tcp') return 'Modbus TCP'
   if (proto === 'microgrid') return '微电网'
   if (proto === 'iec104_client') return 'IEC104 客户端'
+  if (proto === 'modbus_bridge') return 'Python微电网'
   return 'IEC104'
 }
 
 function protoTag(proto?: string): 'success' | 'warning' | 'primary' | 'info' {
   if (proto === 'modbus_tcp') return 'success'
   if (proto === 'microgrid') return 'warning'
+  if (proto === 'modbus_bridge') return 'warning'
   if (proto === 'iec104_client') return 'info'
   return 'primary'
 }
@@ -312,6 +315,8 @@ function fmtUptime(s: number): string {
 function goToDetail(inst: DashboardBriefInstance) {
   if (inst.protocol === 'microgrid') {
     router.push(`/microgrid/${inst.id}`)
+  } else if (inst.protocol === 'modbus_bridge') {
+    router.push(`/py-microgrid/${inst.id}`)
   } else {
     router.push(`/detail/${inst.id}`)
   }

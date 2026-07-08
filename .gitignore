@@ -44,3 +44,4 @@ web/package-lock.json
 *.tar.gz
 config/csv/
 tools/
+gridsim-install-*.sh

@@ -1,0 +1,18 @@
+[Unit]
+Description=MicroGrid_Simulator
+
+[Service]
+WorkingDirectory=/root/microgridsimulate
+ExecStart=/usr/bin/python3 /root/microgridsimulate/main.py
+User=root
+
+Restart=always
+RestartSec=1
+
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=autodeploy
+
+
+[Install]
+WantedBy=multi-user.target
