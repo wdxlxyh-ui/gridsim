@@ -66,3 +66,9 @@ func (w *IEC104Wrapper) Publish(point *config.Point) {
 func (w *IEC104Wrapper) SetStore(store *library.Store) {
 	w.store = store
 }
+
+func (w *IEC104Wrapper) SetAOFollowHandler(fn func(aoIOA uint32)) {
+	if w.server != nil {
+		w.server.SetAOFollowHandler(fn)
+	}
+}
