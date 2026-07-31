@@ -1,0 +1,188 @@
+{
+  "schema_version": 2,
+  "bridge": {
+    "modbus_port": 5021,
+    "poll_interval_ms": 1000
+  },
+  "simulation": {
+    "start_time": "14:30",
+    "timezone": "Asia/Shanghai",
+    "step_sec": 1
+  },
+  "logging": {
+    "system_level": "INFO",
+    "message_level": "INFO",
+    "traffic_level": "INFO",
+    "max_size_mb": 10,
+    "max_backups": 5
+  },
+  "replay": {
+    "enabled": true,
+    "credential_ref": "enos-prod-cn5",
+    "fetch_interval_sec": 30,
+    "lookback_sec": 300,
+    "delay_sec": 10,
+    "target_lag_sec": 60,
+    "cache_retention_sec": 600,
+    "request_timeout_sec": 30,
+    "page_size": 10000,
+    "max_staleness_sec": 180,
+    "failure_policy": "hold",
+    "additional_subscriptions": []
+  },
+  "allocations": {
+    "slave_id_start": 1,
+    "ioa_base": 1000,
+    "ioa_step": 100
+  },
+  "devices": [
+    {
+      "device_key": "METER_01",
+      "device_type": "meter",
+      "slave_id": 1,
+      "ioa_base": 1000,
+      "include_in_meter": false,
+      "params": {},
+      "source": {
+        "kind": "enos",
+        "enos": {
+          "asset_id": "meter_asset_001",
+          "power_point": "METER.ActivePW"
+        }
+      }
+    },
+    {
+      "device_key": "PV_01",
+      "device_type": "pv",
+      "slave_id": 2,
+      "ioa_base": 2000,
+      "include_in_meter": true,
+      "params": {
+        "rated_power_kw": 100
+      },
+      "source": {
+        "kind": "enos",
+        "enos": {
+          "asset_id": "pv_asset_001",
+          "power_point": "INV.GenActivePW"
+        }
+      }
+    },
+    {
+      "device_key": "BESS_01",
+      "device_type": "bess",
+      "slave_id": 3,
+      "ioa_base": 3000,
+      "include_in_meter": true,
+      "params": {
+        "rated_capacity_kwh": 200,
+        "max_charge_power_kw": 100,
+        "max_discharge_power_kw": 100,
+        "soc_min_pct": 10,
+        "initial_soc_pct": 50,
+        "soc_max_pct": 90,
+        "voltage_nominal_v": 48,
+        "resistance_ohm": 0.01
+      },
+      "source": {
+        "kind": "enos",
+        "enos": {
+          "asset_id": "bess_asset_001",
+          "power_point": "BS.ActivePW",
+          "soc_point": "BS.SOC"
+        }
+      }
+    },
+    {
+      "device_key": "EV_01",
+      "device_type": "ev",
+      "slave_id": 4,
+      "ioa_base": 4000,
+      "include_in_meter": true,
+      "params": {
+        "rated_power_kw": 22,
+        "min_charge_power_kw": 0,
+        "charge_factor": 1.0,
+        "charger_type": "AC",
+        "power_factor": 0.98,
+        "phase_mode": 1,
+        "voltage_v": 230.0,
+        "charge_schedule": [
+          {"start": "03:30", "stop": "04:30"},
+          {"start": "12:00", "stop": "13:00"},
+          {"start": "18:00", "stop": "18:30"}
+        ]
+      },
+      "source": {
+        "kind": "enos",
+        "enos": {
+          "asset_id": "ev_asset_001",
+          "power_point": "PUB_CONN.ChargePW"
+        }
+      }
+    },
+    {
+      "device_key": "LOAD_01",
+      "device_type": "load",
+      "slave_id": 5,
+      "ioa_base": 5000,
+      "include_in_meter": true,
+      "params": {
+        "base_power_kw": 120
+      },
+      "source": {
+        "kind": "enos",
+        "enos": {
+          "asset_id": "load_asset_001",
+          "power_point": "LD.ActivePW"
+        }
+      }
+    },
+    {
+      "device_key": "WIND_01",
+      "device_type": "wind",
+      "slave_id": 6,
+      "ioa_base": 6000,
+      "include_in_meter": true,
+      "params": {
+        "rated_power_kw": 2000
+      },
+      "source": {
+        "kind": "enos",
+        "enos": {
+          "asset_id": "wind_asset_001",
+          "theory_power_point": "WNAC.TheoryActivePW",
+          "wind_speed_point": "WNAC.WindSpeed"
+        }
+      }
+    },
+    {
+      "device_key": "WIND_02",
+      "device_type": "wind",
+      "slave_id": 7,
+      "ioa_base": 6100,
+      "include_in_meter": true,
+      "params": {
+        "rated_power_kw": 5000,
+        "min_coverage_ratio": 0.8
+      },
+      "source": {
+        "kind": "enos_aggregate",
+        "enos": {
+          "aggregate_asset_ids": [
+            "wind_asset_002",
+            "wind_asset_003",
+            "wind_asset_004",
+            "wind_asset_005"
+          ],
+          "wind_speed_fallback_asset_ids": [
+            "weather_station_001",
+            "weather_station_002"
+          ],
+          "theory_power_point": "WNAC.TheoryActivePW",
+          "wind_speed_point": "WNAC.WindSpeed"
+        }
+      }
+    }
+  ]
+}

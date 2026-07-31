@@ -559,6 +559,245 @@ export async function pyMicrogridControl(instanceId: string, ioa: number, value:
   await http.post(`/py-microgrid/${instanceId}/control`, { ioa, value })
 }
 
+// ─── Python Microgrid 规范配置 API ──────────────────────────────────────
+
+export interface PyMicrogridSpec {
+  schema_version: number
+  bridge: BridgeConfig
+  simulation: SimulationConfig
+  logging: LoggingConfig
+  replay?: ReplayConfig
+  allocations: AllocationConfig
+  devices: DeviceConfigSpec[]
+}
+
+export interface BridgeConfig {
+  modbus_port: number
+  poll_interval_ms: number
+}
+
+export interface SimulationConfig {
+  start_time: string
+  timezone: string
+  step_sec: number
+}
+
+export interface LoggingConfig {
+  system_level: string
+  message_level: string
+  traffic_level: string
+  max_size_mb: number
+  max_backups: number
+}
+
+export interface ReplayConfig {
+  enabled: boolean
+  credential_ref?: string
+  fetch_interval_sec: number
+  lookback_sec: number
+  delay_sec: number
+  target_lag_sec: number
+  cache_retention_sec: number
+  request_timeout_sec: number
+  page_size: number
+  max_staleness_sec: number
+  failure_policy: string
+  additional_subscriptions?: AdditionalSubscription[]
+}
+
+export interface AdditionalSubscription {
+  asset_id: string
+  point_ids: string[]
+  required: boolean
+}
+
+export interface AllocationConfig {
+  slave_id_start: number
+  ioa_base: number
+  ioa_step: number
+}
+
+export interface DeviceConfigSpec {
+  device_key: string
+  device_type: 'meter' | 'pv' | 'bess' | 'ev' | 'load' | 'wind'
+  slave_id: number
+  ioa_base: number
+  include_in_meter?: boolean
+  params: DeviceParams
+  source: DataSource
+}
+
+export interface DeviceParams {
+  // 共同参数
+  rated_power_kw?: number
+  
+  // BESS 专用参数
+  rated_capacity_kwh?: number
+  max_charge_power_kw?: number
+  max_discharge_power_kw?: number
+  soc_min_pct?: number
+  initial_soc_pct?: number
+  soc_max_pct?: number
+  voltage_nominal_v?: number
+  resistance_ohm?: number
+  
+  // EV 专用参数
+  min_charge_power_kw?: number
+  charge_factor?: number
+  charger_type?: 'AC' | 'DC'
+  power_factor?: number
+  phase_mode?: number
+  voltage_v?: number
+  charge_schedule?: ChargeSchedule[]
+  
+  // Load 专用参数
+  base_power_kw?: number
+  
+  // Wind 专用参数
+  min_coverage_ratio?: number
+}
+
+export interface ChargeSchedule {
+  start: string
+  stop: string
+}
+
+export interface DataSource {
+  kind: 'calculated' | 'synthetic' | 'csv' | 'enos' | 'enos_aggregate'
+  csv?: CSVSource
+  enos?: EnOSSource
+}
+
+export interface CSVSource {
+  file_id: string
+  interpolation: 'linear' | 'hold'
+  end_behavior: 'loop' | 'hold' | 'stop'
+  period_sec?: number
+  scale: number
+  offset: number
+}
+
+export interface EnOSSource {
+  asset_id?: string
+  power_point?: string
+  soc_point?: string
+  theory_power_point?: string
+  wind_speed_point?: string
+  aggregate_asset_ids?: string[]
+  wind_speed_fallback_asset_ids?: string[]
+  min_coverage_ratio?: number
+}
+
+export interface RuntimeStatus {
+  overall_state: string
+  process: ProcessStatus
+  modbus: ModbusStatus
+  replay: ReplayStatus
+}
+
+export interface ProcessStatus {
+  pid: number
+  started_at: string
+  last_tick_at: string
+  runtime_version: string
+  config_revision: string
+  last_error: string
+}
+
+export interface ModbusStatus {
+  connected: boolean
+  last_poll_at: string
+  last_error: string
+}
+
+export interface ReplayStatus {
+  state: string
+  last_request_at: string
+  last_success_at: string
+  consecutive_failures: number
+  target_lag_sec: number
+  caches: CacheStatus[]
+}
+
+export interface CacheStatus {
+  asset_id: string
+  point_id: string
+  count: number
+  earliest_at: string
+  latest_at: string
+  age_sec: number
+  cursor_lag_sec: number
+  clamped: boolean
+}
+
+// 规范配置 API
+export async function getPyMicrogridSpec(instanceId: string): Promise<PyMicrogridSpec> {
+  const res = await http.get(`/py-microgrid/${instanceId}/spec`)
+  return res.data
+}
+
+export async function setPyMicrogridSpec(instanceId: string, spec: PyMicrogridSpec, etag: string): Promise<void> {
+  await http.put(`/py-microgrid/${instanceId}/spec`, spec, {
+    headers: { 'If-Match': `"${etag}"` }
+  })
+}
+
+export async function validatePyMicrogridSpec(instanceId: string, spec: PyMicrogridSpec): Promise<{ valid: boolean; error?: string }> {
+  const res = await http.post(`/py-microgrid/${instanceId}/validate`, spec)
+  return res.data
+}
+
+export async function getPyMicrogridRuntime(instanceId: string): Promise<RuntimeStatus> {
+  const res = await http.get(`/py-microgrid/${instanceId}/runtime`)
+  return res.data
+}
+
+// ─── EnOS 凭据管理 API ──────────────────────────────────────────────────────
+
+export interface EnOSCredential {
+  id: string
+  name: string
+  apigw_address: string
+  org_id: string
+  access_key?: string
+  secret_key?: string
+  access_key_present: boolean
+  secret_key_present: boolean
+  updated_at: string
+}
+
+export interface EnOSTestResult {
+  success: boolean
+  message: string
+  tested_at: string
+  api_gateway: string
+  org_id: string
+}
+
+export async function listEnOSCredentials(): Promise<EnOSCredential[]> {
+  const res = await http.get('/secrets/enos')
+  return res.data
+}
+
+export async function createEnOSCredential(credential: Partial<EnOSCredential>): Promise<EnOSCredential> {
+  const res = await http.post('/secrets/enos', credential)
+  return res.data
+}
+
+export async function updateEnOSCredential(credentialId: string, updates: Partial<EnOSCredential>): Promise<EnOSCredential> {
+  const res = await http.put(`/secrets/enos/${credentialId}`, updates)
+  return res.data
+}
+
+export async function deleteEnOSCredential(credentialId: string): Promise<void> {
+  await http.delete(`/secrets/enos/${credentialId}`)
+}
+
+export async function testEnOSCredential(credentialId: string): Promise<EnOSTestResult> {
+  const res = await http.post(`/secrets/enos/${credentialId}/test`)
+  return res.data
+}
+
 // ─── Proxy API Tester ──────────────────────────────────────────────────────
 
 export interface ProxyRequest {
