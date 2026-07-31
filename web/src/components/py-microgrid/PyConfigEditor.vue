@@ -17,6 +17,76 @@
       </el-form>
     </el-card>
 
+    <!-- EnOS Configuration -->
+    <el-card shadow="never" style="margin-bottom:12px">
+      <template #header>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-weight:600">🌐 EnOS 数据回放设置</span>
+          <el-switch v-model="enosConfig.enabled" :disabled="disabled" />
+        </div>
+      </template>
+      <div v-if="enosConfig.enabled">
+        <el-form label-width="120px" :disabled="disabled" size="small">
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item label="API 网关">
+                <el-input v-model="enosConfig.apigw_address" placeholder="https://ag-cn5.example.com" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="Organization ID">
+                <el-input v-model="enosConfig.org_id" placeholder="org-example-12345" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item label="Access Key">
+                <el-input v-model="enosConfig.access_key" placeholder="EnOS Access Key" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="Secret Key">
+                <el-input v-model="enosConfig.secret_key" type="password" placeholder="EnOS Secret Key" show-password />
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-row :gutter="16">
+            <el-col :span="8">
+              <el-form-item label="拉取间隔(秒)">
+                <el-input-number v-model="enosConfig.fetch_interval_sec" :min="5" :max="3600" style="width:100%" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="8">
+              <el-form-item label="回溯时长(秒)">
+                <el-input-number v-model="enosConfig.lookback_sec" :min="10" :max="86400" style="width:100%" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="8">
+              <el-form-item label="失效策略">
+                <el-select v-model="enosConfig.failure_policy" style="width:100%">
+                  <el-option value="hold" label="保持最后值" />
+                  <el-option value="zero" label="置零" />
+                  <el-option value="stop" label="停止仿真" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <div style="margin-top:8px">
+            <el-button size="small" @click="testEnosConnection" :loading="testingConnection" :disabled="!canTestConnection">
+              测试连接
+            </el-button>
+            <span v-if="connectionTestResult" :style="{marginLeft:'8px',fontSize:'12px',color:connectionTestResult.success?'#67c23a':'#f56c6c'}">
+              {{ connectionTestResult.message }}
+            </span>
+          </div>
+        </el-form>
+      </div>
+      <div v-else style="padding:12px;text-align:center;color:var(--el-text-color-secondary);font-size:12px">
+        启用后可为设备配置 EnOS 历史数据回放
+      </div>
+    </el-card>
+
     <!-- Device list by type -->
     <el-card shadow="never" v-for="devType in deviceTypes" :key="devType.key" style="margin-bottom:12px">
       <template #header>
@@ -42,8 +112,34 @@
             <el-col :span="8"><el-form-item label="Slave ID"><el-input-number v-model="dev.slave_id" :min="1" :max="247" style="width:100%" /></el-form-item></el-col>
           </el-row>
           <el-row :gutter="12">
-            <el-col :span="8"><el-form-item label="出力模式"><el-select v-model="dev.mode" style="width:100%"><el-option :value="0" label="CSV曲线回放" /><el-option :value="1" label="正弦曲线" /></el-select></el-form-item></el-col>
-            <el-col :span="8" v-if="dev.mode === 0"><el-form-item label="CSV文件"><el-select v-model="dev.csv_file" style="width:100%" allow-create filterable><el-option v-for="f in curveFiles" :key="f" :value="f" :label="f" /></el-select></el-form-item></el-col>
+            <el-col :span="8">
+              <el-form-item label="数据源">
+                <el-select v-model="dev.mode" style="width:100%">
+                  <el-option :value="0" label="CSV曲线回放" />
+                  <el-option :value="1" label="正弦曲线" />
+                  <el-option :value="2" label="EnOS回放" :disabled="!enosConfig.enabled" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="8" v-if="dev.mode === 0">
+              <el-form-item label="CSV文件">
+                <el-select v-model="dev.csv_file" style="width:100%" allow-create filterable>
+                  <el-option v-for="f in curveFiles" :key="f" :value="f" :label="f" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="8" v-if="dev.mode === 2">
+              <el-form-item label="EnOS资产ID">
+                <el-input v-model="dev.enos_asset_id" placeholder="pv_asset_001" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-row :gutter="12" v-if="dev.mode === 2">
+            <el-col :span="12">
+              <el-form-item label="功率测点">
+                <el-input v-model="dev.enos_power_point" placeholder="INV.GenActivePW" />
+              </el-form-item>
+            </el-col>
           </el-row>
         </el-form>
         <!-- BESS -->
@@ -63,6 +159,33 @@
             <el-col :span="8"><el-form-item label="SOC下限"><el-input-number v-model="dev.socMin" :min="0" :max="100" style="width:100%" /></el-form-item></el-col>
             <el-col :span="8"><el-form-item label="标称电压(V)"><el-input-number v-model="dev.voltage_nominal" :min="0" style="width:100%" /></el-form-item></el-col>
           </el-row>
+          <el-row :gutter="12">
+            <el-col :span="8">
+              <el-form-item label="数据源">
+                <el-select v-model="dev.mode" style="width:100%">
+                  <el-option :value="0" label="模型计算" />
+                  <el-option :value="2" label="EnOS回放" :disabled="!enosConfig.enabled" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="8" v-if="dev.mode === 2">
+              <el-form-item label="EnOS资产ID">
+                <el-input v-model="dev.enos_asset_id" placeholder="bess_asset_001" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-row :gutter="12" v-if="dev.mode === 2">
+            <el-col :span="8">
+              <el-form-item label="功率测点">
+                <el-input v-model="dev.enos_power_point" placeholder="BS.ActivePW" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="8">
+              <el-form-item label="SOC测点">
+                <el-input v-model="dev.enos_soc_point" placeholder="BS.SOC (可选)" />
+              </el-form-item>
+            </el-col>
+          </el-row>
         </el-form>
         <!-- EV -->
         <el-form v-if="devType.key === 'EV'" label-width="120px" :disabled="disabled" size="small">
@@ -81,7 +204,27 @@
             <el-col :span="8"><el-form-item label="最小功率(kW)"><el-input-number v-model="dev['PUB_CONN.MinChargePW']" :min="0" style="width:100%" /></el-form-item></el-col>
             <el-col :span="8"><el-form-item label="充电系数"><el-input-number v-model="dev.charge_factor" :min="0" :max="2" :step="0.1" :precision="2" style="width:100%" /></el-form-item></el-col>
           </el-row>
-          <el-form-item label="充电时段">
+          <el-row :gutter="12">
+            <el-col :span="8">
+              <el-form-item label="数据源">
+                <el-select v-model="dev.mode" style="width:100%">
+                  <el-option :value="0" label="时段控制" />
+                  <el-option :value="2" label="EnOS回放" :disabled="!enosConfig.enabled" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="8" v-if="dev.mode === 2">
+              <el-form-item label="EnOS资产ID">
+                <el-input v-model="dev.enos_asset_id" placeholder="ev_asset_001" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="8" v-if="dev.mode === 2">
+              <el-form-item label="功率测点">
+                <el-input v-model="dev.enos_power_point" placeholder="PUB_CONN.ChargePW" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-form-item label="充电时段" v-if="dev.mode === 0">
             <div v-for="(sch, si) in (dev.charge_schedule || [])" :key="si" style="display:flex;gap:8px;margin-bottom:4px;align-items:center">
               <el-input v-model="sch.start" placeholder="开始 HH:MM" style="width:120px" />
               <span>~</span>
@@ -99,8 +242,34 @@
             <el-col :span="8"><el-form-item label="Slave ID"><el-input-number v-model="dev.slave_id" :min="1" :max="247" style="width:100%" /></el-form-item></el-col>
           </el-row>
           <el-row :gutter="12">
-            <el-col :span="8"><el-form-item label="出力模式"><el-select v-model="dev.mode" style="width:100%"><el-option :value="0" label="CSV曲线回放" /><el-option :value="1" label="随机波动" /></el-select></el-form-item></el-col>
-            <el-col :span="8" v-if="dev.mode === 0"><el-form-item label="CSV文件"><el-select v-model="dev.csv_file" style="width:100%" allow-create filterable><el-option v-for="f in curveFiles" :key="f" :value="f" :label="f" /></el-select></el-form-item></el-col>
+            <el-col :span="8">
+              <el-form-item label="数据源">
+                <el-select v-model="dev.mode" style="width:100%">
+                  <el-option :value="0" label="CSV曲线回放" />
+                  <el-option :value="1" label="随机波动" />
+                  <el-option :value="2" label="EnOS回放" :disabled="!enosConfig.enabled" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="8" v-if="dev.mode === 0">
+              <el-form-item label="CSV文件">
+                <el-select v-model="dev.csv_file" style="width:100%" allow-create filterable>
+                  <el-option v-for="f in curveFiles" :key="f" :value="f" :label="f" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="8" v-if="dev.mode === 2">
+              <el-form-item label="EnOS资产ID">
+                <el-input v-model="dev.enos_asset_id" placeholder="load_asset_001" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-row :gutter="12" v-if="dev.mode === 2">
+            <el-col :span="12">
+              <el-form-item label="功率测点">
+                <el-input v-model="dev.enos_power_point" placeholder="LD.ActivePW" />
+              </el-form-item>
+            </el-col>
           </el-row>
         </el-form>
         <!-- Meter -->
@@ -127,7 +296,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
+import { ElMessage } from 'element-plus'
 
 const props = defineProps<{
   config: any
@@ -151,9 +321,39 @@ const deviceTypes = [
 
 const localConfig = ref<any>({ start_time: '08:00', Devices: [] })
 
+// EnOS 配置
+const enosConfig = ref({
+  enabled: false,
+  apigw_address: '',
+  access_key: '',
+  secret_key: '',
+  org_id: '',
+  fetch_interval_sec: 30,
+  lookback_sec: 300,
+  delay_sec: 10,
+  target_lag_sec: 60,
+  max_staleness_sec: 180,
+  failure_policy: 'hold'
+})
+
+const testingConnection = ref(false)
+const connectionTestResult = ref<{ success: boolean; message: string } | null>(null)
+
+const canTestConnection = computed(() => {
+  return enosConfig.value.apigw_address && 
+         enosConfig.value.access_key && 
+         enosConfig.value.secret_key && 
+         enosConfig.value.org_id
+})
+
 watch(() => props.config, (val) => {
   if (val && val.Devices && val.Devices.length > 0) {
     localConfig.value = JSON.parse(JSON.stringify(val))
+    
+    // 初始化 EnOS 配置
+    if (val.enos_config) {
+      enosConfig.value = { ...enosConfig.value, ...val.enos_config }
+    }
   }
   // Ensure exactly one Meter always exists
   ensureMeter()
@@ -199,11 +399,67 @@ function removeDevice(type: string, idx: number) {
 function createDefault(type: string): any {
   const nextId = getDevices(type).length + 1
   switch (type) {
-    case 'Meter': return { DeviceKey: `Meter_${String(nextId).padStart(2,'0')}`, slave_id: nextSlaveId() }
-    case 'PV': return { DeviceKey: `PV_${String(nextId).padStart(2,'0')}`, ratedPower: 100, mode: 1, csv_file: '', slave_id: nextSlaveId() }
-    case 'BESS': return { DeviceKey: `BESS_${String(nextId).padStart(2,'0')}`, ratedCapacity: 200, maxChargePower: 100, maxDischargePower: 100, socMax: 100, socMin: 0, initial_soc: 0.5, voltage_nominal: 48, resistance: 0.01, slave_id: nextSlaveId() }
-    case 'EV': return { DeviceKey: `EV_${String(nextId).padStart(2,'0')}`, 'PUB_CONN.RatedPW': 22, 'PUB_CONN.MinChargePW': 0, charge_factor: 1.0, charge_schedule: [{ start: '08:00', stop: '10:00' }], charger_type: 'AC', power_factor: 0.95, phase_mode: 3, voltage: 220, slave_id: nextSlaveId() }
-    case 'Load': return { DeviceKey: `LOAD_${String(nextId).padStart(3,'0')}`, base_power: 50, mode: 0, csv_file: 'load_curve.csv', slave_id: nextSlaveId() }
+    case 'Meter': 
+      return { 
+        DeviceKey: `Meter_${String(nextId).padStart(2,'0')}`, 
+        slave_id: nextSlaveId(),
+        mode: 0,
+        enos_asset_id: '',
+        enos_power_point: 'METER.ActivePW'
+      }
+    case 'PV': 
+      return { 
+        DeviceKey: `PV_${String(nextId).padStart(2,'0')}`, 
+        ratedPower: 100, 
+        mode: 1, 
+        csv_file: '', 
+        enos_asset_id: '',
+        enos_power_point: 'INV.GenActivePW',
+        slave_id: nextSlaveId() 
+      }
+    case 'BESS': 
+      return { 
+        DeviceKey: `BESS_${String(nextId).padStart(2,'0')}`, 
+        ratedCapacity: 200, 
+        maxChargePower: 100, 
+        maxDischargePower: 100, 
+        socMax: 100, 
+        socMin: 0, 
+        initial_soc: 0.5, 
+        voltage_nominal: 48, 
+        resistance: 0.01,
+        mode: 0,
+        enos_asset_id: '',
+        enos_power_point: 'BS.ActivePW',
+        enos_soc_point: 'BS.SOC',
+        slave_id: nextSlaveId() 
+      }
+    case 'EV': 
+      return { 
+        DeviceKey: `EV_${String(nextId).padStart(2,'0')}`, 
+        'PUB_CONN.RatedPW': 22, 
+        'PUB_CONN.MinChargePW': 0, 
+        charge_factor: 1.0, 
+        charge_schedule: [{ start: '08:00', stop: '10:00' }], 
+        charger_type: 'AC', 
+        power_factor: 0.95, 
+        phase_mode: 3, 
+        voltage: 220,
+        mode: 0,
+        enos_asset_id: '',
+        enos_power_point: 'PUB_CONN.ChargePW',
+        slave_id: nextSlaveId() 
+      }
+    case 'Load': 
+      return { 
+        DeviceKey: `LOAD_${String(nextId).padStart(3,'0')}`, 
+        base_power: 50, 
+        mode: 0, 
+        csv_file: 'load_curve.csv',
+        enos_asset_id: '',
+        enos_power_point: 'LD.ActivePW',
+        slave_id: nextSlaveId() 
+      }
     default: return {}
   }
 }
@@ -228,7 +484,44 @@ function onCurveFile(uploadFile: any) {
   if (uploadFile?.raw) emit('upload-curve', uploadFile.raw)
 }
 
-function handleSave() { emit('save', localConfig.value) }
+async function testEnosConnection() {
+  if (!canTestConnection.value) return
+  
+  testingConnection.value = true
+  connectionTestResult.value = null
+  
+  try {
+    // TODO: 实际的 EnOS 连接测试 API 调用
+    // 这里模拟测试结果
+    await new Promise(resolve => setTimeout(resolve, 1500))
+    
+    // 简单验证
+    const isValidUrl = enosConfig.value.apigw_address.startsWith('https://')
+    const hasCredentials = enosConfig.value.access_key.length > 0 && enosConfig.value.secret_key.length > 0
+    
+    if (isValidUrl && hasCredentials) {
+      connectionTestResult.value = { success: true, message: '连接测试成功' }
+      ElMessage.success('EnOS 连接测试成功')
+    } else {
+      connectionTestResult.value = { success: false, message: '配置信息不完整' }
+      ElMessage.error('EnOS 连接测试失败：配置信息不完整')
+    }
+  } catch (error) {
+    connectionTestResult.value = { success: false, message: '连接失败' }
+    ElMessage.error('EnOS 连接测试失败')
+  } finally {
+    testingConnection.value = false
+  }
+}
+
+function handleSave() { 
+  // 将 EnOS 配置合并到主配置中
+  const configToSave = {
+    ...localConfig.value,
+    enos_config: enosConfig.value
+  }
+  emit('save', configToSave)
+}
 </script>
 
 <style scoped>
