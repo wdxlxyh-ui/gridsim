@@ -1,5 +1,427 @@
 {
-  "collections": [],
-  "environments": [],
-  "active_env_id": ""
+  "collections": [
+    {
+      "id": "builtin-ea719adf",
+      "name": "0. 认证",
+      "type": "folder",
+      "children": [
+        {
+          "id": "builtin-29fee7d7",
+          "name": "login - 登录获取 token",
+          "type": "request",
+          "method": "POST",
+          "url": "{{base_url}}/api/v1/auth/login",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}",
+          "pre_script": "// Pre-Script 示例：发送前生成动态值\nvars.request_id = $uuid();\nvars.request_time = $formatTime('yyyy-MM-dd HH:mm:ss');\nconsole.log('准备登录, request_id=', vars.request_id);",
+          "test_script": "// Post-Script 示例：登录成功后自动将 token 写入环境变量 {{token}}\nvar data = pm.response.json();\nif (data.token) {\n  pm.environment.set('token', data.token);\n  console.log('token 已保存:', data.token.substring(0, 20) + '...');\n}\npm.expect(pm.response.code).to.equal(200);"
+        }
+      ]
+    },
+    {
+      "id": "builtin-171030c6",
+      "name": "1. 全局",
+      "type": "folder",
+      "children": [
+        {
+          "id": "builtin-d5ba549f",
+          "name": "GET /status - 全局状态",
+          "type": "request",
+          "method": "GET",
+          "url": "{{base_url}}/api/v1/status"
+        },
+        {
+          "id": "builtin-3da09e49",
+          "name": "GET /protocols - 支持的协议列表",
+          "type": "request",
+          "method": "GET",
+          "url": "{{base_url}}/api/v1/protocols"
+        },
+        {
+          "id": "builtin-cc30d6ab",
+          "name": "GET /files - 已上传文件列表",
+          "type": "request",
+          "method": "GET",
+          "url": "{{base_url}}/api/v1/files"
+        },
+        {
+          "id": "builtin-da2d0c12",
+          "name": "POST /upload - 上传 xlsx 点表",
+          "type": "request",
+          "method": "POST",
+          "url": "{{base_url}}/api/v1/upload"
+        }
+      ]
+    },
+    {
+      "id": "builtin-ad45c68a",
+      "name": "2. 实例管理",
+      "type": "folder",
+      "children": [
+        {
+          "id": "builtin-a0db6efd",
+          "name": "GET /instances - 列出所有实例",
+          "type": "request",
+          "method": "GET",
+          "url": "{{base_url}}/api/v1/instances",
+          "headers": {
+            "Authorization": "Bearer {{token}}"
+          }
+        },
+        {
+          "id": "builtin-da5a4e79",
+          "name": "POST /instances - 创建实例",
+          "type": "request",
+          "method": "POST",
+          "url": "{{base_url}}/api/v1/instances",
+          "headers": {
+            "Authorization": "Bearer {{token}}",
+            "Content-Type": "application/json"
+          },
+          "body": "{\n  \"name\": \"{{instance_name}}\",\n  \"iec104_port\": 2404,\n  \"xlsx_file\": \"point.xlsx\",\n  \"enabled\": true,\n  \"http_enabled\": true,\n  \"http_port\": 8080,\n  \"protocol\": \"iec104\"\n}"
+        },
+        {
+          "id": "builtin-cf956fdd",
+          "name": "GET /instances/{id} - 获取实例详情",
+          "type": "request",
+          "method": "GET",
+          "url": "{{base_url}}/api/v1/instances/{{instance_id}}",
+          "headers": {
+            "Authorization": "Bearer {{token}}"
+          }
+        },
+        {
+          "id": "builtin-6306090f",
+          "name": "PUT /instances/{id} - 更新实例",
+          "type": "request",
+          "method": "PUT",
+          "url": "{{base_url}}/api/v1/instances/{{instance_id}}",
+          "headers": {
+            "Authorization": "Bearer {{token}}",
+            "Content-Type": "application/json"
+          },
+          "body": "{\n  \"name\": \"{{instance_name}}\",\n  \"iec104_port\": 2404,\n  \"xlsx_file\": \"point.xlsx\",\n  \"enabled\": true\n}"
+        },
+        {
+          "id": "builtin-3c7af67b",
+          "name": "DELETE /instances/{id} - 删除实例",
+          "type": "request",
+          "method": "DELETE",
+          "url": "{{base_url}}/api/v1/instances/{{instance_id}}",
+          "headers": {
+            "Authorization": "Bearer {{token}}"
+          }
+        },
+        {
+          "id": "builtin-046eeba1",
+          "name": "POST /instances/{id}/start - 启动实例",
+          "type": "request",
+          "method": "POST",
+          "url": "{{base_url}}/api/v1/instances/{{instance_id}}/start",
+          "headers": {
+            "Authorization": "Bearer {{token}}"
+          }
+        },
+        {
+          "id": "builtin-b93c30b3",
+          "name": "POST /instances/{id}/stop - 停止实例",
+          "type": "request",
+          "method": "POST",
+          "url": "{{base_url}}/api/v1/instances/{{instance_id}}/stop",
+          "headers": {
+            "Authorization": "Bearer {{token}}"
+          }
+        },
+        {
+          "id": "builtin-08c1bc78",
+          "name": "POST /instances/{id}/restart - 重启实例",
+          "type": "request",
+          "method": "POST",
+          "url": "{{base_url}}/api/v1/instances/{{instance_id}}/restart",
+          "headers": {
+            "Authorization": "Bearer {{token}}"
+          }
+        }
+      ]
+    },
+    {
+      "id": "builtin-acf61ed3",
+      "name": "3. 测点操作 (v2.1)",
+      "type": "folder",
+      "children": [
+        {
+          "id": "builtin-26905d80",
+          "name": "GET /instances/{id}/points - 获取所有测点快照",
+          "type": "request",
+          "method": "GET",
+          "url": "{{base_url}}/api/v1/instances/{{instance_id}}/points",
+          "headers": {
+            "Authorization": "Bearer {{token}}"
+          }
+        },
+        {
+          "id": "builtin-1ef797bf",
+          "name": "GET /instances/{id}/points/batch - 批量读取",
+          "type": "request",
+          "method": "GET",
+          "url": "{{base_url}}/api/v1/instances/{{instance_id}}/points/batch?ioas={{ioa_list}}",
+          "headers": {
+            "Authorization": "Bearer {{token}}"
+          }
+        },
+        {
+          "id": "builtin-0ce46728",
+          "name": "GET /instances/{id}/points/{ioa} - 读取单点",
+          "type": "request",
+          "method": "GET",
+          "url": "{{base_url}}/api/v1/instances/{{instance_id}}/points/{{ioa}}",
+          "headers": {
+            "Authorization": "Bearer {{token}}"
+          }
+        },
+        {
+          "id": "builtin-659884fc",
+          "name": "PUT /instances/{id}/points/{ioa} - 置数 (AI)",
+          "type": "request",
+          "method": "PUT",
+          "url": "{{base_url}}/api/v1/instances/{{instance_id}}/points/{{ioa}}",
+          "headers": {
+            "Authorization": "Bearer {{token}}",
+            "Content-Type": "application/json"
+          },
+          "body": "{\n  \"value\": 235.5\n}"
+        },
+        {
+          "id": "builtin-1e565427",
+          "name": "PUT /instances/{id}/points/{ioa} - 置数 (DI bool)",
+          "type": "request",
+          "method": "PUT",
+          "url": "{{base_url}}/api/v1/instances/{{instance_id}}/points/{{ioa}}",
+          "headers": {
+            "Authorization": "Bearer {{token}}",
+            "Content-Type": "application/json"
+          },
+          "body": "{\n  \"bool_value\": true\n}"
+        },
+        {
+          "id": "builtin-bc78daf2",
+          "name": "GET /instances/{id}/points/auto-change/{ioa} - 读取自动变化配置",
+          "type": "request",
+          "method": "GET",
+          "url": "{{base_url}}/api/v1/instances/{{instance_id}}/points/auto-change/{{ioa}}",
+          "headers": {
+            "Authorization": "Bearer {{token}}"
+          }
+        },
+        {
+          "id": "builtin-9af6606e",
+          "name": "PUT /instances/{id}/points/auto-change/{ioa} - 配置自动变化 (递增)",
+          "type": "request",
+          "method": "PUT",
+          "url": "{{base_url}}/api/v1/instances/{{instance_id}}/points/auto-change/{{ioa}}",
+          "headers": {
+            "Authorization": "Bearer {{token}}",
+            "Content-Type": "application/json"
+          },
+          "body": "{\n  \"strategy\": \"increment\",\n  \"enabled\": true,\n  \"params\": {\n    \"start_value\": 0,\n    \"step\": 1,\n    \"period_ms\": 1000,\n    \"max_value\": 100\n  }\n}"
+        },
+        {
+          "id": "builtin-df583fd1",
+          "name": "DELETE /instances/{id}/points/auto-change/{ioa} - 删除自动变化",
+          "type": "request",
+          "method": "DELETE",
+          "url": "{{base_url}}/api/v1/instances/{{instance_id}}/points/auto-change/{{ioa}}",
+          "headers": {
+            "Authorization": "Bearer {{token}}"
+          }
+        },
+        {
+          "id": "builtin-599d928a",
+          "name": "GET /instances/{id}/points/export - 导出测点 CSV",
+          "type": "request",
+          "method": "GET",
+          "url": "{{base_url}}/api/v1/instances/{{instance_id}}/points/export",
+          "headers": {
+            "Authorization": "Bearer {{token}}"
+          }
+        },
+        {
+          "id": "builtin-c74a418f",
+          "name": "GET /instances/{id}/points/auto-change/export - 导出自动变化配置",
+          "type": "request",
+          "method": "GET",
+          "url": "{{base_url}}/api/v1/instances/{{instance_id}}/points/auto-change/export",
+          "headers": {
+            "Authorization": "Bearer {{token}}"
+          }
+        }
+      ]
+    },
+    {
+      "id": "builtin-d9981541",
+      "name": "4. CSV 回放 (v2.5)",
+      "type": "folder",
+      "children": [
+        {
+          "id": "builtin-09d72a04",
+          "name": "GET /instances/{id}/csv-files - 列出 CSV 文件",
+          "type": "request",
+          "method": "GET",
+          "url": "{{base_url}}/api/v1/instances/{{instance_id}}/csv-files",
+          "headers": {
+            "Authorization": "Bearer {{token}}"
+          }
+        },
+        {
+          "id": "builtin-8276f57c",
+          "name": "POST /instances/{id}/upload-csv - 上传 CSV",
+          "type": "request",
+          "method": "POST",
+          "url": "{{base_url}}/api/v1/instances/{{instance_id}}/upload-csv",
+          "headers": {
+            "Authorization": "Bearer {{token}}"
+          }
+        },
+        {
+          "id": "builtin-730a0a77",
+          "name": "POST /instances/{id}/csv-replay - 配置 CSV 回放",
+          "type": "request",
+          "method": "POST",
+          "url": "{{base_url}}/api/v1/instances/{{instance_id}}/csv-replay",
+          "headers": {
+            "Authorization": "Bearer {{token}}",
+            "Content-Type": "application/json"
+          },
+          "body": "{\n  \"csv_file\": \"point.csv\",\n  \"time_format\": \"relative\",\n  \"time_unit\": \"ms\",\n  \"mappings\": [\n    { \"column\": 1, \"ioa\": 1 },\n    { \"column\": 2, \"ioa\": 2 }\n  ]\n}"
+        }
+      ]
+    },
+    {
+      "id": "builtin-648f9f8c",
+      "name": "5. 微电网 (v2.5)",
+      "type": "folder",
+      "children": [
+        {
+          "id": "builtin-21d82b46",
+          "name": "GET /microgrid/{id}/topology - 获取拓扑",
+          "type": "request",
+          "method": "GET",
+          "url": "{{base_url}}/api/v1/microgrid/{{instance_id}}/topology",
+          "headers": {
+            "Authorization": "Bearer {{token}}"
+          }
+        },
+        {
+          "id": "builtin-fa73180e",
+          "name": "PUT /microgrid/{id}/topology - 保存拓扑",
+          "type": "request",
+          "method": "PUT",
+          "url": "{{base_url}}/api/v1/microgrid/{{instance_id}}/topology",
+          "headers": {
+            "Authorization": "Bearer {{token}}",
+            "Content-Type": "application/json"
+          },
+          "body": "{}"
+        },
+        {
+          "id": "builtin-336e4262",
+          "name": "GET /microgrid/{id}/dashboard - 实时仪表盘",
+          "type": "request",
+          "method": "GET",
+          "url": "{{base_url}}/api/v1/microgrid/{{instance_id}}/dashboard",
+          "headers": {
+            "Authorization": "Bearer {{token}}"
+          }
+        },
+        {
+          "id": "builtin-dd78c935",
+          "name": "GET /microgrid/{id}/points - 微电网测点",
+          "type": "request",
+          "method": "GET",
+          "url": "{{base_url}}/api/v1/microgrid/{{instance_id}}/points",
+          "headers": {
+            "Authorization": "Bearer {{token}}"
+          }
+        },
+        {
+          "id": "builtin-b102821f",
+          "name": "POST /microgrid/{id}/device - 添加设备",
+          "type": "request",
+          "method": "POST",
+          "url": "{{base_url}}/api/v1/microgrid/{{instance_id}}/device",
+          "headers": {
+            "Authorization": "Bearer {{token}}",
+            "Content-Type": "application/json"
+          },
+          "body": "{\n  \"type\": \"pv\",\n  \"name\": \"PV-1\",\n  \"params\": { \"rated_power_kw\": 100 }\n}"
+        },
+        {
+          "id": "builtin-1d9c18b6",
+          "name": "POST /microgrid/{id}/control/{devId} - 控制开关",
+          "type": "request",
+          "method": "POST",
+          "url": "{{base_url}}/api/v1/microgrid/{{instance_id}}/control/{{device_id}}?closed=true",
+          "headers": {
+            "Authorization": "Bearer {{token}}"
+          }
+        }
+      ]
+    },
+    {
+      "id": "builtin-6b8eed35",
+      "name": "6. 旧版直连 API (传统模式)",
+      "type": "folder",
+      "children": [
+        {
+          "id": "builtin-badb2300",
+          "name": "GET /api/points - 列出所有测点 (旧)",
+          "type": "request",
+          "method": "GET",
+          "url": "{{base_url}}/api/points"
+        },
+        {
+          "id": "builtin-6e6182c5",
+          "name": "GET /api/points/{ioa} - 读取单点 (旧)",
+          "type": "request",
+          "method": "GET",
+          "url": "{{base_url}}/api/points/{{ioa}}"
+        },
+        {
+          "id": "builtin-8bd186bc",
+          "name": "PUT /api/points/{ioa} - 置数 (旧)",
+          "type": "request",
+          "method": "PUT",
+          "url": "{{base_url}}/api/points/{{ioa}}",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{\n  \"value\": 235.5\n}"
+        }
+      ]
+    }
+  ],
+  "environments": [
+    {
+      "id": "env-default-local",
+      "name": "默认 - 本机",
+      "variables": {
+        "base_url": "http://localhost:8989",
+        "device_id": "dev-1",
+        "instance_id": "inst-1",
+        "instance_name": "demo-instance",
+        "ioa": "1",
+        "ioa_list": "1,2,3"
+      }
+    },
+    {
+      "id": "env-auth-helper",
+      "name": "认证占位 (token 由 login 自动写入)",
+      "variables": {
+        "token": ""
+      }
+    }
+  ],
+  "active_env_id": "env-default-local"
 }

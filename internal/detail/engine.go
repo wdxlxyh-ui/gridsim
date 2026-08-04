@@ -19,16 +19,16 @@ type publisher interface {
 const maxConcurrentTasks = 100
 
 type Engine struct {
-	mu       sync.RWMutex
-	store    *library.Store
-	pub      publisher
-	strategy *strategyRunner
-	acStore  *AutoChangeStore
-	tasks    map[uint32]*changeTask
-	state    map[uint32]*strategyState
+	mu         sync.RWMutex
+	store      *library.Store
+	pub        publisher
+	strategy   *strategyRunner
+	acStore    *AutoChangeStore
+	tasks      map[uint32]*changeTask
+	state      map[uint32]*strategyState
 	instanceID string
-	cfgDir   string
-	wg       sync.WaitGroup
+	cfgDir     string
+	wg         sync.WaitGroup
 }
 
 type changeTask struct {
@@ -231,8 +231,8 @@ func (e *Engine) stopTaskLocked(ioa uint32) {
 func (e *Engine) HandleAOFollow(aoIOA uint32) {
 	// Collect targets under RLock, then process without lock
 	type followTarget struct {
-		IOA    uint32
-		Value  float64
+		IOA   uint32
+		Value float64
 	}
 	var targets []followTarget
 

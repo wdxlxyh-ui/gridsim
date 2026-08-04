@@ -65,11 +65,11 @@ func (sr *strategyRunner) runOnce(cfg *model.AutoChangeConfig, state *strategySt
 }
 
 type strategyState struct {
-	csvRows      []csvRow
-	csvIndex     int
-	csvMTime     int64
-	csvStartTime time.Time
-	currentSOC   float64
+	csvRows       []csvRow
+	csvIndex      int
+	csvMTime      int64
+	csvStartTime  time.Time
+	currentSOC    float64
 	currentEnergy float64
 }
 
@@ -341,7 +341,13 @@ func (sr *strategyRunner) doSOC(cfg *model.AutoChangeConfig, state *strategyStat
 	if !ok {
 		return
 	}
-	T := float64(cfg.Params.IntegralMs) / 1000.0
+	// 积分步长 = 实际执行周期（毫秒→小时），与 engine ticker 周期保持一致，
+	// 保证积分速率与真实时间同步（单位：kW × h / kWh × 100 = %）
+	period := cfg.Params.PeriodMs
+	if period < 100 {
+		period = 100
+	}
+	T := float64(period) / 3600000.0
 	deltaSOC := p.Value * T / cfg.Params.RatedCap * 100
 	state.currentSOC += deltaSOC
 	if state.currentSOC > 100 {

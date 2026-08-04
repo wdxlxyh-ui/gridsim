@@ -17,8 +17,8 @@ import (
 	"time"
 
 	"gridsim/internal/model"
-	apierrors "gridsim/pkg/errors"
 	"gridsim/pkg/config"
+	apierrors "gridsim/pkg/errors"
 	"gridsim/pkg/library"
 )
 
@@ -30,9 +30,9 @@ type DetailHandler struct {
 
 	// sortedOrderCache 缓存按 (PointType, IOA) 排序后的 IOA 顺序。
 	// 点集不变时排序顺序固定，避免每次轮询都做全量 sort.Slice。
-	sortMu          sync.Mutex
-	sortedIOAs      []uint32
-	sortedForCount  int
+	sortMu         sync.Mutex
+	sortedIOAs     []uint32
+	sortedForCount int
 }
 
 func NewDetailHandler(instID string, store *library.Store, engine *Engine, cfgDir string) *DetailHandler {
@@ -456,8 +456,8 @@ func (h *DetailHandler) getAutoChange(w http.ResponseWriter, ioa uint32) {
 
 func (h *DetailHandler) putAutoChange(w http.ResponseWriter, r *http.Request, ioa uint32) {
 	var req struct {
-		Strategy string           `json:"strategy"`
-		Enabled  bool             `json:"enabled"`
+		Strategy string               `json:"strategy"`
+		Enabled  bool                 `json:"enabled"`
 		Params   model.StrategyParams `json:"params"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -517,8 +517,8 @@ func (h *DetailHandler) batchAutoChange(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var req struct {
-		IOAs   []uint32            `json:"ioas"`
-		Config json.RawMessage     `json:"config"`
+		IOAs   []uint32        `json:"ioas"`
+		Config json.RawMessage `json:"config"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON: " + err.Error()})
@@ -526,8 +526,8 @@ func (h *DetailHandler) batchAutoChange(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var autoCfg struct {
-		Strategy string           `json:"strategy"`
-		Enabled  bool             `json:"enabled"`
+		Strategy string               `json:"strategy"`
+		Enabled  bool                 `json:"enabled"`
 		Params   model.StrategyParams `json:"params"`
 	}
 	if err := json.Unmarshal(req.Config, &autoCfg); err != nil {
@@ -558,10 +558,10 @@ func (h *DetailHandler) batchAutoChange(w http.ResponseWriter, r *http.Request) 
 		}
 
 		cfg := &model.AutoChangeConfig{
-			PointIOA: ioa,
-			Strategy: model.StrategyType(autoCfg.Strategy),
-			Enabled:  autoCfg.Enabled,
-			Params:   autoCfg.Params,
+			PointIOA:  ioa,
+			Strategy:  model.StrategyType(autoCfg.Strategy),
+			Enabled:   autoCfg.Enabled,
+			Params:    autoCfg.Params,
 			UpdatedAt: time.Now(),
 		}
 		if err := h.engine.StartOrUpdate(cfg); err != nil {
@@ -941,7 +941,9 @@ func (h *DetailHandler) handleConfigCSVReplay(w http.ResponseWriter, r *http.Req
 		colMapJSON, _ := json.Marshal(colMap)
 
 		loop := req.CSVLoop
-		if loop == nil { loop = req.Loop }
+		if loop == nil {
+			loop = req.Loop
+		}
 		cfg := &model.AutoChangeConfig{
 			PointIOA: m.IOA,
 			Strategy: model.StrategyCSV,
@@ -1067,7 +1069,7 @@ func strategyToCode(s model.StrategyType) string {
 		model.StrategyEnergy:    "7",
 		model.StrategyAOFollow:  "8",
 		model.StrategyAPIUpdate: "9",
-		model.StrategyManual:   "10",
+		model.StrategyManual:    "10",
 	}
 	return m[s]
 }
@@ -1351,7 +1353,9 @@ func (h *DetailHandler) HandleBatchReplay(w http.ResponseWriter, r *http.Request
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "mappings is required"})
 		return
 	}
-	if req.OnError == "" { req.OnError = "continue" }
+	if req.OnError == "" {
+		req.OnError = "continue"
+	}
 
 	batchID := fmt.Sprintf("batch_%s_%d", h.instID[:8], atomic.AddInt64(&batchIDSeq, 1))
 
@@ -1395,24 +1399,31 @@ func (h *DetailHandler) handleBatchProgress(w http.ResponseWriter, r *http.Reque
 func (h *DetailHandler) runBatchReplay(bs *batchState) {
 	defer func() {
 		bs.mu.Lock()
-		if bs.Status == "running" { bs.Status = "done" }
+		if bs.Status == "running" {
+			bs.Status = "done"
+		}
 		bs.mu.Unlock()
 	}()
 
 	for _, csvFile := range bs.CSVFiles {
 		select {
-		case <-bs.cancel: return
+		case <-bs.cancel:
+			return
 		default:
 		}
 
 		bs.mu.Lock()
-		if fr, ok := bs.FileResults[csvFile]; ok { fr.Status = "running" }
+		if fr, ok := bs.FileResults[csvFile]; ok {
+			fr.Status = "running"
+		}
 		bs.mu.Unlock()
 
 		// Auto cleanup: delete old auto-change configs for mapped IOAs
 		if bs.AutoCleanup {
 			for _, m := range bs.Mappings {
-				if h.engine != nil { h.engine.Remove(m.IOA) }
+				if h.engine != nil {
+					h.engine.Remove(m.IOA)
+				}
 			}
 			time.Sleep(2 * time.Second)
 		}
@@ -1423,7 +1434,11 @@ func (h *DetailHandler) runBatchReplay(bs *batchState) {
 			bs.Failed++
 			bs.FileResults[csvFile].Status = "failed"
 			bs.FileResults[csvFile].Error = err.Error()
-			if bs.OnError == "stop" { bs.Status = "failed"; bs.mu.Unlock(); return }
+			if bs.OnError == "stop" {
+				bs.Status = "failed"
+				bs.mu.Unlock()
+				return
+			}
 		} else {
 			bs.Completed++
 			bs.FileResults[csvFile].Status = "done"
@@ -1433,7 +1448,8 @@ func (h *DetailHandler) runBatchReplay(bs *batchState) {
 
 		if bs.PauseBetween > 0 {
 			select {
-			case <-bs.cancel: return
+			case <-bs.cancel:
+				return
 			case <-time.After(time.Duration(bs.PauseBetween) * time.Second):
 			}
 		}
@@ -1441,9 +1457,13 @@ func (h *DetailHandler) runBatchReplay(bs *batchState) {
 }
 
 func (h *DetailHandler) playOneCSVFile(fileName string, mappings []csvReplayMapping) error {
-	if h.engine == nil { return fmt.Errorf("engine not available") }
+	if h.engine == nil {
+		return fmt.Errorf("engine not available")
+	}
 	for _, m := range mappings {
-		if _, ok := h.store.Get(m.IOA); !ok { continue }
+		if _, ok := h.store.Get(m.IOA); !ok {
+			continue
+		}
 		colMap := map[int]uint32{m.Column: m.IOA}
 		colMapJSON, _ := json.Marshal(colMap)
 		cfg := &model.AutoChangeConfig{
@@ -1473,9 +1493,15 @@ func (h *DetailHandler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 	pulseStatus := "INACTIVE"
 
 	if h.store != nil {
-		if p, ok := h.store.Get(16385); ok { pEDC = p.Value }
-		if p, ok := h.store.Get(16386); ok { count = int(p.Value) }
-		if p, ok := h.store.Get(16387); ok { cmd = p.Value }
+		if p, ok := h.store.Get(16385); ok {
+			pEDC = p.Value
+		}
+		if p, ok := h.store.Get(16386); ok {
+			count = int(p.Value)
+		}
+		if p, ok := h.store.Get(16387); ok {
+			cmd = p.Value
+		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
@@ -1487,11 +1513,20 @@ func (h *DetailHandler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *DetailHandler) collectMetrics() map[string]interface{} {
-	pEDC := 0.0; count := 0; cmd := 0.0; pulseStatus := "IDLE_PERIOD"
+	pEDC := 0.0
+	count := 0
+	cmd := 0.0
+	pulseStatus := "IDLE_PERIOD"
 	if h.store != nil {
-		if p, ok := h.store.Get(16385); ok { pEDC = p.Value }
-		if p, ok := h.store.Get(16386); ok { count = int(p.Value) }
-		if p, ok := h.store.Get(16387); ok { cmd = p.Value }
+		if p, ok := h.store.Get(16385); ok {
+			pEDC = p.Value
+		}
+		if p, ok := h.store.Get(16386); ok {
+			count = int(p.Value)
+		}
+		if p, ok := h.store.Get(16387); ok {
+			cmd = p.Value
+		}
 	}
 	return map[string]interface{}{"p_edc": pEDC, "count": count, "cmd": cmd, "pulse_status": pulseStatus}
 }

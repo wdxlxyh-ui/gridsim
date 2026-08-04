@@ -8,6 +8,12 @@ Thumbs.db
 # Sisyphus 工作目录
 .sisyphus/
 
+# MCP 调试日志
+.playwright-mcp/
+
+# 备份目录
+backups/
+
 # 临时测试文件
 /tmp/
 

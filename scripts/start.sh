@@ -6,6 +6,7 @@ DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PID_FILE="$DIR/logs/pid"
 LOG_DIR="$DIR/logs"
 CONFIG_DIR="$DIR/config"
+HTTP_PORT="${GRIDSIM_HTTP_PORT:-8989}"
 
 # Ensure directories exist
 mkdir -p "$LOG_DIR" "$CONFIG_DIR"
@@ -26,7 +27,7 @@ cd "$DIR"
 
 # Start the simulator
 nohup "$DIR/bin/gridsim" serve \
-    --http ":8989" \
+    --http ":$HTTP_PORT" \
     --config-dir "$CONFIG_DIR" \
     --log-dir "$LOG_DIR" \
     --log info \
@@ -35,4 +36,4 @@ nohup "$DIR/bin/gridsim" serve \
 SIM_PID=$!
 echo $SIM_PID > "$PID_FILE"
 echo "IEC104 Sim started (PID: $SIM_PID)"
-echo "Web UI: http://localhost:8989"
+echo "Web UI: http://localhost:$HTTP_PORT"
