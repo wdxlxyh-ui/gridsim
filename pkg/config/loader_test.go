@@ -145,3 +145,103 @@ func TestLoadFromXLSX_InvalidPointType(t *testing.T) {
 		t.Error("expected error for unknown point-type, got nil")
 	}
 }
+
+func TestLoadFromXLSX_ModbusAllowsZeroRegisterAddress(t *testing.T) {
+	dir := t.TempDir()
+	xlsxPath := filepath.Join(dir, "modbus-zero-address.xlsx")
+
+	f := excelize.NewFile()
+	f.SetSheetName("Sheet1", "point")
+	headers := []string{"point-name", "point-number", "value-type", "point-type", "efficient", "base-value", "alias", "register-address", "function-code"}
+	for i, header := range headers {
+		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+		f.SetCellValue("point", cell, header)
+	}
+	values := []interface{}{"AI_0", 1, "FLOAT", "AI", 1.0, 12.5, "", 0, 3}
+	for i, value := range values {
+		cell, _ := excelize.CoordinatesToCellName(i+1, 2)
+		f.SetCellValue("point", cell, value)
+	}
+	if err := f.SaveAs(xlsxPath); err != nil {
+		t.Fatalf("failed to create test xlsx: %v", err)
+	}
+
+	points, err := LoadFromXLSX(xlsxPath, "modbus_tcp")
+	if err != nil {
+		t.Fatalf("LoadFromXLSX failed: %v", err)
+	}
+	if len(points) != 1 || points[0].RegisterAddress != 0 || points[0].FunctionCode != 3 {
+		t.Fatalf("unexpected points: %+v", points)
+	}
+}
+
+func TestLoadFromXLSX_ModbusRejectsDuplicateFunctionAndAddress(t *testing.T) {
+	dir := t.TempDir()
+	xlsxPath := filepath.Join(dir, "modbus-duplicate-address.xlsx")
+
+	f := excelize.NewFile()
+	f.SetSheetName("Sheet1", "point")
+	headers := []string{"point-name", "point-number", "value-type", "point-type", "efficient", "base-value", "alias", "register-address", "function-code"}
+	for i, header := range headers {
+		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+		f.SetCellValue("point", cell, header)
+	}
+	rows := [][]interface{}{
+		{"AI_1", 1, "FLOAT", "AI", 1.0, 1.0, "", 100, 3},
+		{"AI_2", 2, "FLOAT", "AI", 1.0, 2.0, "", 100, 3},
+	}
+	for rowIndex, row := range rows {
+		for columnIndex, value := range row {
+			cell, _ := excelize.CoordinatesToCellName(columnIndex+1, rowIndex+2)
+			f.SetCellValue("point", cell, value)
+		}
+	}
+	if err := f.SaveAs(xlsxPath); err != nil {
+		t.Fatalf("failed to create test xlsx: %v", err)
+	}
+
+	if _, err := LoadFromXLSX(xlsxPath, "modbus_tcp"); err == nil {
+		t.Fatal("expected duplicate Modbus function/address error")
+	}
+}
+
+func TestLoadFromXLSX_ModbusRejectsOverlapping32BitRegisters(t *testing.T) {
+	dir := t.TempDir()
+	xlsxPath := filepath.Join(dir, "modbus-overlap.xlsx")
+
+	f := excelize.NewFile()
+	f.SetSheetName("Sheet1", "point")
+	headers := []string{"point-name", "point-number", "value-type", "point-type", "efficient", "base-value", "alias", "register-address", "function-code"}
+	for i, header := range headers {
+		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+		f.SetCellValue("point", cell, header)
+	}
+	rows := [][]interface{}{
+		{"AI_1", 1, "FLOAT", "AI", 1.0, 1.0, "", 100, 3},
+		{"AI_2", 2, "FLOAT", "AI", 1.0, 2.0, "", 101, 3},
+	}
+	for rowIndex, row := range rows {
+		for columnIndex, value := range row {
+			cell, _ := excelize.CoordinatesToCellName(columnIndex+1, rowIndex+2)
+			f.SetCellValue("point", cell, value)
+		}
+	}
+	if err := f.SaveAs(xlsxPath); err != nil {
+		t.Fatalf("failed to create test xlsx: %v", err)
+	}
+
+	if _, err := LoadFromXLSX(xlsxPath, "modbus_tcp"); err == nil {
+		t.Fatal("expected overlapping 32-bit Modbus register error")
+	}
+}
+
+func TestLoadFromXLSX_BundledModbusSample(t *testing.T) {
+	path := filepath.Join("..", "..", "samples", "ModbusTCP-ESS.xlsx")
+	points, err := LoadFromXLSX(path, "modbus_tcp")
+	if err != nil {
+		t.Fatalf("bundled Modbus sample failed to load: %v", err)
+	}
+	if len(points) != 5 {
+		t.Fatalf("bundled Modbus sample points = %d, want 5", len(points))
+	}
+}

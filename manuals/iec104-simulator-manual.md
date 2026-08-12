@@ -213,7 +213,7 @@ curl -X POST http://localhost:8989/api/v1/instances \
 | 3 | Read Holding Registers | 读取 AI 测点（FLOAT/DOUBLE） |
 | 4 | Read Input Registers | 读取 AI 测点（FLOAT/DOUBLE） |
 | 5 | Write Single Coil | 写入 DI 测点 |
-| 6 | Write Single Register | 写入 AI 测点 |
+| 6 | Write Single Register | 当前数值点为 32 位，FC6 会返回非法数据值；请使用 FC16 |
 | 16 | Write Multiple Registers | 批量写入 AI 测点 |
 
 ---

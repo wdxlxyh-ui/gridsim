@@ -658,7 +658,9 @@ function handleEdit(row: InstanceState) {
   form.value = {
     id: row.id,
     name: row.name,
-    iec104_port: row.iec104_port,
+    iec104_port: row.protocol === 'modbus_tcp' && row.modbus_config?.port
+      ? row.modbus_config.port
+      : row.iec104_port,
     xlsx_file: row.xlsx_file,
     http_enabled: row.http_enabled ?? false,
     http_port: row.http_port ?? 8081,
@@ -676,8 +678,13 @@ function handleEdit(row: InstanceState) {
   } else {
     bridgeConfig.value = defaultBridgeConfig()
   }
-  modbusSlaveId.value = 1
-  modbusByteOrder.value = 'ABCD'
+  if (row.protocol === 'modbus_tcp' && row.modbus_config) {
+    modbusSlaveId.value = row.modbus_config.slave_id ?? 1
+    modbusByteOrder.value = row.modbus_config.byte_order || 'ABCD'
+  } else {
+    modbusSlaveId.value = 1
+    modbusByteOrder.value = 'ABCD'
+  }
   showAddDialog.value = true
 }
 

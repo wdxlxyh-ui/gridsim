@@ -843,7 +843,7 @@ func (ws *webServer) handleState(w http.ResponseWriter, r *http.Request) {
 		}
 
 		port := cfg.IEC104Port
-		if cfg.Protocol == "modbus" && cfg.ModbusConfig != nil {
+		if cfg.Protocol == "modbus_tcp" && cfg.ModbusConfig != nil && cfg.ModbusConfig.Port > 0 {
 			port = cfg.ModbusConfig.Port
 		}
 

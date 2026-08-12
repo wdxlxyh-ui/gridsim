@@ -27,6 +27,7 @@ func LoadFromXLSX(path string, protocol string) ([]*Point, error) {
 	var points []*Point
 	// 不同测点类型（AI/AO/DI/DO）可以复用相同的 IOA 地址空间
 	seen := make(map[string]bool)
+	occupiedModbus := make(map[uint32]int)
 
 	for i, row := range rows[1:] {
 		if len(row) < 6 {
@@ -111,6 +112,8 @@ func LoadFromXLSX(path string, protocol string) ([]*Point, error) {
 
 		functionCode := uint8(0)
 		registerAddr := uint16(0)
+		functionCodeSet := false
+		registerAddrSet := false
 		byteOrder := "ABCD"
 
 		// Modbus TCP 格式列顺序: register-address, function-code, value-type(可忽略), group-number, call-interval, user-defined-rule
@@ -124,6 +127,7 @@ func LoadFromXLSX(path string, protocol string) ([]*Point, error) {
 					return nil, fmt.Errorf("row %d: invalid register_address %q: %w", i+2, raStr, err)
 				}
 				registerAddr = uint16(ra)
+				registerAddrSet = true
 			}
 		}
 
@@ -134,17 +138,50 @@ func LoadFromXLSX(path string, protocol string) ([]*Point, error) {
 					return nil, fmt.Errorf("row %d: invalid function_code %q: %w", i+2, fcStr, err)
 				}
 				functionCode = uint8(fc)
+				functionCodeSet = true
 			}
 		}
 
 		// 列9-12 (index 9-12): 忽略 group-number, call-interval, user-defined-rule
 
 		isModbus := protocol == "modbus_tcp" || protocol == "modbus_rtu"
-		if isModbus && functionCode == 0 {
+		if isModbus && !functionCodeSet {
 			return nil, fmt.Errorf("row %d: function_code is required for Modbus protocol", i+2)
 		}
-		if isModbus && registerAddr == 0 && functionCode != 0 {
+		if isModbus && !registerAddrSet {
 			return nil, fmt.Errorf("row %d: register_address is required for Modbus protocol", i+2)
+		}
+		if isModbus {
+			if functionCode == 6 {
+				return nil, fmt.Errorf("row %d: Modbus function_code 6 is not supported for 32-bit points; use function_code 16", i+2)
+			}
+			switch functionCode {
+			case 1, 2, 3, 4, 5, 15, 16:
+			default:
+				return nil, fmt.Errorf("row %d: unsupported Modbus function_code %d", i+2, functionCode)
+			}
+			addressSpace := functionCode
+			switch functionCode {
+			case 5, 15:
+				addressSpace = 1
+			case 16:
+				addressSpace = 3
+			}
+			width := uint32(1)
+			if (addressSpace == 3 || addressSpace == 4) &&
+				(pt == TypeAI || pt == TypeAO || pt == TypePI) {
+				width = 2
+			}
+			if uint32(registerAddr)+width > 1<<16 {
+				return nil, fmt.Errorf("row %d: Modbus value at register_address %d exceeds address space", i+2, registerAddr)
+			}
+			for offset := uint32(0); offset < width; offset++ {
+				key := uint32(addressSpace)<<16 | uint32(registerAddr) + offset
+				if previousRow, exists := occupiedModbus[key]; exists {
+					return nil, fmt.Errorf("row %d: Modbus address range overlaps row %d at register_address %d", i+2, previousRow, uint32(registerAddr)+offset)
+				}
+				occupiedModbus[key] = i + 2
+			}
 		}
 
 		p := &Point{

@@ -30,6 +30,17 @@ func generateID() string {
 	return hex.EncodeToString(b)
 }
 
+func instanceProtocolPort(cfg model.InstanceConfig) int {
+	if cfg.Protocol == "modbus_tcp" && cfg.ModbusConfig != nil && cfg.ModbusConfig.Port > 0 {
+		return cfg.ModbusConfig.Port
+	}
+	return cfg.IEC104Port
+}
+
+func usesProtocolServerPort(cfg model.InstanceConfig) bool {
+	return cfg.Protocol != "iec104_client" && cfg.Protocol != "modbus_bridge"
+}
+
 // Instance wraps a running protocol server instance.
 type Instance struct {
 	Config     model.InstanceConfig
@@ -87,12 +98,23 @@ func (m *Manager) CreateConfig(cfg model.InstanceConfig) (model.InstanceConfig, 
 		return model.InstanceConfig{}, fmt.Errorf("maximum %d instances allowed", MaxInstances)
 	}
 
-	// Check IEC104 port conflict with other configs (skip for client mode, no server port needed)
+	// Check the actual protocol listener port, which may come from modbus_config.
+	cfgPort := instanceProtocolPort(cfg)
+	if usesProtocolServerPort(cfg) && cfg.HttpEnabled && cfgPort == cfg.HttpPort {
+		return model.InstanceConfig{}, fmt.Errorf("protocol port and http port cannot both use %d", cfgPort)
+	}
 	for _, existing := range m.store.List() {
-		if cfg.Protocol == "iec104_client" || cfg.Protocol == "modbus_bridge" {
-			// client mode and modbus_bridge don't use IEC104 server port, skip IEC104 port collision check
-		} else if existing.IEC104Port == cfg.IEC104Port && cfg.IEC104Port != 0 {
-			return model.InstanceConfig{}, fmt.Errorf("port %d already configured for instance %s", cfg.IEC104Port, existing.ID)
+		existingPort := instanceProtocolPort(existing)
+		if usesProtocolServerPort(cfg) && usesProtocolServerPort(existing) {
+			if cfgPort != 0 && existingPort == cfgPort {
+				return model.InstanceConfig{}, fmt.Errorf("port %d already configured for instance %s", cfgPort, existing.ID)
+			}
+		}
+		if usesProtocolServerPort(cfg) && existing.HttpEnabled && existing.HttpPort == cfgPort {
+			return model.InstanceConfig{}, fmt.Errorf("port %d already configured as http port for instance %s", cfgPort, existing.ID)
+		}
+		if cfg.HttpEnabled && usesProtocolServerPort(existing) && existingPort == cfg.HttpPort {
+			return model.InstanceConfig{}, fmt.Errorf("http port %d already configured as protocol port for instance %s", cfg.HttpPort, existing.ID)
 		}
 		if cfg.HttpEnabled && existing.HttpEnabled && existing.HttpPort == cfg.HttpPort {
 			return model.InstanceConfig{}, fmt.Errorf("http port %d already configured for instance %s", cfg.HttpPort, existing.ID)
@@ -140,18 +162,34 @@ func (m *Manager) StartInstance(id string) error {
 		return fmt.Errorf("instance %s not found", id)
 	}
 
+	protocolPort := instanceProtocolPort(cfg)
+	if cfg.Protocol == "modbus_tcp" {
+		// Keep runtime metadata, logs and firewall rules aligned with the port
+		// that protocol.New will actually bind.
+		cfg.IEC104Port = protocolPort
+	}
+	if cfg.HttpEnabled && cfg.HttpPort == protocolPort {
+		return fmt.Errorf("protocol port and http port cannot both use %d", protocolPort)
+	}
 	for _, inst := range m.instances {
-		if inst.Config.IEC104Port == cfg.IEC104Port {
-			return fmt.Errorf("port %d already in use by instance %s", cfg.IEC104Port, inst.Config.ID)
+		existingPort := instanceProtocolPort(inst.Config)
+		if usesProtocolServerPort(inst.Config) && existingPort == protocolPort {
+			return fmt.Errorf("port %d already in use by instance %s", protocolPort, inst.Config.ID)
+		}
+		if inst.Config.HttpEnabled && inst.Config.HttpPort == protocolPort {
+			return fmt.Errorf("port %d already used as http port by instance %s", protocolPort, inst.Config.ID)
+		}
+		if cfg.HttpEnabled && usesProtocolServerPort(inst.Config) && existingPort == cfg.HttpPort {
+			return fmt.Errorf("http port %d already used as protocol port by instance %s", cfg.HttpPort, inst.Config.ID)
 		}
 		if cfg.HttpEnabled && inst.Config.HttpEnabled && inst.Config.HttpPort == cfg.HttpPort {
 			return fmt.Errorf("http port %d already in use by instance %s", cfg.HttpPort, inst.Config.ID)
 		}
 	}
 
-	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.IEC104Port))
+	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", protocolPort))
 	if err != nil {
-		return fmt.Errorf("port %d not available: %w", cfg.IEC104Port, err)
+		return fmt.Errorf("port %d not available: %w", protocolPort, err)
 	}
 	ln.Close()
 
@@ -254,8 +292,31 @@ func (m *Manager) UpdateConfig(cfg model.InstanceConfig) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	newPort := instanceProtocolPort(cfg)
+	if usesProtocolServerPort(cfg) && cfg.HttpEnabled && newPort == cfg.HttpPort {
+		return fmt.Errorf("protocol port and http port cannot both use %d", newPort)
+	}
+	for _, existing := range m.store.List() {
+		if existing.ID == cfg.ID {
+			continue
+		}
+		existingPort := instanceProtocolPort(existing)
+		if usesProtocolServerPort(cfg) && usesProtocolServerPort(existing) && newPort != 0 && existingPort == newPort {
+			return fmt.Errorf("port %d already configured for instance %s", newPort, existing.ID)
+		}
+		if usesProtocolServerPort(cfg) && existing.HttpEnabled && existing.HttpPort == newPort {
+			return fmt.Errorf("port %d already configured as http port for instance %s", newPort, existing.ID)
+		}
+		if cfg.HttpEnabled && usesProtocolServerPort(existing) && existingPort == cfg.HttpPort {
+			return fmt.Errorf("http port %d already configured as protocol port for instance %s", cfg.HttpPort, existing.ID)
+		}
+		if cfg.HttpEnabled && existing.HttpEnabled && existing.HttpPort == cfg.HttpPort {
+			return fmt.Errorf("http port %d already configured for instance %s", cfg.HttpPort, existing.ID)
+		}
+	}
+
 	if inst, ok := m.instances[cfg.ID]; ok {
-		oldPort := inst.Config.IEC104Port
+		oldPort := instanceProtocolPort(inst.Config)
 		inst.Protocol.Stop()
 		if inst.HTTPServer != nil {
 			inst.HTTPServer.Close()
@@ -263,9 +324,15 @@ func (m *Manager) UpdateConfig(cfg model.InstanceConfig) error {
 		}
 		if inst.Logger != nil {
 			inst.Logger.Close()
-			if oldPort != cfg.IEC104Port {
-				RenameInstanceLogDir(m.cfgDir, cfg.ID, cfg.ID, oldPort, cfg.IEC104Port)
+			if oldPort != newPort {
+				RenameInstanceLogDir(m.cfgDir, cfg.ID, cfg.ID, oldPort, newPort)
 			}
+		}
+		if usesProtocolServerPort(inst.Config) {
+			firewall.RemovePort(oldPort)
+		}
+		if inst.Config.HttpEnabled && inst.Config.HttpPort > 0 {
+			firewall.RemovePort(inst.Config.HttpPort)
 		}
 		delete(m.instances, cfg.ID)
 	}
@@ -288,9 +355,9 @@ func (m *Manager) DeleteConfig(id string) error {
 		}
 		if inst.Logger != nil {
 			inst.Logger.Close()
-			RemoveInstanceLogDir(m.cfgDir, inst.Config.ID, inst.Config.IEC104Port)
+			RemoveInstanceLogDir(m.cfgDir, inst.Config.ID, instanceProtocolPort(inst.Config))
 		}
-		firewall.RemovePort(inst.Config.IEC104Port)
+		firewall.RemovePort(instanceProtocolPort(inst.Config))
 		if inst.Config.HttpEnabled && inst.Config.HttpPort > 0 {
 			firewall.RemovePort(inst.Config.HttpPort)
 		}
@@ -298,7 +365,7 @@ func (m *Manager) DeleteConfig(id string) error {
 	} else {
 		cfg, _ := m.store.Get(id)
 		if cfg.ID != "" {
-			RemoveInstanceLogDir(m.cfgDir, cfg.ID, cfg.IEC104Port)
+			RemoveInstanceLogDir(m.cfgDir, cfg.ID, instanceProtocolPort(cfg))
 		}
 	}
 
@@ -328,14 +395,14 @@ func (m *Manager) StopInstance(id string) error {
 
 	if inst.Logger != nil {
 		inst.Logger.Close()
-		RemoveInstanceLogDir(m.cfgDir, inst.Config.ID, inst.Config.IEC104Port)
+		RemoveInstanceLogDir(m.cfgDir, inst.Config.ID, instanceProtocolPort(inst.Config))
 	}
 
-	if inst.Config.Protocol != "iec104_client" {
-		firewall.RemovePort(inst.Config.IEC104Port)
-		if inst.Config.HttpEnabled && inst.Config.HttpPort > 0 {
-			firewall.RemovePort(inst.Config.HttpPort)
-		}
+	if usesProtocolServerPort(inst.Config) {
+		firewall.RemovePort(instanceProtocolPort(inst.Config))
+	}
+	if inst.Config.HttpEnabled && inst.Config.HttpPort > 0 {
+		firewall.RemovePort(inst.Config.HttpPort)
 	}
 
 	delete(m.instances, id)
