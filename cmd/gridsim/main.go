@@ -239,10 +239,6 @@ func (ws *webServer) registerRoutes(mux *http.ServeMux, configDir string, httpAd
 	// Python Microgrid (modbus_bridge) routes
 	ws.registerPyMicrogridRoutes(mux)
 
-	// EnOS 凭据管理路由
-	mux.HandleFunc("/api/v1/secrets/enos", ws.handleEnOSCredentials)
-	mux.HandleFunc("/api/v1/secrets/enos/", ws.handleEnOSCredentials)
-
 	mux.Handle("/openapi.json", openapi.New(strings.TrimPrefix(httpAddr, ":")))
 	mux.HandleFunc("/api/v1/events", func(w http.ResponseWriter, r *http.Request) {
 		ws.eventBus.ServeSSE(w, r)

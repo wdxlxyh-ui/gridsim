@@ -48,12 +48,6 @@ func (ws *webServer) registerPyMicrogridRoutes(mux *http.ServeMux) {
 			ws.handlePyMicrogridUploadCurve(w, r, id)
 		case strings.HasPrefix(action, "export-points"):
 			ws.handlePyMicrogridExportPoints(w, r, id)
-		case strings.HasPrefix(action, "spec"):
-			ws.handlePyMicrogridSpec(w, r, id)
-		case strings.HasPrefix(action, "validate"):
-			ws.handlePyMicrogridValidate(w, r, id)
-		case strings.HasPrefix(action, "runtime"):
-			ws.handlePyMicrogridRuntime(w, r, id)
 		default:
 			writeError(w, http.StatusNotFound, "unknown py-microgrid endpoint: "+action)
 		}
