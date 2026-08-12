@@ -245,3 +245,62 @@ func TestLoadFromXLSX_BundledModbusSample(t *testing.T) {
 		t.Fatalf("bundled Modbus sample points = %d, want 5", len(points))
 	}
 }
+
+func TestLoadFromXLSX_ModbusAllowsFC6FloatPoint(t *testing.T) {
+	dir := t.TempDir()
+	xlsxPath := filepath.Join(dir, "modbus-fc6-float.xlsx")
+
+	f := excelize.NewFile()
+	f.SetSheetName("Sheet1", "point")
+	headers := []string{"point-name", "point-number", "value-type", "point-type", "efficient", "base-value", "alias", "register-address", "function-code"}
+	for i, header := range headers {
+		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+		f.SetCellValue("point", cell, header)
+	}
+	row := []interface{}{"AO_FC6", 1, "FLOAT", "AO", 1.0, 0.0, "", 31, 6}
+	for columnIndex, value := range row {
+		cell, _ := excelize.CoordinatesToCellName(columnIndex+1, 2)
+		f.SetCellValue("point", cell, value)
+	}
+	if err := f.SaveAs(xlsxPath); err != nil {
+		t.Fatalf("failed to create test xlsx: %v", err)
+	}
+
+	points, err := LoadFromXLSX(xlsxPath, "modbus_tcp")
+	if err != nil {
+		t.Fatalf("FC6 FLOAT point failed to load: %v", err)
+	}
+	if len(points) != 1 || points[0].FunctionCode != 6 || points[0].RegisterAddress != 31 {
+		t.Fatalf("unexpected FC6 point: %+v", points)
+	}
+}
+
+func TestLoadFromXLSX_ModbusRejectsFC3FC6AddressOverlap(t *testing.T) {
+	dir := t.TempDir()
+	xlsxPath := filepath.Join(dir, "modbus-fc3-fc6-overlap.xlsx")
+
+	f := excelize.NewFile()
+	f.SetSheetName("Sheet1", "point")
+	headers := []string{"point-name", "point-number", "value-type", "point-type", "efficient", "base-value", "alias", "register-address", "function-code"}
+	for i, header := range headers {
+		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+		f.SetCellValue("point", cell, header)
+	}
+	rows := [][]interface{}{
+		{"AI_FC3", 1, "FLOAT", "AI", 1.0, 1.0, "", 30, 3},
+		{"AO_FC6", 2, "FLOAT", "AO", 1.0, 2.0, "", 31, 6},
+	}
+	for rowIndex, row := range rows {
+		for columnIndex, value := range row {
+			cell, _ := excelize.CoordinatesToCellName(columnIndex+1, rowIndex+2)
+			f.SetCellValue("point", cell, value)
+		}
+	}
+	if err := f.SaveAs(xlsxPath); err != nil {
+		t.Fatalf("failed to create test xlsx: %v", err)
+	}
+
+	if _, err := LoadFromXLSX(xlsxPath, "modbus_tcp"); err == nil {
+		t.Fatal("expected FC3/FC6 holding-register address overlap error")
+	}
+}

@@ -212,9 +212,10 @@ curl -X POST http://localhost:8989/api/v1/instances \
 | 1 | Read Coils | 读取 DI 测点 |
 | 3 | Read Holding Registers | 读取 AI 测点（FLOAT/DOUBLE） |
 | 4 | Read Input Registers | 读取 AI 测点（FLOAT/DOUBLE） |
-| 5 | Write Single Coil | 写入 DI 测点 |
-| 6 | Write Single Register | 当前数值点为 32 位，FC6 会返回非法数据值；请使用 FC16 |
-| 16 | Write Multiple Registers | 批量写入 AI 测点 |
+| 5 | Write Single Coil | 点表可使用 FC5 标识单线圈映射；FC15 批量写可匹配同一地址空间 |
+| 6 | Write Single Register | 点表可使用 FC6 标识保持寄存器映射；32 位 FLOAT 实际使用一次 FC16 写入两个连续寄存器 |
+| 15 | Write Multiple Coils | 批量写入线圈，并兼容点表中的 FC5 映射 |
+| 16 | Write Multiple Registers | 批量写入 32 位数值，并兼容点表中的 FC6 映射 |
 
 ---
 
@@ -281,7 +282,7 @@ curl -X POST http://localhost:8989/api/v1/upload \
 |----|------|------|
 | A-G | 同标准格式 | 基础测点定义（point-name, point-number, value-type, point-type, efficient, base-value, alias） |
 | H | register-address | Modbus 寄存器地址 |
-| I | function-code | Modbus 功能码（1/3/4/5/6/16） |
+| I | function-code | Modbus 功能码（1/3/4/5/6/15/16） |
 | J | value-type | Modbus 数据类型（BIT/FLOAT/DOUBLE） |
 | K | group-number | 客户端分组（忽略） |
 | L | call-interval | 客户端轮询间隔（忽略） |

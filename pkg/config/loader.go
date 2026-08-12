@@ -152,11 +152,8 @@ func LoadFromXLSX(path string, protocol string) ([]*Point, error) {
 			return nil, fmt.Errorf("row %d: register_address is required for Modbus protocol", i+2)
 		}
 		if isModbus {
-			if functionCode == 6 {
-				return nil, fmt.Errorf("row %d: Modbus function_code 6 is not supported for 32-bit points; use function_code 16", i+2)
-			}
 			switch functionCode {
-			case 1, 2, 3, 4, 5, 15, 16:
+			case 1, 2, 3, 4, 5, 6, 15, 16:
 			default:
 				return nil, fmt.Errorf("row %d: unsupported Modbus function_code %d", i+2, functionCode)
 			}
@@ -164,7 +161,7 @@ func LoadFromXLSX(path string, protocol string) ([]*Point, error) {
 			switch functionCode {
 			case 5, 15:
 				addressSpace = 1
-			case 16:
+			case 6, 16:
 				addressSpace = 3
 			}
 			width := uint32(1)

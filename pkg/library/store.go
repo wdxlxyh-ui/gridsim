@@ -22,6 +22,23 @@ func fcAddrKey(fc uint8, addr uint16) uint32 {
 	return uint32(fc)<<16 | uint32(addr)
 }
 
+func (s *Store) indexModbusPoint(p *config.Point) {
+	if p.FunctionCode == 0 {
+		return
+	}
+	s.byFCAddr[fcAddrKey(p.FunctionCode, p.RegisterAddress)] = p
+
+	// FC5/FC15 share the coil address space; FC6/FC16 share the holding
+	// register address space. Index write-oriented point-table entries under
+	// their canonical read function so single and multiple writes interoperate.
+	switch p.FunctionCode {
+	case 5, 15:
+		s.byFCAddr[fcAddrKey(1, p.RegisterAddress)] = p
+	case 6, 16:
+		s.byFCAddr[fcAddrKey(3, p.RegisterAddress)] = p
+	}
+}
+
 func NewStore(points []*config.Point) *Store {
 	s := &Store{
 		points:   make(map[uint32]*config.Point),
@@ -32,7 +49,7 @@ func NewStore(points []*config.Point) *Store {
 		s.points[p.IOA] = p
 		s.byType[p.PointType] = append(s.byType[p.PointType], p)
 		if p.FunctionCode != 0 {
-			s.byFCAddr[fcAddrKey(p.FunctionCode, p.RegisterAddress)] = p
+			s.indexModbusPoint(p)
 		}
 	}
 	return s
@@ -96,7 +113,7 @@ func (s *Store) AddPoint(p *config.Point) error {
 	s.points[p.IOA] = &cp
 	s.byType[p.PointType] = append(s.byType[p.PointType], &cp)
 	if cp.FunctionCode != 0 {
-		s.byFCAddr[fcAddrKey(cp.FunctionCode, cp.RegisterAddress)] = &cp
+		s.indexModbusPoint(&cp)
 	}
 	return nil
 }

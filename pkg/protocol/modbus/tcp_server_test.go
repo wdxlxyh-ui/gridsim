@@ -180,3 +180,43 @@ func TestConnectionEchoesClientUnitID(t *testing.T) {
 	clientConn.Close()
 	<-done
 }
+
+func TestWriteMultipleRegistersUsesFC6Mapping(t *testing.T) {
+	s := newTestServer(&config.Point{
+		IOA: 1, PointType: config.TypeAO,
+		FunctionCode: 6, RegisterAddress: 31,
+	})
+
+	got := s.handleRequest(16, []byte{0, 31, 0, 2, 4, 0x41, 0x48, 0, 0})
+	want := []byte{16, 0, 31, 0, 2}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("response = %x, want %x", got, want)
+	}
+	point, _ := s.store.Get(1)
+	if point.Value != 12.5 {
+		t.Fatalf("value = %v, want 12.5", point.Value)
+	}
+
+	got = s.handleRequest(3, []byte{0, 31, 0, 2})
+	want = []byte{3, 4, 0x41, 0x48, 0, 0}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("FC3 response for FC6 mapping = %x, want %x", got, want)
+	}
+}
+
+func TestWriteMultipleCoilsUsesFC5Mapping(t *testing.T) {
+	s := newTestServer(&config.Point{
+		IOA: 1, PointType: config.TypeDO,
+		FunctionCode: 5, RegisterAddress: 20,
+	})
+
+	got := s.handleRequest(15, []byte{0, 20, 0, 1, 1, 1})
+	want := []byte{15, 0, 20, 0, 1}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("response = %x, want %x", got, want)
+	}
+	point, _ := s.store.Get(1)
+	if !point.BoolValue {
+		t.Fatal("FC5 mapped point was not updated by FC15 request")
+	}
+}
