@@ -86,20 +86,30 @@ let pollTimer: ReturnType<typeof setInterval> | null = null
 let disposed = false
 
 // Reconcile traces when props.traces changes (template switch / add trace from parent).
-// 用 traces 的稳定签名(instId+ioa)做浅层比较，避免 deep:true 对每个配置对象做深度遍历。
-watch(() => props.traces.map(t => `${t.instId}:${t.ioa}`).join(','), () => {
-  const newConfigs = props.traces
+// 使用深度监听确保所有属性变化都能触发更新
+watch(() => props.traces, (newConfigs) => {
   const wasEmpty = panelTraces.value.length === 0
   const newTraces: Trace[] = []
+  
   for (const cfg of newConfigs) {
     const existing = panelTraces.value.find(t => t.instId === cfg.instId && t.ioa === cfg.ioa)
     if (existing) {
-      newTraces.push(existing)
+      // 更新所有属性，保留已有的数据
+      newTraces.push({
+        ...existing,
+        inst: cfg.inst,
+        name: cfg.name,
+        unit: cfg.unit,
+        alias: cfg.alias,
+        colorIdx: cfg.colorIdx,
+      })
     } else {
       newTraces.push({ ...cfg, data: [] })
     }
   }
+  
   panelTraces.value = newTraces
+  
   if (wasEmpty && newTraces.length > 0) {
     // Panel went from empty to having traces — init chart + start polling
     nextTick(() => {
@@ -112,7 +122,7 @@ watch(() => props.traces.map(t => `${t.instId}:${t.ioa}`).join(','), () => {
   } else {
     nextTick(updateChart)
   }
-})
+}, { deep: true })
 
 watch(() => props.timeRange, () => {
   trimData()
@@ -248,6 +258,12 @@ function clearAllData() {
 
 function removeTrace(i: number) {
   panelTraces.value.splice(i, 1)
+  
+  // 重新计算所有测点的colorIdx，确保颜色连续
+  panelTraces.value.forEach((t, idx) => {
+    t.colorIdx = idx
+  })
+  
   // Notify parent of trace removal so template save reflects the change
   emit('tracesChanged', props.panelId, panelTraces.value.map(t => ({
     instId: t.instId, inst: t.inst, ioa: t.ioa, name: t.name,
@@ -278,7 +294,16 @@ function downloadCSV() {
   const rows: string[][] = []
   timestamps.forEach(ts => {
     const d = new Date(ts)
-    const tStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}.${String(d.getMilliseconds()).padStart(3,'0')}`
+    // 格式：yyyy-mm-dd hh:mm:ss.000
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    const hours = String(d.getHours()).padStart(2, '0')
+    const minutes = String(d.getMinutes()).padStart(2, '0')
+    const seconds = String(d.getSeconds()).padStart(2, '0')
+    const ms = String(d.getMilliseconds()).padStart(3, '0')
+    const tStr = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${ms}`
+    
     const row = [tStr]
     traceMaps.forEach(map => {
       const v = map.get(ts)
@@ -296,9 +321,12 @@ function downloadCSV() {
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
-  a.href = url; a.download = filename
-  document.body.appendChild(a); a.click()
-  document.body.removeChild(a); URL.revokeObjectURL(url)
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }
 
 function startPolling() {

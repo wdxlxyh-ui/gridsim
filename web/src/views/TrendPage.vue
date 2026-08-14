@@ -146,20 +146,42 @@ function loadTemplates() {
 function saveTemplates() {
   try {
     localStorage.setItem('trend_templates', JSON.stringify(templates.value))
-  } catch { /* quota exceeded in private browsing */ }
+  } catch (err) {
+    console.error('保存模板失败:', err)
+    ElMessage.error('保存模板失败：本地存储已满或处于隐私模式')
+  }
 }
 
 function loadTemplate(id: string) {
   const tpl = templates.value.find(t => t.id === id)
   if (!tpl) return
-  if (panels.value.length === 0) {
-    panels.value.push({ id: genId(), templateId: tpl.id, traceConfigs: JSON.parse(JSON.stringify(tpl.traces)) })
+  
+  // 如果第一个面板有测点，提示用户确认
+  if (panels.value.length > 0 && panels.value[0].traceConfigs.length > 0) {
+    ElMessageBox.confirm(
+      '加载模板会覆盖当前面板的测点配置，是否继续？',
+      '确认加载',
+      { type: 'warning' }
+    ).then(() => {
+      panels.value[0].traceConfigs = JSON.parse(JSON.stringify(tpl.traces))
+      panels.value[0].templateId = tpl.id
+      debouncedSave()
+      ElMessage.success('模板已加载')
+    }).catch(() => {
+      // 用户取消，重置选择
+      activeTemplateId.value = ''
+    })
   } else {
-    // Update first panel's traces
-    panels.value[0].traceConfigs = JSON.parse(JSON.stringify(tpl.traces))
-    panels.value[0].templateId = tpl.id
+    // 没有测点或没有面板，直接加载
+    if (panels.value.length === 0) {
+      panels.value.push({ id: genId(), templateId: tpl.id, traceConfigs: JSON.parse(JSON.stringify(tpl.traces)) })
+    } else {
+      panels.value[0].traceConfigs = JSON.parse(JSON.stringify(tpl.traces))
+      panels.value[0].templateId = tpl.id
+    }
+    debouncedSave()
+    ElMessage.success('模板已加载')
   }
-  debouncedSave()
 }
 
 function saveTemplate() {
@@ -304,7 +326,10 @@ function savePanels() {
       traceConfigs: p.traceConfigs,
     }))
     localStorage.setItem('trend_panels', JSON.stringify(save))
-  } catch { /* quota exceeded in private browsing */ }
+  } catch (err) {
+    console.error('保存面板失败:', err)
+    ElMessage.error('保存失败：本地存储已满或处于隐私模式，数据可能无法持久化')
+  }
 }
 
 function loadPanels() {
@@ -330,14 +355,16 @@ function genId(): string {
 
 onMounted(() => {
   loadTemplates()
-  // Check for pending traces from DetailPage
+  loadPanels()  // ✅ 先加载已保存的面板
+  
+  // 然后处理待添加测点（从详情页跳转过来）
   const pendingRaw = localStorage.getItem('trend_pending_traces')
   if (pendingRaw) {
     try {
       const pendingTraces: TraceConfig[] = JSON.parse(pendingRaw)
       localStorage.removeItem('trend_pending_traces')
       if (pendingTraces.length > 0) {
-        // Create or reuse first panel
+        // 确保有面板
         if (panels.value.length === 0) {
           panels.value.push({ id: genId(), templateId: '', traceConfigs: [] })
         }
@@ -348,15 +375,11 @@ onMounted(() => {
             panel.traceConfigs.push(trace)
           }
         }
+        // ✅ 立即保存
+        savePanels()
         ElMessage.success(`已添加 ${pendingTraces.length} 个测点趋势`)
       }
     } catch { /* ignore */ }
-  }
-  if (panels.value.length === 0) {
-    loadPanels()
-  }
-  if (panels.value.length === 0) {
-    // No panels, user sees empty state
   }
 })
 
