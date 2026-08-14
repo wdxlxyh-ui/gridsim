@@ -385,7 +385,7 @@ func (s *ModbusTCPServer) writeSingleCoil(data []byte) []byte {
 	s.controlCnt.Add(1)
 	slog.Info("Modbus TCP 写线圈", "ioa", pt.IOA, "addr", addr, "value", on)
 
-	resp := make([]byte, 4)
+	resp := make([]byte, 5)
 	resp[0] = 0x05
 	copy(resp[1:], data[:4])
 	return resp
