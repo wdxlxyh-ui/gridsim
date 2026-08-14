@@ -80,6 +80,17 @@ func TestStore_SetBoolValue(t *testing.T) {
 	if !p.BoolValue {
 		t.Error("expected BoolValue=true")
 	}
+	if p.Value != 1 {
+		t.Errorf("expected Value=1 when BoolValue=true, got %f", p.Value)
+	}
+
+	p, err = s.SetBoolValue(2001, false)
+	if err != nil {
+		t.Fatalf("SetBoolValue(false) failed: %v", err)
+	}
+	if p.BoolValue || p.Value != 0 {
+		t.Errorf("expected BoolValue=false and Value=0, got BoolValue=%v Value=%f", p.BoolValue, p.Value)
+	}
 
 	_, err = s.SetBoolValue(9999, true)
 	if err == nil {

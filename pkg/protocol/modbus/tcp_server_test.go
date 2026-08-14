@@ -220,3 +220,29 @@ func TestWriteMultipleCoilsUsesFC5Mapping(t *testing.T) {
 		t.Fatal("FC5 mapped point was not updated by FC15 request")
 	}
 }
+
+func TestWriteSingleCoilUsesFC15MappingAndSyncsValue(t *testing.T) {
+	s := newTestServer(&config.Point{
+		IOA: 10, PointType: config.TypeDO,
+		FunctionCode: 15, RegisterAddress: 21,
+	})
+
+	got := s.handleRequest(5, []byte{0, 21, 0xff, 0})
+	want := []byte{5, 0, 21, 0xff, 0}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("response = %x, want %x", got, want)
+	}
+	point, _ := s.store.Get(10)
+	if !point.BoolValue || point.Value != 1 {
+		t.Fatalf("expected BoolValue=true and Value=1, got BoolValue=%v Value=%v", point.BoolValue, point.Value)
+	}
+
+	got = s.handleRequest(5, []byte{0, 21, 0, 0})
+	want = []byte{5, 0, 21, 0, 0}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("response = %x, want %x", got, want)
+	}
+	if point.BoolValue || point.Value != 0 {
+		t.Fatalf("expected BoolValue=false and Value=0, got BoolValue=%v Value=%v", point.BoolValue, point.Value)
+	}
+}

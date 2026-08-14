@@ -152,6 +152,11 @@ func (s *Store) SetBoolValue(ioa uint32, val bool) (*config.Point, error) {
 	}
 
 	p.BoolValue = val
+	if val {
+		p.Value = 1
+	} else {
+		p.Value = 0
+	}
 	p.Timestamp = time.Now()
 	p.Changed = true
 	return p, nil

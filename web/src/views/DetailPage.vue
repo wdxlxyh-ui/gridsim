@@ -1187,9 +1187,10 @@ function onCommandSent(ioa: number) {
 
 function displayValue(p: PointSnapshot): string {
   if (p.point_type === 'DI') return p.bool_value ? 'ON' : 'OFF'
+  if (p.point_type === 'DO') return p.bool_value ? '1' : '0'
   if (p.point_type === 'AI') return p.value.toFixed(2)
   if (p.point_type === 'PI') return String(p.int_value)
-  if (p.point_type === 'AO' || p.point_type === 'DO') return String(p.value)
+  if (p.point_type === 'AO') return String(p.value)
   return String(p.value)
 }
 
