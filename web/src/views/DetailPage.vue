@@ -1211,6 +1211,7 @@ function onSelectionChange(rows: PointSnapshot[]) {
 }
 
 async function fetchPoints() {
+   if (!instanceId.value) return  // 防御性检查：instanceId 为空时直接返回
    try {
      const res = await getPoints(instanceId.value)
      const newPts = res.points || []
