@@ -305,7 +305,7 @@ async function queryHistory() {
 async function fetchAllPoints() {
   if (props.mode !== 'realtime' || panelTraces.value.length === 0 || paused.value || disposed || fetchInFlight) return
   const generation = requestGeneration
-  const sampledAt = Date.now()
+  let latestSampleAt: number | null = null
   fetchInFlight = true
   try {
     const byInstance = new Map<string, number[]>()
@@ -319,16 +319,26 @@ async function fetchAllPoints() {
       for (const pt of res.points) {
         const trace = panelTraces.value.find(t => t.instId === instId && t.ioa === pt.ioa)
         if (!trace) continue
+
+        // /points/batch includes the Store mutation time in updated_at. Never use
+        // the browser polling time here: a returned but unchanged DO/AO must keep
+        // its original x-axis position instead of appearing as a fresh sample.
+        const sampleAt = Date.parse(pt.updated_at)
+        if (!Number.isFinite(sampleAt) || sampleAt <= 0) continue
+
         let value = pt.value
         if (pt.point_type === 'DI' || pt.point_type === 'DO') value = pt.bool_value ? 1 : 0
         else if (pt.point_type === 'PI') value = pt.int_value
+
         const last = trace.data[trace.data.length - 1]
-        if (last && last[0] === sampledAt) last[1] = value
-        else trace.data.push([sampledAt, value])
+        if (last && sampleAt < last[0]) continue
+        if (last && last[0] === sampleAt) last[1] = value
+        else trace.data.push([sampleAt, value])
+        latestSampleAt = latestSampleAt === null ? sampleAt : Math.max(latestSampleAt, sampleAt)
       }
     }
     if (disposed || generation !== requestGeneration) return
-    lastUpdate.value = new Date(sampledAt).toLocaleTimeString()
+    if (latestSampleAt !== null) lastUpdate.value = new Date(latestSampleAt).toLocaleTimeString()
     trimData()
     updateChart()
   } catch {
