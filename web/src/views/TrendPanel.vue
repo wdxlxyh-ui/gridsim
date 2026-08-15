@@ -3,6 +3,9 @@
     <template #header>
       <div class="panel-header">
         <div class="panel-traces">
+          <el-tag v-if="panelKindLabel" size="small" effect="plain" class="panel-kind-tag">
+            {{ panelKindLabel }}
+          </el-tag>
           <el-tag
             v-for="(t, i) in panelTraces"
             :key="i"
@@ -13,7 +16,7 @@
             style="color: #fff; border: none; margin-right: 6px; margin-bottom: 4px"
             @close="removeTrace(i)"
           >
-            {{ t.inst }} · {{ t.alias || t.name || 'IOA:' + t.ioa }}
+            {{ t.inst }} · {{ t.alias || t.name || 'IOA:' + t.ioa }} · {{ t.pointType || '识别中' }}
           </el-tag>
           <el-button size="small" @click="$emit('addTrace', panelId)">+ 添加</el-button>
         </div>
@@ -60,9 +63,12 @@ import { readPointsBatch, getPersistenceStatus, getPointHistory } from '../api'
 
 const COLORS = ['#14b8a6', '#f59e0b', '#3b82f6', '#a855f7', '#ec4899', '#22d3ee', '#f97316', '#8b5cf6']
 
+type PointType = 'AI' | 'DI' | 'PI' | 'AO' | 'DO'
+
 interface TraceConfig {
   instId: string; inst: string; ioa: number; name: string; unit: string
   alias: string; colorIdx: number
+  pointType?: PointType
 }
 
 interface Trace {
@@ -81,8 +87,17 @@ function pointValue(point: { point_type: string; value: number; bool_value: bool
   return point.value
 }
 
+type PanelKind = 'collection' | 'ao-control' | 'do-control'
+
+const PANEL_KIND_LABEL: Record<PanelKind, string> = {
+  collection: '采集趋势：AI / DI / PI',
+  'ao-control': 'AO 控制：阶梯状态与事件',
+  'do-control': 'DO 控制：状态与事件',
+}
+
 const props = defineProps<{
   panelId: string
+  panelKind?: PanelKind
   traces: TraceConfig[]
   timeRange: number
   pollInterval: number
@@ -92,6 +107,8 @@ const props = defineProps<{
   historyQueryToken: number
   historyCleanup: { token: number; instanceId: string; ioas: number[] } | null
 }>()
+
+const panelKindLabel = computed(() => props.panelKind ? PANEL_KIND_LABEL[props.panelKind] : '正在识别测点类型')
 
 const emit = defineEmits<{
   remove: [panelId: string]
@@ -140,6 +157,7 @@ watch(() => props.traces, (newConfigs) => {
         unit: cfg.unit,
         alias: cfg.alias,
         colorIdx: cfg.colorIdx,
+        pointType: cfg.pointType || existing.pointType,
       })
     } else {
       newTraces.push({ ...cfg, data: [] })
@@ -169,6 +187,10 @@ watch(() => props.traces, (newConfigs) => {
 
 watch(() => props.timeRange, () => {
   if (props.mode === 'realtime') trimData()
+  updateChart()
+})
+
+watch(() => props.panelKind, () => {
   updateChart()
 })
 
@@ -231,6 +253,12 @@ function traceColor(trace: Trace): string {
   return COLORS[trace.colorIdx % COLORS.length]
 }
 
+function traceBelongsToPanel(trace: Trace, kind: PanelKind): boolean {
+  if (kind === 'collection') return trace.pointType === 'AI' || trace.pointType === 'DI' || trace.pointType === 'PI'
+  if (kind === 'ao-control') return trace.pointType === 'AO'
+  return trace.pointType === 'DO'
+}
+
 function isBinaryTrace(trace: Trace): boolean {
   return trace.pointType === 'DI' || trace.pointType === 'DO'
 }
@@ -266,11 +294,17 @@ function formatTrendTooltip(params: any[]): string {
 function updateChart() {
   if (!chartInstance) return
 
-  const numericTraces = panelTraces.value.filter(trace => !isBinaryTrace(trace))
-  const binaryTraces = panelTraces.value.filter(isBinaryTrace)
+  const kind = props.panelKind
+  const traces = kind ? panelTraces.value.filter(trace => traceBelongsToPanel(trace, kind)) : []
+  const numericTraces = kind === 'collection'
+    ? traces.filter(trace => trace.pointType === 'AI' || trace.pointType === 'PI')
+    : kind === 'ao-control' ? traces : []
+  const binaryTraces = kind === 'collection'
+    ? traces.filter(trace => trace.pointType === 'DI')
+    : kind === 'do-control' ? traces : []
   const hasNumeric = numericTraces.length > 0
   const hasBinary = binaryTraces.length > 0
-  const splitTracks = hasNumeric && hasBinary
+  const splitTracks = kind === 'collection' && hasNumeric && hasBinary
   const numericAxisIndex = hasNumeric ? 0 : -1
   const binaryAxisIndex = hasNumeric ? 1 : 0
   const legendNames: string[] = []
@@ -300,7 +334,6 @@ function updateChart() {
       axisLine: { show: false },
       axisLabel: { color: '#64748b', fontSize: 9, formatter: (value: number) => Number(value).toFixed(1) },
       splitLine: { lineStyle: { color: '#1e293b' } },
-      // Leave a small margin around zero so AO=0 event diamonds are visible.
       min: (extent: { min: number; max: number }) => {
         const span = Math.max(1, extent.max - extent.min)
         return extent.min - span * 0.05
@@ -311,7 +344,9 @@ function updateChart() {
       },
     })
     if (splitTracks) {
-      titles.push({ text: '数值趋势 / AO 阶梯状态', left: 52, top: 3, textStyle: { color: '#94a3b8', fontSize: 10, fontWeight: 'normal' } })
+      titles.push({ text: 'AI / PI 数值趋势', left: 52, top: 3, textStyle: { color: '#94a3b8', fontSize: 10, fontWeight: 'normal' } })
+    } else if (kind === 'ao-control') {
+      titles.push({ text: 'AO 阶梯状态（菱形为每次控制事件）', left: 52, top: 3, textStyle: { color: '#94a3b8', fontSize: 10, fontWeight: 'normal' } })
     }
   }
 
@@ -334,11 +369,13 @@ function updateChart() {
       splitLine: { lineStyle: { color: '#1e293b' } },
     })
     if (splitTracks) {
-      titles.push({ text: 'DI / DO 状态轨道（DO 圆点为控制事件）', left: 52, top: '65%', textStyle: { color: '#94a3b8', fontSize: 10, fontWeight: 'normal' } })
+      titles.push({ text: 'DI 状态', left: 52, top: '65%', textStyle: { color: '#94a3b8', fontSize: 10, fontWeight: 'normal' } })
+    } else if (kind === 'do-control') {
+      titles.push({ text: 'DO 状态（圆点为每次控制事件）', left: 52, top: 3, textStyle: { color: '#94a3b8', fontSize: 10, fontWeight: 'normal' } })
     }
   }
 
-  panelTraces.value.forEach(trace => {
+  traces.forEach(trace => {
     const label = traceLabel(trace)
     const color = traceColor(trace)
     const binary = isBinaryTrace(trace)
@@ -367,8 +404,6 @@ function updateChart() {
       z: control ? 2 : 1,
     })
 
-    // Every AO/DO persisted write remains visible, including a repeated write of
-    // the same value that would not create a visible step transition by itself.
     if (controlAO || controlDO) {
       series.push({
         name: `event:${label}`,
@@ -649,7 +684,7 @@ function removeTrace(i: number) {
   // Notify parent of trace removal so template save reflects the change
   emit('tracesChanged', props.panelId, panelTraces.value.map(t => ({
     instId: t.instId, inst: t.inst, ioa: t.ioa, name: t.name,
-    unit: t.unit, alias: t.alias, colorIdx: t.colorIdx,
+    unit: t.unit, alias: t.alias, colorIdx: t.colorIdx, pointType: t.pointType as PointType | undefined,
   })))
   if (panelTraces.value.length === 0) {
     if (chartInstance) { chartInstance.dispose(); chartInstance = null }
@@ -778,6 +813,13 @@ onUnmounted(() => {
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
+}
+.panel-kind-tag {
+  color: #cbd5e1;
+  border-color: #475569;
+  background: #1e293b;
+  margin-right: 6px;
+  margin-bottom: 4px;
 }
 .panel-empty {
   display: flex;

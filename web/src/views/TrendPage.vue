@@ -51,6 +51,7 @@
         v-for="(p, i) in panels"
         :key="p.id"
         :panel-id="p.id"
+        :panel-kind="p.kind"
         :traces="p.traceConfigs"
         :time-range="15"
         :poll-interval="1000"
@@ -95,7 +96,7 @@
         </el-form-item>
         <el-form-item label="测点">
           <el-select v-model="addTraceIoas" filterable multiple style="width: 100%" :disabled="!addTraceInst">
-            <el-option v-for="pt in addTracePoints" :key="pt.ioa" :label="pt.name + ' (IOA:' + pt.ioa + ')'" :value="pt.ioa" />
+            <el-option v-for="pt in addTracePoints" :key="pt.ioa" :label="`${pt.name || '未命名'} · ${pt.point_type} · IOA:${pt.ioa}`" :value="pt.ioa" />
           </el-select>
         </el-form-item>
         <el-form-item label="别名">
@@ -165,22 +166,64 @@ import TrendPanel from './TrendPanel.vue'
 
 const COLORS = ['#14b8a6', '#f59e0b', '#3b82f6', '#a855f7', '#ec4899', '#22d3ee', '#f97316', '#8b5cf6']
 
+type PointType = 'AI' | 'DI' | 'PI' | 'AO' | 'DO'
+type PanelKind = 'collection' | 'ao-control' | 'do-control'
+
+const PANEL_KIND_ORDER: PanelKind[] = ['collection', 'ao-control', 'do-control']
+const PANEL_KIND_LABEL: Record<PanelKind, string> = {
+  collection: '采集趋势（AI / DI / PI）',
+  'ao-control': 'AO 控制',
+  'do-control': 'DO 控制',
+}
+const MAX_PANELS = 12
+
 interface TraceConfig {
   instId: string; inst: string; ioa: number; name: string; unit: string
   alias: string; colorIdx: number
+  pointType?: PointType
+}
+
+interface TemplatePanel {
+  kind: PanelKind
+  traceConfigs: TraceConfig[]
 }
 
 interface Template {
   id: string
   name: string
-  traces: TraceConfig[]
+  // panels is the v2 format. traces is retained only to migrate existing browser templates.
+  panels?: TemplatePanel[]
+  traces?: TraceConfig[]
   createdAt: number
 }
 
 interface Panel {
   id: string
   templateId: string
+  kind?: PanelKind
   traceConfigs: TraceConfig[]
+}
+
+function isPointType(value: unknown): value is PointType {
+  return value === 'AI' || value === 'DI' || value === 'PI' || value === 'AO' || value === 'DO'
+}
+
+function panelKindFor(pointType: PointType): PanelKind {
+  if (pointType === 'AO') return 'ao-control'
+  if (pointType === 'DO') return 'do-control'
+  return 'collection'
+}
+
+function isTraceCompatible(trace: TraceConfig, kind: PanelKind): boolean {
+  return Boolean(trace.pointType && panelKindFor(trace.pointType) === kind)
+}
+
+function recolorTraces(traces: TraceConfig[]): TraceConfig[] {
+  return traces.map((trace, index) => ({ ...trace, colorIdx: index % COLORS.length }))
+}
+
+function cloneTraces(traces: TraceConfig[]): TraceConfig[] {
+  return JSON.parse(JSON.stringify(traces))
 }
 
 // ── State ──
@@ -238,7 +281,128 @@ const allTraces = computed(() => {
   return result
 })
 
-// ── Template CRUD ──
+// ── Panel classification, template CRUD, and routing ──
+async function refreshInstances() {
+  const list = await listInstances()
+  allInstances.value = list.map(instance => ({ id: instance.id, name: instance.name, protocol: instance.protocol }))
+}
+
+async function hydrateTracePointTypes(traces: TraceConfig[]): Promise<boolean> {
+  const missingInstanceIds = Array.from(new Set(
+    traces.filter(trace => !isPointType(trace.pointType)).map(trace => trace.instId),
+  ))
+  if (missingInstanceIds.length === 0) return true
+
+  try {
+    if (allInstances.value.length === 0) await refreshInstances()
+    const pointTypes = new Map<string, PointType>()
+    for (const instanceId of missingInstanceIds) {
+      const instance = allInstances.value.find(item => item.id === instanceId)
+      const result = instance?.protocol === 'microgrid'
+        ? await getMicrogridPoints(instanceId)
+        : await getPoints(instanceId)
+      for (const point of result.points || []) {
+        if (isPointType(point.point_type)) pointTypes.set(`${instanceId}:${point.ioa}`, point.point_type)
+      }
+    }
+    traces.forEach(trace => {
+      if (!isPointType(trace.pointType)) trace.pointType = pointTypes.get(`${trace.instId}:${trace.ioa}`)
+    })
+  } catch {
+    // The caller reports unresolved types instead of placing a trace in an arbitrary panel.
+  }
+
+  return traces.every(trace => isPointType(trace.pointType))
+}
+
+function splitTracesByKind(traces: TraceConfig[]): TemplatePanel[] {
+  const groups = new Map<PanelKind, TraceConfig[]>()
+  for (const kind of PANEL_KIND_ORDER) groups.set(kind, [])
+  traces.forEach(trace => {
+    if (trace.pointType) groups.get(panelKindFor(trace.pointType))?.push(trace)
+  })
+  return PANEL_KIND_ORDER
+    .map(kind => ({ kind, traceConfigs: recolorTraces(groups.get(kind) || []) }))
+    .filter(panel => panel.traceConfigs.length > 0)
+}
+
+function cloneTemplatePanels(template: Template): TemplatePanel[] {
+  if (template.panels?.length) {
+    return template.panels.map(panel => ({
+      kind: panel.kind,
+      traceConfigs: recolorTraces(cloneTraces(panel.traceConfigs)),
+    }))
+  }
+  return splitTracesByKind(cloneTraces(template.traces || []))
+}
+
+function panelSnapshot(): TemplatePanel[] {
+  return panels.value
+    .filter(panel => panel.kind && panel.traceConfigs.length > 0)
+    .map(panel => ({ kind: panel.kind as PanelKind, traceConfigs: recolorTraces(cloneTraces(panel.traceConfigs)) }))
+}
+
+function normalizePanels() {
+  const normalized: Panel[] = []
+  panels.value.forEach(panel => {
+    const groups = splitTracesByKind(panel.traceConfigs)
+    if (groups.length === 0) {
+      normalized.push({ ...panel, kind: undefined, traceConfigs: [] })
+      return
+    }
+    groups.forEach((group, index) => {
+      normalized.push({
+        id: index === 0 ? panel.id : genId(),
+        templateId: panel.templateId,
+        kind: group.kind,
+        traceConfigs: group.traceConfigs,
+      })
+    })
+  })
+  panels.value = normalized.slice(0, MAX_PANELS)
+}
+
+function findTargetPanel(kind: PanelKind, requestedPanelId: string): Panel | undefined {
+  const requested = panels.value.find(panel => panel.id === requestedPanelId)
+  if (requested && (requested.traceConfigs.length === 0 || requested.kind === kind)) {
+    requested.kind = kind
+    return requested
+  }
+  return panels.value.find(panel => panel.kind === kind)
+}
+
+function routeTraces(requestedPanelId: string, traces: TraceConfig[]): number {
+  const groups = splitTracesByKind(traces)
+  let added = 0
+  const unavailable: PanelKind[] = []
+
+  groups.forEach(group => {
+    let target = findTargetPanel(group.kind, requestedPanelId)
+    if (!target) {
+      if (panels.value.length >= MAX_PANELS) {
+        unavailable.push(group.kind)
+        return
+      }
+      target = { id: genId(), templateId: '', kind: group.kind, traceConfigs: [] }
+      panels.value.push(target)
+    }
+
+    const additions = group.traceConfigs.filter(trace =>
+      !target!.traceConfigs.some(existing => existing.instId === trace.instId && existing.ioa === trace.ioa),
+    )
+    if (additions.length > 0) {
+      target.traceConfigs = recolorTraces([...target.traceConfigs, ...additions])
+      added += additions.length
+    }
+  })
+
+  if (unavailable.length > 0) {
+    const labels = unavailable.map(kind => PANEL_KIND_LABEL[kind]).join('、')
+    ElMessage.warning(`最多 ${MAX_PANELS} 个看板，无法添加：${labels}`)
+  }
+  return added
+}
+
 function loadTemplates() {
   try {
     const raw = localStorage.getItem('trend_templates')
@@ -255,36 +419,30 @@ function saveTemplates() {
   }
 }
 
-function loadTemplate(id: string) {
-  const tpl = templates.value.find(t => t.id === id)
-  if (!tpl) return
-  
-  // 如果第一个面板有测点，提示用户确认
-  if (panels.value.length > 0 && panels.value[0].traceConfigs.length > 0) {
-    ElMessageBox.confirm(
-      '加载模板会覆盖当前面板的测点配置，是否继续？',
-      '确认加载',
-      { type: 'warning' }
-    ).then(() => {
-      panels.value[0].traceConfigs = JSON.parse(JSON.stringify(tpl.traces))
-      panels.value[0].templateId = tpl.id
-      debouncedSave()
-      ElMessage.success('模板已加载')
-    }).catch(() => {
-      // 用户取消，重置选择
+async function loadTemplate(id: string) {
+  const template = templates.value.find(item => item.id === id)
+  if (!template) return
+  if (panels.value.some(panel => panel.traceConfigs.length > 0)) {
+    try {
+      await ElMessageBox.confirm('加载模板会覆盖当前所有看板的测点配置，是否继续？', '确认加载', { type: 'warning' })
+    } catch {
       activeTemplateId.value = ''
-    })
-  } else {
-    // 没有测点或没有面板，直接加载
-    if (panels.value.length === 0) {
-      panels.value.push({ id: genId(), templateId: tpl.id, traceConfigs: JSON.parse(JSON.stringify(tpl.traces)) })
-    } else {
-      panels.value[0].traceConfigs = JSON.parse(JSON.stringify(tpl.traces))
-      panels.value[0].templateId = tpl.id
+      return
     }
-    debouncedSave()
-    ElMessage.success('模板已加载')
   }
+
+  const legacyTraces = template.panels?.length ? [] : cloneTraces(template.traces || [])
+  if (legacyTraces.length > 0 && !await hydrateTracePointTypes(legacyTraces)) {
+    ElMessage.error('无法识别旧模板中部分测点的类型，未加载模板')
+    return
+  }
+  const source: Template = legacyTraces.length > 0 ? { ...template, traces: legacyTraces } : template
+  const templatePanels = cloneTemplatePanels(source)
+  panels.value = templatePanels.map(panel => ({
+    id: genId(), templateId: template.id, kind: panel.kind, traceConfigs: panel.traceConfigs,
+  }))
+  debouncedSave()
+  ElMessage.success('模板已加载')
 }
 
 function saveTemplate() {
@@ -292,9 +450,10 @@ function saveTemplate() {
     ElMessage.warning('请先选择一个模板，或使用「另存为」创建新模板')
     return
   }
-  const tpl = templates.value.find(t => t.id === activeTemplateId.value)
-  if (!tpl) return
-  tpl.traces = JSON.parse(JSON.stringify(allTraces.value))
+  const template = templates.value.find(item => item.id === activeTemplateId.value)
+  if (!template) return
+  template.panels = panelSnapshot()
+  delete template.traces
   saveTemplates()
   ElMessage.success('模板已保存')
 }
@@ -302,23 +461,18 @@ function saveTemplate() {
 function saveAsTemplate() {
   const name = newTemplateName.value.trim()
   if (!name) return
-  templates.value.push({
-    id: genId(),
-    name,
-    traces: JSON.parse(JSON.stringify(allTraces.value)),
-    createdAt: Date.now(),
-  })
+  templates.value.push({ id: genId(), name, panels: panelSnapshot(), createdAt: Date.now() })
   saveTemplates()
   activeTemplateId.value = templates.value[templates.value.length - 1].id
   showSaveAs.value = false
   newTemplateName.value = ''
-  ElMessage.success('模板已保存: ' + name)
+  ElMessage.success('模板已保存')
 }
 
 function deleteTemplate() {
   if (!activeTemplateId.value) return
   ElMessageBox.confirm('确定删除该模板？', '确认', { type: 'warning' }).then(() => {
-    templates.value = templates.value.filter(t => t.id !== activeTemplateId.value)
+    templates.value = templates.value.filter(template => template.id !== activeTemplateId.value)
     saveTemplates()
     activeTemplateId.value = ''
   }).catch(() => {})
@@ -326,40 +480,39 @@ function deleteTemplate() {
 
 // ── Panel management ──
 function addEmptyPanel() {
-  if (panels.value.length >= 4) { ElMessage.warning('最多 4 个面板'); return }
+  if (panels.value.length >= MAX_PANELS) { ElMessage.warning(`最多 ${MAX_PANELS} 个面板`); return }
   panels.value.push({ id: genId(), templateId: '', traceConfigs: [] })
   debouncedSave()
 }
 
-function addPanel() {
-  const tpl = templates.value.find(t => t.id === selectedTemplateForPanel.value)
-  if (!tpl) return
-  if (panels.value.length >= 4) {
-    ElMessage.warning('最多 4 个面板')
+async function addPanel() {
+  const template = templates.value.find(item => item.id === selectedTemplateForPanel.value)
+  if (!template) return
+  const templatePanels = cloneTemplatePanels(template)
+  if (panels.value.length + templatePanels.length > MAX_PANELS) {
+    ElMessage.warning(`最多 ${MAX_PANELS} 个面板，无法添加该模板`)
     return
   }
-  panels.value.push({
-    id: genId(),
-    templateId: tpl.id,
-    traceConfigs: JSON.parse(JSON.stringify(tpl.traces)),
-  })
+  panels.value.push(...templatePanels.map(panel => ({
+    id: genId(), templateId: template.id, kind: panel.kind, traceConfigs: panel.traceConfigs,
+  })))
   showAddPanel.value = false
   selectedTemplateForPanel.value = ''
-}
-
-function removePanel(panelId: string) {
-  const idx = panels.value.findIndex(p => p.id === panelId)
-  if (idx !== -1) panels.value.splice(idx, 1)
   debouncedSave()
 }
 
-// Handle trace removal/change from child TrendPanel
+function removePanel(panelId: string) {
+  const index = panels.value.findIndex(panel => panel.id === panelId)
+  if (index !== -1) panels.value.splice(index, 1)
+  debouncedSave()
+}
+
 function onTracesChanged(panelId: string, traces: TraceConfig[]) {
-  const panel = panels.value.find(p => p.id === panelId)
-  if (panel) {
-    panel.traceConfigs = traces
-    debouncedSave()
-  }
+  const panel = panels.value.find(item => item.id === panelId)
+  if (!panel) return
+  panel.traceConfigs = recolorTraces(traces.filter(trace => panel.kind ? isTraceCompatible(trace, panel.kind) : true))
+  if (panel.traceConfigs.length === 0) panel.kind = undefined
+  debouncedSave()
 }
 
 // ── Add trace ──
@@ -374,8 +527,7 @@ function onAddTrace(panelId: string) {
 
 async function initAddTraceDialog() {
   try {
-    const list = await listInstances()
-    allInstances.value = list.map(s => ({ id: s.id, name: s.name, protocol: s.protocol }))
+    await refreshInstances()
   } catch { ElMessage.error('加载实例列表失败') }
 }
 
@@ -384,33 +536,35 @@ async function onAddTraceInstChange() {
   addTracePoints.value = []
   if (!addTraceInst.value) return
   try {
-    const inst = allInstances.value.find(i => i.id === addTraceInst.value)
-    const res = inst?.protocol === 'microgrid'
+    const instance = allInstances.value.find(item => item.id === addTraceInst.value)
+    const result = instance?.protocol === 'microgrid'
       ? await getMicrogridPoints(addTraceInst.value)
       : await getPoints(addTraceInst.value)
-    addTracePoints.value = (res.points || []).sort((a: any, b: any) => a.ioa - b.ioa)
+    addTracePoints.value = (result.points || []).sort((a: any, b: any) => a.ioa - b.ioa)
   } catch { ElMessage.warning('加载测点失败') }
 }
 
 function confirmAddTrace() {
-  const panel = panels.value.find(p => p.id === addTracePanelId.value)
-  if (!panel) return
-  const inst = allInstances.value.find(i => i.id === addTraceInst.value)
-  if (!inst) return
+  const instance = allInstances.value.find(item => item.id === addTraceInst.value)
+  if (!instance) return
+  const traces: TraceConfig[] = []
   for (const ioa of addTraceIoas.value) {
-    if (panel.traceConfigs.some(t => t.instId === addTraceInst.value && t.ioa === ioa)) continue
-    const pt = addTracePoints.value.find(p => p.ioa === ioa)
-    panel.traceConfigs = [...panel.traceConfigs, {
+    const point = addTracePoints.value.find(item => item.ioa === ioa)
+    if (!point || !isPointType(point.point_type)) continue
+    traces.push({
       instId: addTraceInst.value,
-      inst: inst.name,
+      inst: instance.name,
       ioa,
-      name: pt?.name || '',
-      unit: pt?.unit || '',
+      name: point.name || '',
+      unit: point.unit || '',
       alias: addTraceAlias.value,
-      colorIdx: panel.traceConfigs.length,
-    }]
+      colorIdx: 0,
+      pointType: point.point_type,
+    })
   }
+  const added = routeTraces(addTracePanelId.value, traces)
   showAddTrace.value = false
+  if (added > 0) ElMessage.success(`已按测点类型添加 ${added} 个趋势`)
   debouncedSave()
 }
 
@@ -506,10 +660,11 @@ function debouncedSave() {
 
 function savePanels() {
   try {
-    const save = panels.value.map(p => ({
-      id: p.id,
-      templateId: p.templateId,
-      traceConfigs: p.traceConfigs,
+    const save = panels.value.map(panel => ({
+      id: panel.id,
+      templateId: panel.templateId,
+      kind: panel.kind,
+      traceConfigs: panel.traceConfigs,
     }))
     localStorage.setItem('trend_panels', JSON.stringify(save))
   } catch (err) {
@@ -524,14 +679,26 @@ function loadPanels() {
     if (!raw) return
     const saved = JSON.parse(raw)
     if (!Array.isArray(saved)) return
-    saved.forEach((s: any) => {
+    saved.forEach((item: any) => {
       panels.value.push({
-        id: s.id || genId(),
-        templateId: s.templateId || '',
-        traceConfigs: s.traceConfigs || [],
+        id: item.id || genId(),
+        templateId: item.templateId || '',
+        kind: item.kind === 'collection' || item.kind === 'ao-control' || item.kind === 'do-control' ? item.kind : undefined,
+        traceConfigs: item.traceConfigs || [],
       })
     })
   } catch { /* ignore */ }
+}
+
+async function migrateSavedPanels() {
+  const traces = panels.value.flatMap(panel => panel.traceConfigs)
+  if (traces.length === 0) return
+  const resolved = await hydrateTracePointTypes(traces)
+  if (!resolved) {
+    ElMessage.warning('部分已保存测点的类型无法识别；保留原看板配置，待测点类型可读取后再分流')
+    return
+  }
+  normalizePanels()
 }
 
 // ── Lifecycle ──
@@ -539,33 +706,27 @@ function genId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
 }
 
-onMounted(() => {
+onMounted(async () => {
   loadTemplates()
-  loadPanels()  // ✅ 先加载已保存的面板
-  
-  // 然后处理待添加测点（从详情页跳转过来）
+  loadPanels()
+  await migrateSavedPanels()
+
   const pendingRaw = localStorage.getItem('trend_pending_traces')
-  if (pendingRaw) {
-    try {
-      const pendingTraces: TraceConfig[] = JSON.parse(pendingRaw)
-      localStorage.removeItem('trend_pending_traces')
-      if (pendingTraces.length > 0) {
-        // 确保有面板
-        if (panels.value.length === 0) {
-          panels.value.push({ id: genId(), templateId: '', traceConfigs: [] })
-        }
-        const panel = panels.value[0]
-        for (const trace of pendingTraces) {
-          if (!panel.traceConfigs.some(t => t.instId === trace.instId && t.ioa === trace.ioa)) {
-            trace.colorIdx = panel.traceConfigs.length % COLORS.length
-            panel.traceConfigs.push(trace)
-          }
-        }
-        // ✅ 立即保存
-        savePanels()
-        ElMessage.success(`已添加 ${pendingTraces.length} 个测点趋势`)
-      }
-    } catch { /* ignore */ }
+  if (!pendingRaw) return
+  try {
+    const pendingTraces: TraceConfig[] = JSON.parse(pendingRaw)
+    localStorage.removeItem('trend_pending_traces')
+    if (pendingTraces.length === 0) return
+    if (!await hydrateTracePointTypes(pendingTraces)) {
+      ElMessage.error('无法识别待添加测点的类型，未添加到趋势看板')
+      return
+    }
+    if (panels.value.length === 0) panels.value.push({ id: genId(), templateId: '', traceConfigs: [] })
+    const added = routeTraces(panels.value[0].id, pendingTraces)
+    savePanels()
+    if (added > 0) ElMessage.success(`已按测点类型添加 ${added} 个趋势`)
+  } catch {
+    localStorage.removeItem('trend_pending_traces')
   }
 })
 

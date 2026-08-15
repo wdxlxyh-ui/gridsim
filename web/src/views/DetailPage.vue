@@ -1126,6 +1126,7 @@ function addSelectedToTrend() {
     unit: '',
     alias: '',
     colorIdx: 0,
+    pointType: p.point_type,
   }))
   try {
     localStorage.setItem('trend_pending_traces', JSON.stringify(traces))
@@ -1142,6 +1143,7 @@ function quickTrend(row: PointSnapshot) {
     unit: '',
     alias: '',
     colorIdx: 0,
+    pointType: row.point_type,
   }]
   try {
     localStorage.setItem('trend_pending_traces', JSON.stringify(trace))
