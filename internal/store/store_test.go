@@ -177,3 +177,28 @@ func TestStartInstanceSamplesImmediatelyAndStops(t *testing.T) {
 		t.Fatalf("sampler continued after stop: %d -> %d", before, n.Load())
 	}
 }
+
+func TestEnqueueWritesImmediateEventSample(t *testing.T) {
+	s := newTestService(t, 60, time.Hour)
+	const id = "abc123def456"
+	if err := s.StartInstance(id, func() []Sample { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UnixMilli()
+	s.Enqueue(id, Sample{IOA: 9, Timestamp: now, Name: "AO control", PointType: "AO", Value: 12.5})
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		series, _, err := s.History(id, []uint32{9}, now-1, now+1000, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(series) == 1 && len(series[0].Samples) == 1 {
+			if series[0].Samples[0][1] != 12.5 {
+				t.Fatalf("value=%v, want 12.5", series[0].Samples)
+			}
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("immediate event sample was not persisted")
+}

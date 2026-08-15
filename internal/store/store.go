@@ -242,6 +242,20 @@ func (s *Service) StopInstance(instanceID string) {
 	}
 }
 
+// Enqueue immediately persists event-driven samples for an active instance without
+// blocking the caller. Periodic snapshots and control/change events share one writer.
+func (s *Service) Enqueue(instanceID string, samples ...Sample) {
+	if len(samples) == 0 {
+		return
+	}
+	s.mu.Lock()
+	active := !s.closed && s.samplers[instanceID] != nil
+	s.mu.Unlock()
+	if active {
+		s.enqueueSnapshot(instanceID, samples)
+	}
+}
+
 func (s *Service) enqueueSnapshot(instanceID string, samples []Sample) {
 	for _, sample := range samples {
 		if sample.Timestamp == 0 {

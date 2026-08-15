@@ -179,3 +179,33 @@ func TestStore_SetQDS(t *testing.T) {
 		t.Error("expected error for non-existent IOA")
 	}
 }
+
+func TestStoreSubscribeChangesPublishesDetachedMutation(t *testing.T) {
+	s := NewStore(makeTestPoints())
+	events := make(chan PointChange, 2)
+	unsubscribe := s.SubscribeChanges(func(change PointChange) { events <- change })
+
+	if _, err := s.SetValue(1001, 220.0); err != nil {
+		t.Fatal(err)
+	}
+	first := <-events
+	if first.ValueChanged {
+		t.Fatal("same AI value should report ValueChanged=false")
+	}
+	if _, err := s.SetValue(1001, 221.0); err != nil {
+		t.Fatal(err)
+	}
+	second := <-events
+	if !second.ValueChanged || second.Point.Value != 221.0 {
+		t.Fatalf("unexpected event: %+v", second)
+	}
+	unsubscribe()
+	if _, err := s.SetValue(1001, 222.0); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case change := <-events:
+		t.Fatalf("listener was not removed: %+v", change)
+	default:
+	}
+}

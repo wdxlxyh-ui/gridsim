@@ -45,13 +45,14 @@ func usesProtocolServerPort(cfg model.InstanceConfig) bool {
 
 // Instance wraps a running protocol server instance.
 type Instance struct {
-	Config     model.InstanceConfig
-	Protocol   protocol.Protocol
-	Store      *library.Store
-	HTTPServer *http.Server
-	AutoEngine *detail.Engine
-	Logger     *InstanceLogger
-	Microgrid  *microgrid.Engine // non-nil only for microgrid instances
+	Config                 model.InstanceConfig
+	Protocol               protocol.Protocol
+	Store                  *library.Store
+	HTTPServer             *http.Server
+	AutoEngine             *detail.Engine
+	Logger                 *InstanceLogger
+	Microgrid              *microgrid.Engine // non-nil only for microgrid instances
+	persistenceUnsubscribe func()
 }
 
 // MaxInstances is the maximum number of concurrent instances allowed.
@@ -96,36 +97,80 @@ func (m *Manager) DataStore() *persist.Service {
 	return m.dataStore
 }
 
-// startPersistence snapshots all five GridSim point types for a running instance.
-// One unified library.Store exists for every supported protocol, so this covers
-// IEC104, Modbus TCP, IEC104 client, microgrid and Modbus bridge instances.
+// periodicPersistenceSamples retains the continuous 1-second record for source
+// measurements only. AO/DO are control audit records and are event-driven.
+func periodicPersistenceSamples(points []*config.Point, timestamp int64) []persist.Sample {
+	result := make([]persist.Sample, 0, len(points))
+	for _, point := range points {
+		switch point.PointType {
+		case config.TypeAI, config.TypeDI, config.TypePI:
+			result = append(result, persistenceSample(*point, timestamp))
+		}
+	}
+	return result
+}
+
+func persistenceSample(point config.Point, timestamp int64) persist.Sample {
+	if timestamp <= 0 {
+		timestamp = time.Now().UnixMilli()
+	}
+	return persist.Sample{
+		IOA:       point.IOA,
+		Timestamp: timestamp,
+		Name:      point.Name,
+		PointType: string(point.PointType),
+		Value:     point.Value,
+		BoolValue: point.BoolValue,
+		IntValue:  point.IntValue,
+		QDS:       encodeQDS(point.QDS),
+	}
+}
+
+func shouldPersistImmediately(change library.PointChange) bool {
+	switch change.Point.PointType {
+	case config.TypeAO, config.TypeDO:
+		// Every AO/DO setter call represents a control attempt, even when the
+		// requested value equals the current one.
+		return true
+	case config.TypeAI, config.TypeDI, config.TypePI:
+		return change.ValueChanged
+	default:
+		return false
+	}
+}
+
+// startPersistence samples AI/DI/PI once per interval and subscribes to Store
+// writes for immediate source changes and AO/DO control audit records.
 func (m *Manager) startPersistence(instanceID string, pointStore *library.Store) {
-	if m.dataStore == nil || pointStore == nil {
+	dataStore := m.dataStore
+	if dataStore == nil || pointStore == nil {
 		return
 	}
-	if err := m.dataStore.StartInstance(instanceID, func() []persist.Sample {
-		points := pointStore.SnapshotAll()
-		now := time.Now().UnixMilli()
-		result := make([]persist.Sample, 0, len(points))
-		for _, p := range points {
-			result = append(result, persist.Sample{
-				IOA:       p.IOA,
-				Timestamp: now,
-				Name:      p.Name,
-				PointType: string(p.PointType),
-				Value:     p.Value,
-				BoolValue: p.BoolValue,
-				IntValue:  p.IntValue,
-				QDS:       encodeQDS(p.QDS),
-			})
-		}
-		return result
+	if err := dataStore.StartInstance(instanceID, func() []persist.Sample {
+		return periodicPersistenceSamples(pointStore.SnapshotAll(), time.Now().UnixMilli())
 	}); err != nil {
 		slog.Error("启动测点数据持久化失败", "instance", instanceID, "error", err)
+		return
+	}
+
+	unsubscribe := pointStore.SubscribeChanges(func(change library.PointChange) {
+		if shouldPersistImmediately(change) {
+			dataStore.Enqueue(instanceID, persistenceSample(change.Point, change.Point.Timestamp.UnixMilli()))
+		}
+	})
+	if inst, ok := m.instances[instanceID]; ok {
+		if inst.persistenceUnsubscribe != nil {
+			inst.persistenceUnsubscribe()
+		}
+		inst.persistenceUnsubscribe = unsubscribe
 	}
 }
 
 func (m *Manager) stopPersistence(instanceID string) {
+	if inst, ok := m.instances[instanceID]; ok && inst.persistenceUnsubscribe != nil {
+		inst.persistenceUnsubscribe()
+		inst.persistenceUnsubscribe = nil
+	}
 	if m.dataStore != nil {
 		m.dataStore.StopInstance(instanceID)
 	}
@@ -489,6 +534,7 @@ func (m *Manager) StopInstance(id string) error {
 		firewall.RemovePort(inst.Config.HttpPort)
 	}
 
+	m.stopPersistence(id)
 	delete(m.instances, id)
 
 	slog.Info("实例已停止", "id", id, "name", inst.Config.Name)
