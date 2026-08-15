@@ -304,3 +304,21 @@ func TestLoadFromXLSX_ModbusRejectsFC3FC6AddressOverlap(t *testing.T) {
 		t.Fatal("expected FC3/FC6 holding-register address overlap error")
 	}
 }
+
+func TestValidatePointTableIEC104IOALimit(t *testing.T) {
+	valid := []*Point{{Name: "最大地址", IOA: 0xFFFFFF, PointType: TypeAI, ValueType: VTFloat}}
+	if err := ValidatePointTable(valid, "iec104"); err != nil {
+		t.Fatalf("expected maximum 3-byte IEC104 IOA to be valid: %v", err)
+	}
+
+	invalid := []*Point{{Name: "超出地址", IOA: 0x1000000, PointType: TypeAI, ValueType: VTFloat}}
+	if err := ValidatePointTable(invalid, "iec104"); err == nil {
+		t.Fatal("expected IEC104 IOA above three-byte range to fail")
+	}
+}
+
+func TestValidatePointTableRejectsEmptyTable(t *testing.T) {
+	if err := ValidatePointTable(nil, "modbus_tcp"); err == nil {
+		t.Fatal("expected an empty point table to fail")
+	}
+}

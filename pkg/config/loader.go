@@ -208,3 +208,27 @@ func LoadFromXLSX(path string, protocol string) ([]*Point, error) {
 
 	return points, nil
 }
+
+// ValidatePointTable applies protocol constraints after an XLSX file has been parsed.
+// LoadFromXLSX already validates the point sheet structure, row data, point types,
+// duplicate point-type/IOA pairs, and Modbus register/function-code mappings.
+func ValidatePointTable(points []*Point, protocol string) error {
+	if len(points) == 0 {
+		return fmt.Errorf("point table contains no points")
+	}
+
+	isIEC104 := protocol == "iec104" || protocol == "iec104_client"
+	for i, point := range points {
+		row := i + 2
+		if point == nil {
+			return fmt.Errorf("row %d: empty point", row)
+		}
+		if strings.TrimSpace(point.Name) == "" {
+			return fmt.Errorf("row %d: point name is required", row)
+		}
+		if isIEC104 && point.IOA > 0xFFFFFF {
+			return fmt.Errorf("row %d: IEC104 IOA %d exceeds the 3-byte limit (16777215)", row, point.IOA)
+		}
+	}
+	return nil
+}

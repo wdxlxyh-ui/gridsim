@@ -759,6 +759,22 @@ export async function savePointTable(instanceId: string, points: PointTableRow[]
   await http.put(`/instances/${instanceId}/point-table`, { points })
 }
 
+export interface PointTableUploadResult {
+  status: 'replaced'
+  xlsx_file: string
+  backup_file: string
+  point_count: number
+}
+
+export async function uploadPointTable(instanceId: string, file: File): Promise<PointTableUploadResult> {
+  const form = new FormData()
+  form.append('file', file)
+  const res = await http.post(`/instances/${instanceId}/point-table/upload`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return res.data
+}
+
 // ─── Client Mode Command API ────────────────────────────────────────────────
 
 export async function sendCommand(instanceId: string, payload: { ioa: number; value?: number; bool_value?: boolean }): Promise<{ success: boolean; ioa: number }> {

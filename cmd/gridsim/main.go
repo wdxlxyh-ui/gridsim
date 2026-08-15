@@ -382,14 +382,133 @@ func (ws *webServer) handleInstances(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ws *webServer) handlePointTableRoute(w http.ResponseWriter, r *http.Request, id string) {
+	isUpload := strings.HasSuffix(strings.TrimSuffix(r.URL.Path, "/"), "/point-table/upload")
 	switch r.Method {
 	case http.MethodGet:
 		ws.handlePointTableGet(w, r, id)
 	case http.MethodPut:
 		ws.handlePointTablePut(w, r, id)
+	case http.MethodPost:
+		if !isUpload {
+			writeError(w, http.StatusBadRequest, "unknown point-table action")
+			return
+		}
+		ws.handlePointTableUpload(w, r, id)
 	default:
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 	}
+}
+
+// handlePointTableUpload validates and replaces the point-table file for a
+// stopped instance. The existing file is first copied into the instance backup
+// directory; the uploaded file is renamed into place only after validation.
+func (ws *webServer) handlePointTableUpload(w http.ResponseWriter, r *http.Request, id string) {
+	state, err := ws.mgr.GetState(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "instance not found")
+		return
+	}
+	if state.Status == model.StatusRunning {
+		writeError(w, http.StatusBadRequest, "cannot replace point table while instance is running")
+		return
+	}
+
+	cfg, ok := ws.mgr.GetConfig(id)
+	if !ok {
+		writeError(w, http.StatusNotFound, "instance config not found")
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, uploadMaxFileSize)
+	if err := r.ParseMultipartForm(uploadMaxFileSize); err != nil {
+		writeError(w, http.StatusBadRequest, "point-table file is too large or malformed")
+		return
+	}
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "no point-table file provided")
+		return
+	}
+	defer file.Close()
+	if ext := strings.ToLower(filepath.Ext(header.Filename)); ext != ".xlsx" {
+		writeError(w, http.StatusBadRequest, "point table must be an .xlsx file")
+		return
+	}
+
+	xlsxPath := cfg.XLSXFile
+	if !filepath.IsAbs(xlsxPath) {
+		xlsxPath = filepath.Join(ws.cfgDir, xlsxPath)
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(xlsxPath), ".point-table-upload-*.xlsx")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to prepare point-table upload")
+		return
+	}
+	tmpPath := tmp.Name()
+	defer func() {
+		tmp.Close()
+		if tmpPath != "" {
+			_ = os.Remove(tmpPath)
+		}
+	}()
+	if _, err := io.Copy(tmp, file); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to save point-table upload")
+		return
+	}
+	if err := tmp.Close(); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to finalize point-table upload")
+		return
+	}
+
+	points, err := config.LoadFromXLSX(tmpPath, cfg.Protocol)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "point-table validation failed: "+err.Error())
+		return
+	}
+	if err := config.ValidatePointTable(points, cfg.Protocol); err != nil {
+		writeError(w, http.StatusBadRequest, "point-table validation failed: "+err.Error())
+		return
+	}
+
+	backupDir := filepath.Join(ws.cfgDir, "point-table-backups", id)
+	if err := os.MkdirAll(backupDir, 0o755); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to create point-table backup directory")
+		return
+	}
+	backupName := fmt.Sprintf("%s.%s.xlsx", strings.TrimSuffix(filepath.Base(xlsxPath), filepath.Ext(xlsxPath)), time.Now().UTC().Format("20060102T150405.000000000Z"))
+	backupPath := filepath.Join(backupDir, backupName)
+	source, err := os.Open(xlsxPath)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to open current point table for backup")
+		return
+	}
+	backup, err := os.Create(backupPath)
+	if err != nil {
+		source.Close()
+		writeError(w, http.StatusInternalServerError, "failed to create point-table backup")
+		return
+	}
+	_, copyErr := io.Copy(backup, source)
+	closeErr := backup.Close()
+	source.Close()
+	if copyErr != nil || closeErr != nil {
+		_ = os.Remove(backupPath)
+		writeError(w, http.StatusInternalServerError, "failed to back up current point table")
+		return
+	}
+
+	if err := os.Rename(tmpPath, xlsxPath); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to replace point table")
+		return
+	}
+	tmpPath = ""
+	backupFile := filepath.Join("point-table-backups", id, backupName)
+	slog.Info("点表已上传并替换", "instance", id, "points", len(points), "xlsx", cfg.XLSXFile, "backup", backupFile)
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"status":      "replaced",
+		"xlsx_file":   cfg.XLSXFile,
+		"backup_file": backupFile,
+		"point_count": len(points),
+	})
 }
 
 func (ws *webServer) handlePointTableGet(w http.ResponseWriter, r *http.Request, id string) {
