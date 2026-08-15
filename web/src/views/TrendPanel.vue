@@ -65,7 +65,17 @@ interface TraceConfig {
 interface Trace {
   instId: string; inst: string; ioa: number; name: string; unit: string
   alias: string; colorIdx: number
+  pointType?: string
   data: [number, number][]
+}
+
+const COLLECTION_POINT_TYPES = new Set(['AI', 'DI', 'PI'])
+const CONTROL_POINT_TYPES = new Set(['AO', 'DO'])
+
+function pointValue(point: { point_type: string; value: number; bool_value: boolean; int_value: number }): number {
+  if (point.point_type === 'DI' || point.point_type === 'DO') return point.bool_value ? 1 : 0
+  if (point.point_type === 'PI') return point.int_value
+  return point.value
 }
 
 const props = defineProps<{
@@ -98,6 +108,8 @@ let disposed = false
 let fetchInFlight = false
 let restartPending = false
 let requestGeneration = 0
+let controlEventFromAt = Date.now()
+let persistenceEnabled = false
 const resetting = ref(false)
 
 // Reconcile traces when props.traces changes (template switch / add trace from parent).
@@ -130,6 +142,7 @@ watch(() => props.traces, (newConfigs) => {
     nextTick(async () => {
       initChart()
       if (props.mode === 'realtime') {
+        controlEventFromAt = Date.now()
         await backfillHistory()
         await fetchAllPoints()
         startPolling()
@@ -153,6 +166,7 @@ watch(() => props.mode, async (mode) => {
   if (disposed || panelTraces.value.length === 0) return
   if (mode === 'realtime') {
     paused.value = false
+    controlEventFromAt = Date.now()
     await backfillHistory()
     await fetchAllPoints()
     startPolling()
@@ -257,9 +271,17 @@ function trimData() {
 }
 
 
-// Real-time mode may show a short persisted lead-in, then continuously appends
-// fresh protocol values. Historical mode only calls this flow when the user
-// explicitly presses the query button.
+// Historical mode always returns the exact user-selected persistence range. Real-time
+// mode may use this data as a lead-in, but its post-reset session boundary is handled
+// separately so pre-click records never leak into the new live buffer.
+function appendSample(trace: Trace, sampleAt: number, value: number): boolean {
+  const last = trace.data[trace.data.length - 1]
+  if (last && sampleAt < last[0]) return false
+  if (last && last[0] === sampleAt) last[1] = value
+  else trace.data.push([sampleAt, value])
+  return true
+}
+
 async function loadPersistedHistory(from: number, to: number, generation = requestGeneration) {
   const byInstance = new Map<string, number[]>()
   panelTraces.value.forEach(t => {
@@ -271,11 +293,12 @@ async function loadPersistedHistory(from: number, to: number, generation = reque
   for (const [instId, ioas] of byInstance) {
     try {
       const res = await getPointHistory(instId, ioas, from, to)
-      // Ignore late responses after switching modes, clearing, or re-querying.
       if (disposed || generation !== requestGeneration) return
       for (const series of res.series) {
         const trace = panelTraces.value.find(t => t.instId === instId && t.ioa === series.ioa)
-        if (trace) trace.data = series.samples
+        if (!trace) continue
+        trace.pointType = series.point_type
+        trace.data = series.samples
       }
     } catch {
       // A stopped instance or unavailable persistence backend must not break the panel.
@@ -287,7 +310,8 @@ async function backfillHistory() {
   if (panelTraces.value.length === 0 || disposed) return
   const generation = requestGeneration
   const status = await getPersistenceStatus()
-  if (!status.enabled || disposed || generation !== requestGeneration) return
+  persistenceEnabled = Boolean(status.enabled)
+  if (!persistenceEnabled || disposed || generation !== requestGeneration) return
   const retention = status.retention_minutes || 60
   const to = Date.now()
   await loadPersistedHistory(to - Math.min(props.timeRange, retention) * 60 * 1000, to, generation)
@@ -302,42 +326,88 @@ async function queryHistory() {
   if (!disposed && generation === requestGeneration) updateChart()
 }
 
-async function fetchAllPoints() {
-  if (props.mode !== 'realtime' || panelTraces.value.length === 0 || paused.value || disposed || fetchInFlight) return
+// AO/DO history is the control audit stream. Re-reading from this live session's
+// start is deliberate: the history API has no event cursor and this guarantees a
+// delayed persistence write cannot be skipped. appendSample de-duplicates prior rows.
+async function fetchControlEvents(generation: number): Promise<number | null> {
+  if (!persistenceEnabled) return null
+
+  const byInstance = new Map<string, number[]>()
+  panelTraces.value
+    .filter(t => !t.pointType || CONTROL_POINT_TYPES.has(t.pointType))
+    .forEach(t => {
+      const ioas = byInstance.get(t.instId) || []
+      ioas.push(t.ioa)
+      byInstance.set(t.instId, ioas)
+    })
+
+  let latestEventAt: number | null = null
+  const to = Date.now()
+  for (const [instId, ioas] of byInstance) {
+    try {
+      const res = await getPointHistory(instId, ioas, controlEventFromAt, to)
+      if (disposed || props.mode !== 'realtime' || generation !== requestGeneration) return null
+      for (const series of res.series) {
+        const trace = panelTraces.value.find(t => t.instId === instId && t.ioa === series.ioa)
+        if (!trace) continue
+        trace.pointType = series.point_type
+        if (!CONTROL_POINT_TYPES.has(series.point_type)) continue
+        for (const [sampleAt, value] of series.samples) {
+          if (sampleAt < controlEventFromAt) continue
+          if (appendSample(trace, sampleAt, value)) {
+            latestEventAt = latestEventAt === null ? sampleAt : Math.max(latestEventAt, sampleAt)
+          }
+        }
+      }
+    } catch {
+      // Leave existing control events visible and retry on the next poll.
+    }
+  }
+  return latestEventAt
+}
+
+async function fetchAllPoints(force = false) {
+  if (props.mode !== 'realtime' || panelTraces.value.length === 0 || (!force && paused.value) || disposed || fetchInFlight) return
   const generation = requestGeneration
   let latestSampleAt: number | null = null
   fetchInFlight = true
   try {
     const byInstance = new Map<string, number[]>()
     panelTraces.value.forEach(t => {
-      if (!byInstance.has(t.instId)) byInstance.set(t.instId, [])
-      byInstance.get(t.instId)!.push(t.ioa)
+      const ioas = byInstance.get(t.instId) || []
+      ioas.push(t.ioa)
+      byInstance.set(t.instId, ioas)
     })
+
     for (const [instId, ioas] of byInstance) {
       const res = await readPointsBatch(instId, ioas)
       if (disposed || props.mode !== 'realtime' || generation !== requestGeneration) return
+      const refreshedAt = Date.parse(res.refreshed_at)
+      const observedAt = Math.max(
+        Number.isFinite(refreshedAt) && refreshedAt > 0 ? refreshedAt : Date.now(),
+        controlEventFromAt,
+      )
       for (const pt of res.points) {
         const trace = panelTraces.value.find(t => t.instId === instId && t.ioa === pt.ioa)
         if (!trace) continue
+        trace.pointType = pt.point_type
 
-        // /points/batch includes the Store mutation time in updated_at. Never use
-        // the browser polling time here: a returned but unchanged DO/AO must keep
-        // its original x-axis position instead of appearing as a fresh sample.
-        const sampleAt = Date.parse(pt.updated_at)
-        if (!Number.isFinite(sampleAt) || sampleAt <= 0) continue
-
-        let value = pt.value
-        if (pt.point_type === 'DI' || pt.point_type === 'DO') value = pt.bool_value ? 1 : 0
-        else if (pt.point_type === 'PI') value = pt.int_value
-
-        const last = trace.data[trace.data.length - 1]
-        if (last && sampleAt < last[0]) continue
-        if (last && last[0] === sampleAt) last[1] = value
-        else trace.data.push([sampleAt, value])
-        latestSampleAt = latestSampleAt === null ? sampleAt : Math.max(latestSampleAt, sampleAt)
+        // AI/DI/PI are sampling trends. Use the server observation time for every
+        // polling cycle, never their previous Store mutation time.
+        if (!COLLECTION_POINT_TYPES.has(pt.point_type)) continue
+        if (appendSample(trace, observedAt, pointValue(pt))) {
+          latestSampleAt = latestSampleAt === null ? observedAt : Math.max(latestSampleAt, observedAt)
+        }
       }
     }
+
+    const latestControlEventAt = await fetchControlEvents(generation)
     if (disposed || generation !== requestGeneration) return
+    if (latestControlEventAt !== null) {
+      latestSampleAt = latestSampleAt === null
+        ? latestControlEventAt
+        : Math.max(latestSampleAt, latestControlEventAt)
+    }
     if (latestSampleAt !== null) lastUpdate.value = new Date(latestSampleAt).toLocaleTimeString()
     trimData()
     updateChart()
@@ -347,7 +417,7 @@ async function fetchAllPoints() {
     fetchInFlight = false
     if (restartPending) {
       restartPending = false
-      void fetchAllPoints()
+      void fetchAllPoints(true)
     } else if (resetting.value) {
       resetting.value = false
     }
@@ -357,7 +427,7 @@ async function fetchAllPoints() {
 function restartTimer() {
   if (pollTimer) clearInterval(pollTimer)
   if (props.mode === 'realtime' && !paused.value) {
-    fetchAllPoints()
+    void fetchAllPoints()
     pollTimer = setInterval(fetchAllPoints, localInterval.value)
   }
 }
@@ -369,6 +439,7 @@ function togglePause() {
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
     lastUpdate.value = '已暂停'
   } else {
+    void fetchAllPoints()
     pollTimer = setInterval(fetchAllPoints, localInterval.value)
   }
 }
@@ -377,13 +448,14 @@ function restartFromNow() {
   if (props.mode !== 'realtime') return
   // Invalidate both in-flight history reads and live read responses before clearing.
   requestGeneration += 1
+  controlEventFromAt = Date.now()
   panelTraces.value.forEach(trace => { trace.data = [] })
   resetting.value = true
   updateChart()
   if (fetchInFlight) {
     restartPending = true
   } else {
-    void fetchAllPoints()
+    void fetchAllPoints(true)
   }
 }
 
@@ -474,6 +546,7 @@ onMounted(() => {
     if (panelTraces.value.length > 0) {
       initChart()
       if (props.mode === 'realtime') {
+        controlEventFromAt = Date.now()
         await backfillHistory()
         await fetchAllPoints()
         startPolling()

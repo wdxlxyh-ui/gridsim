@@ -13,16 +13,18 @@
 #    bash make-installer.sh             # 只生成 amd64（默认）
 #
 #  输出：
-#    gridsim-install-v{version}-{arch}.sh  （可执行的自解压安装脚本）
+#    dist/gridsim-install-v{version}-linux-{arch}.sh  （可执行的自解压安装脚本）
 #
 #  使用生成的安装包：
-#    scp gridsim-install-v3.2.0-linux-amd64.sh user@newserver:/tmp/
+#    scp dist/gridsim-install-v3.2.0-linux-amd64.sh user@newserver:/tmp/
 #    ssh user@newserver "bash /tmp/gridsim-install-v3.2.0-linux-amd64.sh"
 # ============================================================
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DIST_DIR="${SCRIPT_DIR}/dist"
+OUTPUT_DIR="${INSTALLER_OUTPUT_DIR:-$DIST_DIR}"
+mkdir -p "$OUTPUT_DIR"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
 info()  { echo -e "${GREEN}[INFO]${NC} $*"; }
@@ -39,7 +41,8 @@ generate_installer() {
     [ -z "$VERSION" ] && err "无法从文件名提取版本号: $PKG_NAME"
     [ -z "$ARCH" ] && err "无法从文件名提取架构: $PKG_NAME"
 
-    local OUTPUT="gridsim-install-v${VERSION}-linux-${ARCH}.sh"
+    local OUTPUT_NAME="gridsim-install-v${VERSION}-linux-${ARCH}.sh"
+    local OUTPUT="$OUTPUT_DIR/$OUTPUT_NAME"
     local PKG_SIZE=$(stat -c%s "$PKG_PATH" 2>/dev/null || stat -f%z "$PKG_PATH" 2>/dev/null)
 
     info "源包: $PKG_NAME ($(numfmt --to=iec $PKG_SIZE 2>/dev/null || echo "${PKG_SIZE} bytes"))"
@@ -428,7 +431,7 @@ INSTALLER_HEAD
 BUILD_TIME=$(date '+%Y-%m-%d %H:%M:%S')
 sed -i "s|__VERSION__|${VERSION}|g" "$OUTPUT"
 sed -i "s|__BUILD_TIME__|${BUILD_TIME}|g" "$OUTPUT"
-sed -i "s|__FILENAME__|${OUTPUT}|g" "$OUTPUT"
+sed -i "s|__FILENAME__|${OUTPUT_NAME}|g" "$OUTPUT"
 
 # 追加 tar.gz 二进制数据
 cat "$PKG_PATH" >> "$OUTPUT"
@@ -491,7 +494,7 @@ elif [ "$ALL_ARCHS" = true ]; then
     info "═══════════════════════════════════════════════════════════════"
     info "  完成! 共生成 ${GENERATED} 个安装包"
     info "═══════════════════════════════════════════════════════════════"
-    ls -lh gridsim-install-*.sh 2>/dev/null | awk '{printf "  %s  %s\n", $5, $9}'
+    ls -lh "$OUTPUT_DIR"/gridsim-install-*.sh 2>/dev/null | awk '{printf "  %s  %s\n", $5, $9}'
     echo ""
 elif [ -n "$TARGET_ARCH" ]; then
     # 指定架构

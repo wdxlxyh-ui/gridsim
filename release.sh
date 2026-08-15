@@ -2,19 +2,21 @@
 # ============================================================
 #  GridSim 一键发布脚本
 #
-#  功能：构建 + 打包 + 生成自解压安装包（amd64 + arm64）
+#  功能：构建并输出双架构自解压安装包
 #
 #  用法：
-#    bash release.sh              完整构建 + 生成双架构安装包
+#    bash release.sh              完整构建
 #    bash release.sh --fast       快速构建（跳过 vue-tsc 类型检查）
-#    bash release.sh --skip-web   仅后端构建 + 生成安装包
+#    bash release.sh --skip-web   仅后端构建
 #
-#  输出产物（在项目根目录）：
-#    gridsim-install-v{version}-linux-amd64.sh
-#    gridsim-install-v{version}-linux-arm64.sh
+#  最终 Linux 产物（dist/）：
+#    dist/gridsim-install-v{version}-linux-amd64.sh
+#    dist/gridsim-install-v{version}-linux-arm64.sh
+#
+#  Linux .tar.gz 保留在 dist/，作为自解压安装包的嵌入载荷和可追溯构建产物。
 #
 #  使用方式：
-#    scp gridsim-install-*-linux-amd64.sh user@server:/tmp/
+#    scp dist/gridsim-install-*-linux-amd64.sh user@server:/tmp/
 #    ssh user@server "bash /tmp/gridsim-install-*-linux-amd64.sh"
 # ============================================================
 set -euo pipefail
@@ -56,16 +58,10 @@ echo "  GridSim 一键发布"
 echo "═══════════════════════════════════════════════════════════════"
 echo ""
 
-# ─── Step 1: 构建 ─────────────────────────────────────────────────────────
-info "[1/2] 执行构建..."
+# ─── Step 1: 构建并生成安装包 ─────────────────────────────────────────────
+info "[1/1] 执行构建并生成双架构安装包..."
 echo ""
 bash "$ROOT/build.sh" $BUILD_ARGS
-echo ""
-
-# ─── Step 2: 生成安装包 ───────────────────────────────────────────────────
-info "[2/2] 生成自解压安装包 (amd64 + arm64)..."
-echo ""
-bash "$ROOT/make-installer.sh" --all
 
 # ─── 完成 ─────────────────────────────────────────────────────────────────
 END_TIME=$(date +%s)
@@ -77,13 +73,13 @@ info "🎉 发布完成! (${ELAPSED}s)"
 echo "═══════════════════════════════════════════════════════════════"
 echo ""
 echo "  发布产物:"
-ls -lh "$ROOT"/gridsim-install-*.sh 2>/dev/null | awk '{printf "    %s  %s\n", $5, $9}'
+ls -lh "$ROOT"/dist/gridsim-install-*.sh 2>/dev/null | awk '{printf "    %s  %s\n", $5, $9}'
 echo ""
 echo "  部署方式:"
-echo "    scp gridsim-install-*-linux-amd64.sh user@server:/tmp/"
+echo "    scp dist/gridsim-install-*-linux-amd64.sh user@server:/tmp/"
 echo "    ssh user@server \"bash /tmp/gridsim-install-*-linux-amd64.sh\""
 echo ""
 echo "  ARM64 部署:"
-echo "    scp gridsim-install-*-linux-arm64.sh user@arm-server:/tmp/"
+echo "    scp dist/gridsim-install-*-linux-arm64.sh user@arm-server:/tmp/"
 echo "    ssh user@arm-server \"bash /tmp/gridsim-install-*-linux-arm64.sh\""
 echo ""

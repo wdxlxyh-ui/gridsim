@@ -8,7 +8,8 @@
 #   ./build.sh --fast           Skip type-check + skip web if unchanged
 #   ./build.sh --help           Show help
 #
-# Output: dist/*.tar.gz (Linux) + dist/*.zip (Windows)
+# Output: dist/gridsim-install-v*-linux-{amd64,arm64}.sh + dist/*.zip (Windows)
+#         Linux .tar.gz files are retained as embedded installer payloads.
 # ==========================================================================
 set -euo pipefail
 
@@ -329,16 +330,33 @@ done
 # Cleanup staging
 rm -rf "$DIST_DIR/staging"
 
+# ─── 5. Create Linux self-extracting installers ───────────────────────────
+echo ""
+echo "  Creating Linux self-extracting installers"
+INSTALLER_PACKAGES=0
+for arch in amd64 arm64; do
+    archive="$DIST_DIR/$PROJECT-v$DIST_VERSION-linux-$arch.tar.gz"
+    [ -f "$archive" ] || { echo "  ✖ Missing Linux archive: $archive"; exit 1; }
+    bash "$ROOT/make-installer.sh" "$archive"
+    INSTALLER_PACKAGES=$((INSTALLER_PACKAGES + 1))
+done
+
 # ─── Summary ──────────────────────────────────────────────────────────────
 TOTAL=$SECONDS
 echo ""
 echo "═══════════════════════════════════════════════════════════════════"
 echo "  Build complete  v$VERSION ($GIT_BRANCH @ $GIT_COMMIT)  (${TOTAL}s)"
 echo "═══════════════════════════════════════════════════════════════════"
-ls -lh "$DIST_DIR/"*.tar.gz "$DIST_DIR/"*.zip 2>/dev/null | \
+echo "  Final deliverables:"
+ls -lh "$DIST_DIR/gridsim-install-v$DIST_VERSION-linux-"*.sh \
+       "$DIST_DIR/$PROJECT-v$DIST_VERSION-windows-amd64.zip" 2>/dev/null | \
     awk '{printf "  %s  %s\n", $5, $9}'
 echo ""
-echo "  Total: $PACKAGES packages"
+echo "  Embedded Linux archives retained for traceability:"
+ls -lh "$DIST_DIR/$PROJECT-v$DIST_VERSION-linux-"*.tar.gz 2>/dev/null | \
+    awk '{printf "  %s  %s\n", $5, $9}'
+echo ""
+echo "  Total: $((INSTALLER_PACKAGES + 1)) final packages"
 echo ""
 
 # ─── Timing breakdown ─────────────────────────────────────────────────────
