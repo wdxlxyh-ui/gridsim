@@ -351,3 +351,36 @@ func TestCSVMultiPointRelativeS(t *testing.T) {
 		}
 	}
 }
+
+func TestCSVMultiPointAllowsZeroIOA(t *testing.T) {
+	csvContent := `time,first,second
+0,100,200
+500,110,210
+`
+	colMap := `{"1": 0, "2": 2}`
+	extraPoints := []*config.Point{
+		{IOA: 0, Name: "FirstPoint", ValueType: config.VTFloat, PointType: config.TypeAI, Value: 0, Efficient: 1, BaseValue: 0},
+		{IOA: 2, Name: "SecondPoint", ValueType: config.VTFloat, PointType: config.TypeAI, Value: 0, Efficient: 1, BaseValue: 0},
+	}
+	runner, cfg, state, store := setupMultiPointCSVEnv(t, csvContent, "test_multi_ioa_zero.csv", colMap, extraPoints)
+	cfg.Params.TimeFormat = "relative"
+	cfg.Params.TimeUnit = "ms"
+
+	checkpoints := []struct {
+		wait     time.Duration
+		expected map[uint32]float64
+		label    string
+	}{
+		{50 * time.Millisecond, map[uint32]float64{0: 100, 2: 200}, "first row writes IOA 0"},
+		{600 * time.Millisecond, map[uint32]float64{0: 110, 2: 210}, "second row writes IOA 0"},
+	}
+
+	for _, checkpoint := range checkpoints {
+		time.Sleep(checkpoint.wait)
+		ok, actual := pollUntilMultiValue(t, runner, cfg, state, store, checkpoint.expected, 200*time.Millisecond)
+		if !ok {
+			t.Errorf("%s: IOA 0 got %.0f, expected %.0f; IOA 2 got %.0f, expected %.0f",
+				checkpoint.label, actual[0], checkpoint.expected[0], actual[2], checkpoint.expected[2])
+		}
+	}
+}

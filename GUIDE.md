@@ -1,4 +1,4 @@
-# GridSim v3.3.4 部署使用指南
+# GridSim v3.3.5 部署使用指南
 
 > GridSim — IEC104/Modbus 电力仿模拟平台  
 > 部署后 AI 助手 / 开发者通过本文件快速了解全部操作方式。

@@ -96,7 +96,7 @@
                 </div>
                 <!-- Mapping rows (drag-reorderable) -->
                 <div
-                  v-for="(m, idx) in csvMultiMappings" :key="idx"
+                  v-for="(m, idx) in csvMultiMappings" :key="m.column"
                   class="csv-mapping-row"
                   :class="{ 'drag-over': dragOverIdx === idx }"
                   draggable="true"
@@ -110,8 +110,8 @@
                   <!-- Source column badge -->
                   <span
                     class="csv-col-badge"
-                    :title="csvMultiColNames[idx] || 'Value' + (idx+1)">
-                    {{ csvMultiColNames[idx] || 'Value' + (idx+1) }}
+                    :title="csvMultiColNames[m.column - 1] || 'Value' + m.column">
+                    {{ csvMultiColNames[m.column - 1] || 'Value' + m.column }}
                   </span>
                   <!-- Arrow indicator -->
                   <span style="color: #c0c4cc; flex-shrink: 0; font-size: 16px">→</span>
@@ -124,7 +124,7 @@
                     </el-option>
                   </el-select>
                   <!-- Match status -->
-                  <span v-if="m.ioa > 0" style="color: #10b981; flex-shrink: 0; font-size: 16px" title="已映射">✓</span>
+                  <span v-if="isMappedCSVIOA(m.ioa)" style="color: #10b981; flex-shrink: 0; font-size: 16px" title="已映射">✓</span>
                   <!-- Remove button -->
                   <el-button size="small" text type="danger" @click="removeCsvMapping(idx)" title="移除此列映射">✕</el-button>
                 </div>
@@ -132,7 +132,7 @@
               </div>
               <!-- Mapping summary -->
               <div v-if="csvMultiMappings.length > 0" style="font-size: 11px; color: #909399; margin-top: 4px">
-                已映射 {{ csvMultiMappings.filter(m => m.ioa > 0).length }}/{{ csvMultiMappings.length }} 列
+                已映射 {{ csvMultiMappings.filter(m => isMappedCSVIOA(m.ioa)).length }}/{{ csvMultiMappings.length }} 列
               </div>
             </el-form-item>
             <el-form-item>
@@ -742,10 +742,19 @@ const csvMultiForm = reactive({
   time_unit: 'ms',
   csv_loop: true,
 })
-const csvMultiMappings = reactive<{ ioa: number }[]>([])
+interface CSVMultiMapping {
+  column: number
+  ioa: number | null
+}
+
+const csvMultiMappings = reactive<CSVMultiMapping[]>([])
 const csvMultiIoas = ref<number[]>([])
 const csvMultiColNames = ref<string[]>([])
 const csvUploading = ref(false) // original CSV column names
+
+function isMappedCSVIOA(ioa: unknown): ioa is number {
+  return typeof ioa === 'number' && Number.isInteger(ioa) && ioa >= 0
+}
 
 // Drag-drop state for CSV mapping reorder
 const dragSrcIdx = ref(-1)
@@ -1609,7 +1618,7 @@ function parseCSVContent(text: string) {
 
     csvMultiMappings.length = 0
     for (let i = 0; i < csvMultiColCount.value; i++) {
-      let matchedIoa = 0
+      let matchedIoa: number | null = null
       const colName = valueCols[i] || ''
       if (colName) {
         const exact = points.value.find(p =>
@@ -1617,10 +1626,10 @@ function parseCSVContent(text: string) {
         )
         if (exact) matchedIoa = exact.ioa
       }
-      if (matchedIoa === 0 && i < aiPoints.length) {
+      if (matchedIoa === null && i < aiPoints.length) {
         matchedIoa = aiPoints[i].ioa
       }
-      csvMultiMappings.push({ ioa: matchedIoa })
+      csvMultiMappings.push({ column: i + 1, ioa: matchedIoa })
     }
   }
 }
@@ -1647,11 +1656,17 @@ async function loadCSVMappings() {
 
 function addCsvMultiMapping() {
   if (csvMultiMappings.length >= csvMultiColCount.value || csvMultiMappings.length >= 10) return
-  csvMultiMappings.push({ ioa: 0 })
+  const usedColumns = new Set(csvMultiMappings.map(mapping => mapping.column))
+  const column = Array.from({ length: csvMultiColCount.value }, (_, index) => index + 1)
+    .find(candidate => !usedColumns.has(candidate))
+  if (column === undefined) return
+  csvMultiMappings.push({ column, ioa: null })
 }
 
 async function saveCsvMultiConfig() {
-  const activeMappings = csvMultiMappings.filter(m => m.ioa > 0)
+  const activeMappings = csvMultiMappings.filter((mapping): mapping is CSVMultiMapping & { ioa: number } =>
+    isMappedCSVIOA(mapping.ioa),
+  )
   if (activeMappings.length === 0) {
     ElMessage.warning('请至少映射一个测点')
     return
@@ -1661,15 +1676,15 @@ async function saveCsvMultiConfig() {
     return
   }
 
-  const promises = activeMappings.map((m, idx) =>
-    setAutoChange(instanceId.value, m.ioa, {
+  const promises = activeMappings.map(mapping =>
+    setAutoChange(instanceId.value, mapping.ioa, {
       strategy: 'csv',
       enabled: true,
       params: {
         csv_file: csvMultiForm.csv_file,
         time_format: csvMultiForm.time_format,
         time_unit: csvMultiForm.time_unit,
-        csv_column_map: JSON.stringify({ [idx + 1]: m.ioa }),
+        csv_column_map: JSON.stringify({ [mapping.column]: mapping.ioa }),
         csv_loop: csvMultiForm.csv_loop,
       },
     })
@@ -1750,8 +1765,8 @@ async function restoreCsvMultiState() {
   csvMultiColCount.value = maxCol
   csvMultiMappings.length = 0
   for (let i = 1; i <= maxCol; i++) {
-    const pt = csvPoints.find(p => p.col === i)
-    csvMultiMappings.push({ ioa: pt ? pt.ioa : 0 })
+    const point = csvPoints.find(item => item.col === i)
+    csvMultiMappings.push({ column: i, ioa: point ? point.ioa : null })
   }
 }
 
