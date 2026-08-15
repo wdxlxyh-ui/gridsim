@@ -18,14 +18,15 @@
           <el-button size="small" @click="$emit('addTrace', panelId)">+ 添加</el-button>
         </div>
         <div class="panel-controls">
-          <el-select v-model="localInterval" size="small" style="width: 90px" @change="restartTimer">
+          <el-select v-if="props.mode === 'realtime'" v-model="localInterval" size="small" style="width: 90px" @change="restartTimer">
             <el-option label="200ms" :value="200" />
             <el-option label="500ms" :value="500" />
             <el-option label="1s" :value="1000" />
             <el-option label="2s" :value="2000" />
             <el-option label="5s" :value="5000" />
           </el-select>
-          <el-button size="small" :type="paused ? 'warning' : 'info'" @click="togglePause">
+          <el-tag v-if="props.mode === 'history'" size="small" type="info" effect="plain">固定查询</el-tag>
+          <el-button v-if="props.mode === 'realtime'" size="small" :type="paused ? 'warning' : 'info'" @click="togglePause">
             {{ paused ? '▶' : '⏸' }}
           </el-button>
           <el-button size="small" @click="clearAllData">🔄</el-button>
@@ -66,6 +67,10 @@ const props = defineProps<{
   traces: TraceConfig[]
   timeRange: number
   pollInterval: number
+  mode: 'realtime' | 'history'
+  historyFrom: number | null
+  historyTo: number | null
+  historyQueryToken: number
 }>()
 
 const emit = defineEmits<{
@@ -114,9 +119,11 @@ watch(() => props.traces, (newConfigs) => {
     // Panel went from empty to having traces — init chart + start polling
     nextTick(async () => {
       initChart()
-      await backfillHistory()
-      fetchAllPoints()
-      startPolling()
+      if (props.mode === 'realtime') {
+        await backfillHistory()
+        await fetchAllPoints()
+        startPolling()
+      }
     })
   } else if (newTraces.length === 0) {
     if (chartInstance) { chartInstance.dispose(); chartInstance = null }
@@ -127,8 +134,32 @@ watch(() => props.traces, (newConfigs) => {
 }, { deep: true })
 
 watch(() => props.timeRange, () => {
-  trimData()
+  if (props.mode === 'realtime') trimData()
   updateChart()
+})
+
+watch(() => props.mode, async (mode) => {
+  if (disposed || panelTraces.value.length === 0) return
+  if (mode === 'realtime') {
+    paused.value = false
+    await backfillHistory()
+    await fetchAllPoints()
+    startPolling()
+  } else {
+    if (pollTimer) {
+      clearInterval(pollTimer)
+      pollTimer = null
+    }
+    // Historical mode is intentionally static: remove any live-buffer values
+    // and wait for the explicit time-range query.
+    panelTraces.value.forEach(trace => { trace.data = [] })
+    updateChart()
+  }
+})
+
+watch(() => props.historyQueryToken, async (token) => {
+  if (token <= 0 || props.mode !== 'history') return
+  await queryHistory()
 })
 
 function initChart() {
@@ -175,7 +206,7 @@ function updateChart() {
     xAxis: {
       type: 'time',
       axisLine: { lineStyle: { color: '#334155' } },
-      axisLabel: { color: '#64748b', fontSize: 9 },
+      axisLabel: { color: '#64748b', fontSize: 9, formatter: formatAxisTime },
       splitLine: { lineStyle: { color: '#1e293b' } },
     },
     yAxis: {
@@ -193,6 +224,15 @@ function updateChart() {
   }, true)
 }
 
+function formatAxisTime(value: string | number): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  const seconds = String(date.getSeconds()).padStart(2, '0')
+  return `${hours}:${minutes}:${seconds}`
+}
+
 function trimData() {
   const cutoff = Date.now() - props.timeRange * 60 * 1000
   panelTraces.value.forEach(t => {
@@ -206,18 +246,10 @@ function trimData() {
 }
 
 
-// Backfill persisted history before real-time polling starts. When persistence
-// is disabled or no data exists this quietly falls back to the pre-existing
-// in-memory trend behaviour.
-async function backfillHistory() {
-  if (panelTraces.value.length === 0 || disposed) return
-  const status = await getPersistenceStatus()
-  if (!status.enabled) return
-
-  const retention = status.retention_minutes || 60
-  const range = Math.min(props.timeRange, retention)
-  const to = Date.now()
-  const from = to - range * 60 * 1000
+// Real-time mode may show a short persisted lead-in, then continuously appends
+// fresh protocol values. Historical mode only calls this flow when the user
+// explicitly presses the query button.
+async function loadPersistedHistory(from: number, to: number) {
   const byInstance = new Map<string, number[]>()
   panelTraces.value.forEach(t => {
     const ioas = byInstance.get(t.instId) || []
@@ -233,13 +265,30 @@ async function backfillHistory() {
         if (trace) trace.data = series.samples
       }
     } catch {
-      // A stopped instance or an old backend must not prevent other series from rendering.
+      // A stopped instance or unavailable persistence backend must not break the panel.
     }
   }
+}
+
+async function backfillHistory() {
+  if (panelTraces.value.length === 0 || disposed) return
+  const status = await getPersistenceStatus()
+  if (!status.enabled) return
+  const retention = status.retention_minutes || 60
+  const to = Date.now()
+  await loadPersistedHistory(to - Math.min(props.timeRange, retention) * 60 * 1000, to)
   if (!disposed) updateChart()
 }
+
+async function queryHistory() {
+  if (disposed || props.historyFrom === null || props.historyTo === null) return
+  panelTraces.value.forEach(trace => { trace.data = [] })
+  await loadPersistedHistory(props.historyFrom, props.historyTo)
+  if (!disposed) updateChart()
+}
+
 async function fetchAllPoints() {
-  if (panelTraces.value.length === 0 || paused.value || disposed) return
+  if (props.mode !== 'realtime' || panelTraces.value.length === 0 || paused.value || disposed) return
   const byInstance = new Map<string, number[]>()
   panelTraces.value.forEach(t => {
     if (!byInstance.has(t.instId)) byInstance.set(t.instId, [])
@@ -273,13 +322,14 @@ async function fetchAllPoints() {
 
 function restartTimer() {
   if (pollTimer) clearInterval(pollTimer)
-  if (!paused.value) {
+  if (props.mode === 'realtime' && !paused.value) {
     fetchAllPoints()
     pollTimer = setInterval(fetchAllPoints, localInterval.value)
   }
 }
 
 function togglePause() {
+  if (props.mode !== 'realtime') return
   paused.value = !paused.value
   if (paused.value) {
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
@@ -369,7 +419,9 @@ function downloadCSV() {
 
 function startPolling() {
   if (pollTimer) clearInterval(pollTimer)
-  pollTimer = setInterval(fetchAllPoints, localInterval.value)
+  if (props.mode === 'realtime') {
+    pollTimer = setInterval(fetchAllPoints, localInterval.value)
+  }
 }
 
 onMounted(() => {
@@ -378,9 +430,11 @@ onMounted(() => {
   nextTick(async () => {
     if (panelTraces.value.length > 0) {
       initChart()
-      await backfillHistory()
-      fetchAllPoints()
-      startPolling()
+      if (props.mode === 'realtime') {
+        await backfillHistory()
+        await fetchAllPoints()
+        startPolling()
+      }
     }
   })
 })
