@@ -697,7 +697,7 @@ import {
   getPoints, setPointValue, setAutoChange, getAutoChange, batchAutoChange,
   exportAutoConfig as fetchExport, importAutoConfig as fetchImport,
   exportPointsCSV, uploadCSV, getInstance, listInstances, listCSVFiles, readCSVHeaders,
-  deleteAutoChange, setPointQDS,
+  deleteAutoChange, setPointQDS, getLatestPersistedSnapshot,
   type PointSnapshot, type InstanceState, type QualityDescriptor,
 } from '../api'
 
@@ -1187,9 +1187,10 @@ function onCommandSent(ioa: number) {
 
 function displayValue(p: PointSnapshot): string {
   if (p.point_type === 'DI') return p.bool_value ? 'ON' : 'OFF'
+  if (p.point_type === 'DO') return p.bool_value ? '1' : '0'
   if (p.point_type === 'AI') return p.value.toFixed(2)
   if (p.point_type === 'PI') return String(p.int_value)
-  if (p.point_type === 'AO' || p.point_type === 'DO') return String(p.value)
+  if (p.point_type === 'AO') return String(p.value)
   return String(p.value)
 }
 
@@ -1209,7 +1210,28 @@ function onSelectionChange(rows: PointSnapshot[]) {
   rows.forEach(r => selectedIoas[r.ioa] = true)
 }
 
+
+// Use the last durable sample for the first visible state. Live polling then
+// immediately takes over, so this remains compatible with old/disabled servers.
+async function loadPersistedSnapshot() {
+  if (!instanceId.value || points.value.length === 0) return
+  try {
+    const snapshot = await getLatestPersistedSnapshot(instanceId.value)
+    const byIOA = new Map(snapshot.points.map(p => [p.ioa, p]))
+    for (const point of points.value) {
+      const saved = byIOA.get(point.ioa)
+      if (!saved) continue
+      point.value = saved.value
+      point.bool_value = saved.bool_value
+      point.int_value = saved.int_value
+      point.updated_at = new Date(saved.timestamp).toISOString()
+    }
+  } catch {
+    // The persistence API intentionally remains optional for rolling upgrades.
+  }
+}
 async function fetchPoints() {
+   if (!instanceId.value) return  // 防御性检查：instanceId 为空时直接返回
    try {
      const res = await getPoints(instanceId.value)
      const newPts = res.points || []
@@ -1255,6 +1277,9 @@ function restartPolling() {
 function togglePolling(val: boolean) {
   if (val) {
     restartPolling()
+
+
+
   } else {
     if (pollTimer) {
       clearInterval(pollTimer)
@@ -1766,6 +1791,7 @@ async function initPage() {
   await loadInstanceState()
   if (instanceStatus.value === 'running') {
     await fetchPoints()
+    await loadPersistedSnapshot()
     await restoreCsvMultiState()
     pollingEnabled.value = true
     restartPolling()

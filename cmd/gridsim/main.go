@@ -23,6 +23,7 @@ import (
 	"gridsim/internal/microgrid"
 	"gridsim/internal/model"
 	"gridsim/internal/storage"
+	persist "gridsim/internal/store"
 	"gridsim/pkg/api"
 	"gridsim/pkg/config"
 	apierrors "gridsim/pkg/errors"
@@ -43,9 +44,9 @@ import (
 var builtinResources embed.FS
 
 var (
-	version    = "dev"
-	gitCommit  = "unknown"
-	gitBranch  = "unknown"
+	version   = "dev"
+	gitCommit = "unknown"
+	gitBranch = "unknown"
 )
 
 // main() is defined in entry_default.go (Linux/Mac) and entry_windows.go (Windows GUI)
@@ -136,16 +137,24 @@ type webServer struct {
 
 func runServerMode() {
 	var (
-		httpAddr  string
-		configDir string
-		logDir    string
-		logLvl    string
+		httpAddr           string
+		configDir          string
+		logDir             string
+		logLvl             string
+		dbMode             string
+		dbPath             string
+		dbRetentionMinutes int
+		dbSampleIntervalMs int
 	)
 
 	pflag.StringVarP(&httpAddr, "http", "H", ":8989", "管理API监听地址")
 	pflag.StringVarP(&configDir, "config-dir", "c", "./config", "配置文件目录")
 	pflag.StringVarP(&logDir, "log-dir", "L", "./logs", "日志文件目录")
 	pflag.StringVarP(&logLvl, "log", "l", "info", "日志级别: debug/info/warn/error")
+	pflag.StringVar(&dbMode, "db", "auto", "数据持久化: auto|on|off")
+	pflag.StringVar(&dbPath, "db-path", "", "SQLite 文件路径，默认 <config-dir>/db/gridsim.db")
+	pflag.IntVar(&dbRetentionMinutes, "db-retention-minutes", 60, "历史数据保留分钟数 (1-240)")
+	pflag.IntVar(&dbSampleIntervalMs, "db-sample-interval", 1000, "数据库采样周期毫秒")
 	pflag.Parse()
 
 	setupLogLevel(logLvl)
@@ -160,6 +169,15 @@ func runServerMode() {
 	}
 
 	mgr := manager.New(cfgStore, configDir)
+	dataStore := openDataStore(dbMode, dbPath, configDir, dbRetentionMinutes, dbSampleIntervalMs)
+	if dataStore != nil {
+		mgr.SetDataStore(dataStore)
+		defer func() {
+			if err := dataStore.Close(); err != nil {
+				slog.Warn("关闭 SQLite 数据库失败", "error", err)
+			}
+		}()
+	}
 
 	proxyStore := api.NewProxyStore(configDir)
 	if err := proxyStore.Load(); err != nil {
@@ -208,6 +226,51 @@ func runServerMode() {
 	slog.Info("管理服务已关闭")
 }
 
+// openDataStore opens optional SQLite persistence. In auto mode any storage
+// problem falls back to the existing in-memory behaviour so simulator startup
+// is never blocked by a read-only filesystem, corrupt database or full disk.
+func openDataStore(mode, path, configDir string, retentionMinutes, sampleIntervalMs int) *persist.Service {
+	if mode == "off" {
+		slog.Info("数据持久化已关闭", "mode", mode)
+		return nil
+	}
+	if mode != "auto" && mode != "on" {
+		slog.Error("无效的 --db 参数", "mode", mode)
+		if mode == "on" {
+			os.Exit(2)
+		}
+		return nil
+	}
+	if retentionMinutes < 1 || retentionMinutes > 240 {
+		slog.Error("无效的 --db-retention-minutes 参数", "value", retentionMinutes, "range", "1..240")
+		if mode == "on" {
+			os.Exit(2)
+		}
+		return nil
+	}
+	if sampleIntervalMs < 100 {
+		slog.Error("无效的 --db-sample-interval 参数", "value", sampleIntervalMs, "minimum", 100)
+		if mode == "on" {
+			os.Exit(2)
+		}
+		return nil
+	}
+	if path == "" {
+		path = filepath.Join(configDir, "db", "gridsim.db")
+	}
+	db, err := persist.Open(path, retentionMinutes, time.Duration(sampleIntervalMs)*time.Millisecond)
+	if err != nil {
+		if mode == "on" {
+			slog.Error("打开 SQLite 数据库失败，--db=on 不允许降级", "path", path, "error", err)
+			os.Exit(1)
+		}
+		slog.Warn("打开 SQLite 数据库失败，已降级为内存模式", "path", path, "error", err)
+		return nil
+	}
+	slog.Info("SQLite 数据持久化已启用", "path", path, "retention_minutes", retentionMinutes, "sample_interval_ms", sampleIntervalMs)
+	return db
+}
+
 func (ws *webServer) registerRoutes(mux *http.ServeMux, configDir string, httpAddr string) {
 	// Resolve web/dist relative to executable path.
 	exePath, _ := os.Executable()
@@ -216,6 +279,7 @@ func (ws *webServer) registerRoutes(mux *http.ServeMux, configDir string, httpAd
 	// 公开路由（无需认证）
 	mux.HandleFunc("/api/v1/auth/login", ws.handleAuthLogin)
 	mux.HandleFunc("/api/v1/instances", ws.handleInstances)
+
 	mux.HandleFunc("/api/v1/instances/", ws.handleInstanceByID)
 	mux.HandleFunc("/api/v1/status", ws.handleStatus)
 	mux.HandleFunc("/api/v1/state", ws.handleState)
@@ -223,6 +287,7 @@ func (ws *webServer) registerRoutes(mux *http.ServeMux, configDir string, httpAd
 	mux.HandleFunc("/api/v1/files", ws.handleFiles)
 	mux.HandleFunc("/api/v1/protocols", ws.handleProtocols)
 	mux.HandleFunc("/api/v1/dashboard", ws.handleDashboard)
+	mux.HandleFunc("/api/v1/db/status", ws.handleDBStatus)
 
 	// Proxy API Tester routes
 	ws.proxyHandler = api.NewProxyHandler()
@@ -317,14 +382,133 @@ func (ws *webServer) handleInstances(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ws *webServer) handlePointTableRoute(w http.ResponseWriter, r *http.Request, id string) {
+	isUpload := strings.HasSuffix(strings.TrimSuffix(r.URL.Path, "/"), "/point-table/upload")
 	switch r.Method {
 	case http.MethodGet:
 		ws.handlePointTableGet(w, r, id)
 	case http.MethodPut:
 		ws.handlePointTablePut(w, r, id)
+	case http.MethodPost:
+		if !isUpload {
+			writeError(w, http.StatusBadRequest, "unknown point-table action")
+			return
+		}
+		ws.handlePointTableUpload(w, r, id)
 	default:
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 	}
+}
+
+// handlePointTableUpload validates and replaces the point-table file for a
+// stopped instance. The existing file is first copied into the instance backup
+// directory; the uploaded file is renamed into place only after validation.
+func (ws *webServer) handlePointTableUpload(w http.ResponseWriter, r *http.Request, id string) {
+	state, err := ws.mgr.GetState(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "instance not found")
+		return
+	}
+	if state.Status == model.StatusRunning {
+		writeError(w, http.StatusBadRequest, "cannot replace point table while instance is running")
+		return
+	}
+
+	cfg, ok := ws.mgr.GetConfig(id)
+	if !ok {
+		writeError(w, http.StatusNotFound, "instance config not found")
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, uploadMaxFileSize)
+	if err := r.ParseMultipartForm(uploadMaxFileSize); err != nil {
+		writeError(w, http.StatusBadRequest, "point-table file is too large or malformed")
+		return
+	}
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "no point-table file provided")
+		return
+	}
+	defer file.Close()
+	if ext := strings.ToLower(filepath.Ext(header.Filename)); ext != ".xlsx" {
+		writeError(w, http.StatusBadRequest, "point table must be an .xlsx file")
+		return
+	}
+
+	xlsxPath := cfg.XLSXFile
+	if !filepath.IsAbs(xlsxPath) {
+		xlsxPath = filepath.Join(ws.cfgDir, xlsxPath)
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(xlsxPath), ".point-table-upload-*.xlsx")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to prepare point-table upload")
+		return
+	}
+	tmpPath := tmp.Name()
+	defer func() {
+		tmp.Close()
+		if tmpPath != "" {
+			_ = os.Remove(tmpPath)
+		}
+	}()
+	if _, err := io.Copy(tmp, file); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to save point-table upload")
+		return
+	}
+	if err := tmp.Close(); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to finalize point-table upload")
+		return
+	}
+
+	points, err := config.LoadFromXLSX(tmpPath, cfg.Protocol)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "point-table validation failed: "+err.Error())
+		return
+	}
+	if err := config.ValidatePointTable(points, cfg.Protocol); err != nil {
+		writeError(w, http.StatusBadRequest, "point-table validation failed: "+err.Error())
+		return
+	}
+
+	backupDir := filepath.Join(ws.cfgDir, "point-table-backups", id)
+	if err := os.MkdirAll(backupDir, 0o755); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to create point-table backup directory")
+		return
+	}
+	backupName := fmt.Sprintf("%s.%s.xlsx", strings.TrimSuffix(filepath.Base(xlsxPath), filepath.Ext(xlsxPath)), time.Now().UTC().Format("20060102T150405.000000000Z"))
+	backupPath := filepath.Join(backupDir, backupName)
+	source, err := os.Open(xlsxPath)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to open current point table for backup")
+		return
+	}
+	backup, err := os.Create(backupPath)
+	if err != nil {
+		source.Close()
+		writeError(w, http.StatusInternalServerError, "failed to create point-table backup")
+		return
+	}
+	_, copyErr := io.Copy(backup, source)
+	closeErr := backup.Close()
+	source.Close()
+	if copyErr != nil || closeErr != nil {
+		_ = os.Remove(backupPath)
+		writeError(w, http.StatusInternalServerError, "failed to back up current point table")
+		return
+	}
+
+	if err := os.Rename(tmpPath, xlsxPath); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to replace point table")
+		return
+	}
+	tmpPath = ""
+	backupFile := filepath.Join("point-table-backups", id, backupName)
+	slog.Info("点表已上传并替换", "instance", id, "points", len(points), "xlsx", cfg.XLSXFile, "backup", backupFile)
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"status":      "replaced",
+		"xlsx_file":   cfg.XLSXFile,
+		"backup_file": backupFile,
+		"point_count": len(points),
+	})
 }
 
 func (ws *webServer) handlePointTableGet(w http.ResponseWriter, r *http.Request, id string) {
@@ -508,6 +692,14 @@ func (ws *webServer) handleInstanceByID(w http.ResponseWriter, r *http.Request) 
 			ws.execAction(w, id, ws.mgr.RestartInstance)
 		case "points":
 			ws.handleInstancePoints(w, r, id)
+		case "history":
+			ws.handleInstanceHistory(w, r, id)
+		case "snapshot":
+			if len(parts) == 3 && parts[2] == "latest" {
+				ws.handleInstanceLatestSnapshot(w, r, id)
+			} else {
+				writeError(w, http.StatusBadRequest, "unknown snapshot action")
+			}
 		case "upload-csv":
 			ws.withDetailHandler(w, r, id, func(dh *detail.DetailHandler) { dh.HandleUploadCSV(w, r) })
 		case "csv-files":
@@ -559,12 +751,12 @@ func (ws *webServer) handleInstanceByID(w http.ResponseWriter, r *http.Request) 
 			if req.Protocol == "" {
 				req.Protocol = existing.Protocol
 			}
-		if !req.HttpEnabled && req.HttpPort == 0 {
-			req.HttpPort = existing.HttpPort
-		}
-		if req.Protocol == "microgrid" && req.MicrogridConfig == nil {
-			req.MicrogridConfig = existing.MicrogridConfig
-		}
+			if !req.HttpEnabled && req.HttpPort == 0 {
+				req.HttpPort = existing.HttpPort
+			}
+			if req.Protocol == "microgrid" && req.MicrogridConfig == nil {
+				req.MicrogridConfig = existing.MicrogridConfig
+			}
 		}
 		if err := ws.mgr.UpdateConfig(req); err != nil {
 			writeError(w, http.StatusNotFound, err.Error())
@@ -665,6 +857,99 @@ func (ws *webServer) handleClientCommand(w http.ResponseWriter, r *http.Request,
 	})
 }
 
+// handleDBStatus exposes persistence capability so old/new frontend bundles can
+// safely choose whether to request historical data.
+func (ws *webServer) handleDBStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	dataStore := ws.mgr.DataStore()
+	if dataStore == nil {
+		writeJSON(w, http.StatusOK, map[string]interface{}{"enabled": false})
+		return
+	}
+	writeJSON(w, http.StatusOK, dataStore.Stats())
+}
+
+func (ws *webServer) handleInstanceLatestSnapshot(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	dataStore := ws.mgr.DataStore()
+	if dataStore == nil {
+		writeError(w, http.StatusServiceUnavailable, "data persistence is disabled")
+		return
+	}
+	points, err := dataStore.Latest(id)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "query latest snapshot: "+err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"instance_id": id, "source": "db", "points": points})
+}
+
+func (ws *webServer) handleInstanceHistory(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	dataStore := ws.mgr.DataStore()
+	if dataStore == nil {
+		writeError(w, http.StatusServiceUnavailable, "data persistence is disabled")
+		return
+	}
+	ioaText := strings.TrimSpace(r.URL.Query().Get("ioas"))
+	if ioaText == "" {
+		writeError(w, http.StatusBadRequest, "ioas query parameter is required")
+		return
+	}
+	ioas := make([]uint32, 0)
+	for _, raw := range strings.Split(ioaText, ",") {
+		ioa, err := strconv.ParseUint(strings.TrimSpace(raw), 10, 32)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid IOA: "+raw)
+			return
+		}
+		ioas = append(ioas, uint32(ioa))
+	}
+	now := time.Now().UnixMilli()
+	from := parseHistoryMillis(r.URL.Query().Get("from"), now-15*60*1000)
+	to := parseHistoryMillis(r.URL.Query().Get("to"), now)
+	if to < from {
+		writeError(w, http.StatusBadRequest, "to must be greater than or equal to from")
+		return
+	}
+	stats := dataStore.Stats()
+	windowStart := now - int64(stats.RetentionMinutes)*60*1000
+	clamped := false
+	if from < windowStart {
+		from, clamped = windowStart, true
+	}
+	limit := int(parseHistoryMillis(r.URL.Query().Get("limit"), 5000))
+	series, truncated, err := dataStore.History(id, ioas, from, to, limit)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "query history: "+err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"instance_id": id, "from": from, "to": to, "clamped": clamped,
+		"truncated": truncated, "retention_minutes": stats.RetentionMinutes, "series": series,
+	})
+}
+
+func parseHistoryMillis(raw string, fallback int64) int64 {
+	if raw == "" {
+		return fallback
+	}
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return fallback
+	}
+	return value
+}
+
 func (ws *webServer) handleInstancePoints(w http.ResponseWriter, r *http.Request, id string) {
 	defer func() {
 		if rec := recover(); rec != nil {
@@ -750,12 +1035,12 @@ func (ws *webServer) handleDashboard(w http.ResponseWriter, r *http.Request) {
 			port = s.Config.ModbusBridgeConfig.ModbusPort
 		}
 		bi := briefInstance{
-			ID:     s.Config.ID,
-			Name:   s.Config.Name,
-			Status: string(s.Status),
-			Port:   port,
+			ID:       s.Config.ID,
+			Name:     s.Config.Name,
+			Status:   string(s.Status),
+			Port:     port,
 			Protocol: proto,
-			Error:  s.Error,
+			Error:    s.Error,
 		}
 		if proto == "iec104_client" && s.Config.IEC104ClientConfig != nil {
 			bi.RemoteAddr = fmt.Sprintf("%s:%d", s.Config.IEC104ClientConfig.RemoteAddr, s.Config.IEC104ClientConfig.RemotePort)
@@ -839,7 +1124,7 @@ func (ws *webServer) handleState(w http.ResponseWriter, r *http.Request) {
 		}
 
 		port := cfg.IEC104Port
-		if cfg.Protocol == "modbus" && cfg.ModbusConfig != nil {
+		if cfg.Protocol == "modbus_tcp" && cfg.ModbusConfig != nil && cfg.ModbusConfig.Port > 0 {
 			port = cfg.ModbusConfig.Port
 		}
 
@@ -882,8 +1167,8 @@ func (ws *webServer) handleRecordings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]interface{}{
-			"recordings":    names,
-			"is_recording":  ws.recorder.IsActive(),
+			"recordings":     names,
+			"is_recording":   ws.recorder.IsActive(),
 			"recordings_dir": filepath.Join(ws.cfgDir, "recordings"),
 		})
 
@@ -927,9 +1212,9 @@ func (ws *webServer) handleRecordings(w http.ResponseWriter, r *http.Request) {
 }
 
 var (
-	uploadMaxFileSize     int64 = 10 * 1024 * 1024
-	uploadAllowedExts          = map[string]bool{".xlsx": true, ".xls": true, ".csv": true}
-	uploadAllowedMIME         = []string{
+	uploadMaxFileSize int64 = 10 * 1024 * 1024
+	uploadAllowedExts       = map[string]bool{".xlsx": true, ".xls": true, ".csv": true}
+	uploadAllowedMIME       = []string{
 		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 		"application/vnd.ms-excel",
 		"text/csv",
@@ -1159,8 +1444,8 @@ func instanceStateToMap(s *model.InstanceState) map[string]interface{} {
 		"enabled":      s.Config.Enabled,
 		"http_enabled": s.Config.HttpEnabled,
 		"http_port":    s.Config.HttpPort,
-		"protocol":        proto,
-		"status":          string(s.Status),
+		"protocol":     proto,
+		"status":       string(s.Status),
 	}
 	if s.Config.MicrogridConfig != nil {
 		m["microgrid_config"] = s.Config.MicrogridConfig
@@ -1392,10 +1677,10 @@ func (ws *webServer) handleExport(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"version":  "gridsim-proxy-export-v1",
-		"exported_at": time.Now().UTC().Format(time.RFC3339),
-		"collections": ws.proxyStore.GetCollections(),
-		"environments": ws.proxyStore.GetEnvironments(),
+		"version":       "gridsim-proxy-export-v1",
+		"exported_at":   time.Now().UTC().Format(time.RFC3339),
+		"collections":   ws.proxyStore.GetCollections(),
+		"environments":  ws.proxyStore.GetEnvironments(),
 		"active_env_id": ws.proxyStore.ActiveEnvID,
 	})
 }
@@ -1454,7 +1739,7 @@ func seedBuiltinProxyData(store *api.ProxyStore) error {
 	if data, err := builtinResources.ReadFile("resources/gridsim-builtin.env.json"); err == nil {
 		var envFile struct {
 			Environments []*api.Environment `json:"environments"`
-			ActiveEnvID  string              `json:"active_env_id"`
+			ActiveEnvID  string             `json:"active_env_id"`
 		}
 		if json.Unmarshal(data, &envFile) == nil {
 			existing := store.GetEnvironments()

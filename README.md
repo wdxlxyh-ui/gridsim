@@ -11,6 +11,7 @@
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v3.3.0** | 2026-08-15 | **数据持久化、趋势与点表管理** — 新增每实例 SQLite 时序持久化（60 分钟保留）；实时趋势按源数据时间戳展示并支持固定历史查询；AI/DI/PI 按 1 秒采样且变化即时入队，AO/DO 仅记录控制写入；停止实例可上传、校验并替换 `.xlsx` 点表，替换前自动备份原文件 |
 | **v3.2.0** | 2026-06-30 | **IEC104 客户端增强** — 周期总召唤（可配置周期与重试间隔）；控制模式（选择执行/直接执行）；仪表盘/配置管理/详情页前端适配（远端地址显示、协议标签区分、隐藏无关批量操作） |
 | **v3.1.0** | 2026-06-20 | **UX 全新改版 Phase 4: 操作引导、Dashboard 改造、CommandPalette、性能优化** — 全局 OnboardingGuide 支持跨页面引导（基础+高级两个流程）；Dashboard 全新设计（骨架屏、统计卡片、规约分布、快捷操作）；CommandPalette 命令面板（键盘快捷操作）；PropertyPanel 属性面板 + SceneSnapshots 场景快照；MicrogridEditor 页面性能优化（IOABanner、DeviceList 组件化拆分）；QDS 品质描述 API 增强 |
 | **v3.0.1** | 2026-06-14 | **AI 友好接口 + 部署指南** — OpenAPI 3.0 规范 (`/openapi.json`)；结构化错误响应（统一 `{error:{code,message,hint,candidates}}` 格式）；全局统一状态快照 (`GET /api/v1/state`)；幂等性支持 (`Idempotency-Key` 头)；场景录制回放 (`GET/POST /api/v1/recordings`)；MCP 新增 `get_state` + `get_openapi_spec` 工具（共 37 个）；发行包含 `GUIDE.md` 部署指南 |
@@ -40,6 +41,17 @@
   - **场景录制** — `GET/POST /api/v1/recordings` 记录操作序列，支持回放复现
 - **MCP 工具同步** — 新增 `get_state`、`get_openapi_spec` 共 2 个工具，工具总数 37
 - **部署指南** — 发行包含 `GUIDE.md`，涵盖 API、MCP、GUI 全部操作方式
+
+### v3.3.0 新特性
+
+- **每实例时序持久化** — 使用 SQLite 保存最近 60 分钟的测点历史，默认采样间隔为 1 秒；服务重启后仍可查询保留窗口内的历史数据
+  - AI、DI、PI：每秒写入周期样本，值变化后立即异步入队
+  - AO、DO：不参与周期采样，仅在控制或写入操作发生时记录；同值重复控制也保留审计记录
+- **实时与历史趋势分离** — 趋势页支持实时曲线和固定时间范围历史查询；实时曲线使用接口返回的 `updated_at`，不再将轮询时间误标为新样本时间
+- **停止实例点表替换** — 「编辑点表」弹窗支持上传 `.xlsx` 文件，校验通过后原子替换当前点表并自动备份原文件
+  - IEC104：校验 `point` 工作表、点类型、同类型 IOA 重复及 3 字节 IOA 地址范围
+  - Modbus TCP：额外校验功能码、寄存器地址、地址边界和 32 位寄存器区间重叠
+- **Modbus TCP 兼容性修复** — 修复 FC5 响应、DO 显示同步及 FC16 写寄存器映射处理
 
 ### v3.2.0 新特性
 
@@ -213,8 +225,8 @@
 ### 方式一：下载压缩包（推荐）
 
 ```bash
-tar xzf gridsim-v3.1.0-linux-amd64.tar.gz
-cd gridsim-v3.1.0-linux-amd64
+tar xzf gridsim-v3.3.0-linux-amd64.tar.gz
+cd gridsim-v3.3.0-linux-amd64
 ./bin/start.sh
 # 浏览器访问 http://localhost:8989
 # 部署指南：cat GUIDE.md
@@ -315,6 +327,9 @@ go build -o bin/gridsim ./cmd/gridsim/
 | `POST` | `/api/v1/instances/{id}/restart` | 重启实例 |
 | `GET` | `/api/v1/status` | 全局服务状态 |
 | `POST` | `/api/v1/upload` | 上传 `.xlsx` 点表文件 |
+| `GET` | `/api/v1/instances/{id}/point-table` | 读取停止实例的当前点表 |
+| `PUT` | `/api/v1/instances/{id}/point-table` | 保存停止实例的在线编辑点表 |
+| `POST` | `/api/v1/instances/{id}/point-table/upload` | 校验并替换停止实例的 `.xlsx` 点表，自动备份原文件 |
 | `GET` | `/openapi.json` | OpenAPI 3.0 规范 (v3.0.1) |
 | `GET` | `/api/v1/state` | 全局统一状态快照 (v3.0.1) |
 | `GET` | `/api/v1/recordings` | 获取场景录制列表 (v3.0.1) |

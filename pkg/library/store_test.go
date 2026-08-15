@@ -80,6 +80,17 @@ func TestStore_SetBoolValue(t *testing.T) {
 	if !p.BoolValue {
 		t.Error("expected BoolValue=true")
 	}
+	if p.Value != 1 {
+		t.Errorf("expected Value=1 when BoolValue=true, got %f", p.Value)
+	}
+
+	p, err = s.SetBoolValue(2001, false)
+	if err != nil {
+		t.Fatalf("SetBoolValue(false) failed: %v", err)
+	}
+	if p.BoolValue || p.Value != 0 {
+		t.Errorf("expected BoolValue=false and Value=0, got BoolValue=%v Value=%f", p.BoolValue, p.Value)
+	}
 
 	_, err = s.SetBoolValue(9999, true)
 	if err == nil {
@@ -166,5 +177,35 @@ func TestStore_SetQDS(t *testing.T) {
 	_, err = s.SetQDS(9999, qds)
 	if err == nil {
 		t.Error("expected error for non-existent IOA")
+	}
+}
+
+func TestStoreSubscribeChangesPublishesDetachedMutation(t *testing.T) {
+	s := NewStore(makeTestPoints())
+	events := make(chan PointChange, 2)
+	unsubscribe := s.SubscribeChanges(func(change PointChange) { events <- change })
+
+	if _, err := s.SetValue(1001, 220.0); err != nil {
+		t.Fatal(err)
+	}
+	first := <-events
+	if first.ValueChanged {
+		t.Fatal("same AI value should report ValueChanged=false")
+	}
+	if _, err := s.SetValue(1001, 221.0); err != nil {
+		t.Fatal(err)
+	}
+	second := <-events
+	if !second.ValueChanged || second.Point.Value != 221.0 {
+		t.Fatalf("unexpected event: %+v", second)
+	}
+	unsubscribe()
+	if _, err := s.SetValue(1001, 222.0); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case change := <-events:
+		t.Fatalf("listener was not removed: %+v", change)
+	default:
 	}
 }

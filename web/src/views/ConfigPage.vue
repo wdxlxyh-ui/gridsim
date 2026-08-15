@@ -635,13 +635,20 @@ async function batchDelete() {
   batchLoading.value = false
 }
 
+function getApiErrorMessage(e: any): string {
+  const apiError = e?.response?.data?.error
+  if (typeof apiError === 'string') return apiError
+  if (apiError?.message) return apiError.message
+  return e?.message || '未知错误'
+}
+
 async function fetchData() {
   loading.value = true
   try {
     instances.value = await listInstances()
     globalStatus.value = await getStatus()
   } catch (e: any) {
-    ElMessage.error('获取实例列表失败: ' + (e?.response?.data?.error || e.message))
+    ElMessage.error('获取实例列表失败: ' + getApiErrorMessage(e))
   } finally {
     loading.value = false
   }
@@ -658,7 +665,9 @@ function handleEdit(row: InstanceState) {
   form.value = {
     id: row.id,
     name: row.name,
-    iec104_port: row.iec104_port,
+    iec104_port: row.protocol === 'modbus_tcp' && row.modbus_config?.port
+      ? row.modbus_config.port
+      : row.iec104_port,
     xlsx_file: row.xlsx_file,
     http_enabled: row.http_enabled ?? false,
     http_port: row.http_port ?? 8081,
@@ -676,8 +685,13 @@ function handleEdit(row: InstanceState) {
   } else {
     bridgeConfig.value = defaultBridgeConfig()
   }
-  modbusSlaveId.value = 1
-  modbusByteOrder.value = 'ABCD'
+  if (row.protocol === 'modbus_tcp' && row.modbus_config) {
+    modbusSlaveId.value = row.modbus_config.slave_id ?? 1
+    modbusByteOrder.value = row.modbus_config.byte_order || 'ABCD'
+  } else {
+    modbusSlaveId.value = 1
+    modbusByteOrder.value = 'ABCD'
+  }
   showAddDialog.value = true
 }
 
@@ -735,7 +749,7 @@ async function handleSave() {
       resetForm()
     }
   } catch (e: any) {
-    ElMessage.error((e?.response?.data?.error || e.message))
+    ElMessage.error(getApiErrorMessage(e))
   } finally {
     saving.value = false
   }
@@ -748,7 +762,7 @@ async function handleStart(id: string) {
     ElMessage.success('已启动')
     await fetchData()
   } catch (e: any) {
-    ElMessage.error('启动失败: ' + (e?.response?.data?.error || e.message))
+    ElMessage.error('启动失败: ' + getApiErrorMessage(e))
   } finally {
     actionLoading.value = ''
   }
@@ -761,7 +775,7 @@ async function handleStop(id: string) {
     ElMessage.success('已停止')
     await fetchData()
   } catch (e: any) {
-    ElMessage.error('停止失败: ' + (e?.response?.data?.error || e.message))
+    ElMessage.error('停止失败: ' + getApiErrorMessage(e))
   } finally {
     actionLoading.value = ''
   }
@@ -776,7 +790,7 @@ async function handleDelete(id: string) {
   } catch (e: any) {
     // Ignore cancel dialog, show other errors
     if (e !== 'cancel') {
-      ElMessage.error('删除失败: ' + (e?.response?.data?.error || e.message))
+      ElMessage.error('删除失败: ' + getApiErrorMessage(e))
     }
   }
 }
@@ -802,7 +816,7 @@ function handleFileChange(file: any) {
     form.value.xlsx_file = filename
     fetchFiles()
   }).catch((e: any) => {
-    ElMessage.error('上传失败: ' + (e?.response?.data?.error || e.message))
+    ElMessage.error('上传失败: ' + getApiErrorMessage(e))
   }).finally(() => {
     uploading.value = false
   })

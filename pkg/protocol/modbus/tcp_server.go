@@ -148,8 +148,16 @@ func (s *ModbusTCPServer) handleConnection(conn net.Conn) {
 			return
 		}
 
+		// Modbus TCP requires protocol ID 0 and an MBAP length containing
+		// one unit-ID byte plus a non-empty PDU (maximum PDU size: 253).
+		if binary.BigEndian.Uint16(mbap[2:4]) != 0 {
+			return
+		}
 		length := binary.BigEndian.Uint16(mbap[4:6])
-		pdu := make([]byte, length-1)
+		if length < 2 || length > 254 {
+			return
+		}
+		pdu := make([]byte, int(length)-1)
 		if _, err := io.ReadFull(conn, pdu); err != nil {
 			return
 		}
@@ -157,8 +165,6 @@ func (s *ModbusTCPServer) handleConnection(conn net.Conn) {
 		unitID := mbap[6]
 		functionCode := pdu[0]
 		data := pdu[1:]
-
-		_ = unitID
 
 		response := s.handleRequest(functionCode, data)
 		if response == nil {
@@ -170,7 +176,7 @@ func (s *ModbusTCPServer) handleConnection(conn net.Conn) {
 		copy(respMBAP[0:2], mbap[0:2])
 		binary.BigEndian.PutUint16(respMBAP[2:4], 0)
 		binary.BigEndian.PutUint16(respMBAP[4:6], uint16(respLen))
-		respMBAP[6] = s.slaveID
+		respMBAP[6] = unitID
 
 		resp := append(respMBAP, response...)
 		if _, err := conn.Write(resp); err != nil {
@@ -182,12 +188,16 @@ func (s *ModbusTCPServer) handleConnection(conn net.Conn) {
 func (s *ModbusTCPServer) handleRequest(fc uint8, data []byte) []byte {
 	switch fc {
 	case 0x01:
+		s.interrogCnt.Add(1)
 		return s.readCoils(data)
 	case 0x02:
+		s.interrogCnt.Add(1)
 		return s.readDiscreteInputs(data)
 	case 0x03:
+		s.interrogCnt.Add(1)
 		return s.readHoldingRegisters(data)
 	case 0x04:
+		s.interrogCnt.Add(1)
 		return s.readInputRegisters(data)
 	case 0x05:
 		return s.writeSingleCoil(data)
@@ -292,9 +302,9 @@ func (s *ModbusTCPServer) readHoldingRegisters(data []byte) []byte {
 				regs = []uint16{val}
 			}
 			for i, r := range regs {
-				idx := (offset + uint16(i)) - startAddr
+				idx := offset + uint16(i)
 				if idx < quantity {
-					binary.BigEndian.PutUint16(regBytes[(offset+uint16(i))*2:], r)
+					binary.BigEndian.PutUint16(regBytes[idx*2:], r)
 				}
 			}
 		}
@@ -358,6 +368,9 @@ func (s *ModbusTCPServer) writeSingleCoil(data []byte) []byte {
 	}
 	addr := binary.BigEndian.Uint16(data[0:2])
 	value := binary.BigEndian.Uint16(data[2:4])
+	if value != 0x0000 && value != 0xFF00 {
+		return s.errorResponse(0x05, 0x03)
+	}
 
 	pt, err := s.store.GetByFunctionCodeAndAddress(0x05, addr)
 	if err != nil {
@@ -372,7 +385,7 @@ func (s *ModbusTCPServer) writeSingleCoil(data []byte) []byte {
 	s.controlCnt.Add(1)
 	slog.Info("Modbus TCP 写线圈", "ioa", pt.IOA, "addr", addr, "value", on)
 
-	resp := make([]byte, 4)
+	resp := make([]byte, 5)
 	resp[0] = 0x05
 	copy(resp[1:], data[:4])
 	return resp
@@ -383,7 +396,6 @@ func (s *ModbusTCPServer) writeSingleRegister(data []byte) []byte {
 		return s.errorResponse(0x06, 0x02)
 	}
 	addr := binary.BigEndian.Uint16(data[0:2])
-	regVal := binary.BigEndian.Uint16(data[2:4])
 
 	pt, err := s.store.GetByFunctionCodeAndAddress(0x06, addr)
 	if err != nil {
@@ -393,23 +405,15 @@ func (s *ModbusTCPServer) writeSingleRegister(data []byte) []byte {
 		return s.errorResponse(0x06, 0x02)
 	}
 
+	// FC06 carries exactly one 16-bit register. GridSim numeric points are
+	// represented as 32-bit FLOAT/INT values, so writing them with FC06
+	// would be incomplete. Require FC16 instead of reading past the buffer.
 	switch pt.PointType {
-	case config.TypeAI, config.TypeAO:
-		regs := []uint16{regVal}
-		fval := RegistersToFloat32(regs, s.byteOrder)
-		s.store.SetValue(pt.IOA, float64(fval))
-	case config.TypePI:
-		regs := []uint16{regVal, 0}
-		ival := RegistersToInt32(regs, s.byteOrder)
-		s.store.SetIntValue(pt.IOA, ival)
+	case config.TypeAI, config.TypeAO, config.TypePI:
+		return s.errorResponse(0x06, 0x03)
+	default:
+		return s.errorResponse(0x06, 0x02)
 	}
-	s.controlCnt.Add(1)
-	slog.Info("Modbus TCP 写寄存器", "ioa", pt.IOA, "addr", addr, "value", regVal)
-
-	resp := make([]byte, 4)
-	resp[0] = 0x06
-	copy(resp[1:], data[:4])
-	return resp
 }
 
 func (s *ModbusTCPServer) writeMultipleCoils(data []byte) []byte {
@@ -419,8 +423,12 @@ func (s *ModbusTCPServer) writeMultipleCoils(data []byte) []byte {
 	startAddr := binary.BigEndian.Uint16(data[0:2])
 	quantity := binary.BigEndian.Uint16(data[2:4])
 	byteCount := data[4]
-	if int(byteCount) != len(data)-5 {
-		return s.errorResponse(0x0F, 0x02)
+	if quantity < 1 || quantity > 1968 {
+		return s.errorResponse(0x0F, 0x03)
+	}
+	expectedBytes := int((quantity + 7) / 8)
+	if int(byteCount) != expectedBytes || len(data) != 5+expectedBytes {
+		return s.errorResponse(0x0F, 0x03)
 	}
 
 	coilData := data[5:]
@@ -429,7 +437,10 @@ func (s *ModbusTCPServer) writeMultipleCoils(data []byte) []byte {
 		addr := startAddr + i
 		on := (coilData[i/8] & (1 << (i % 8))) != 0
 
-		pt, err := s.store.GetByFunctionCodeAndAddress(0x05, addr)
+		pt, err := s.store.GetByFunctionCodeAndAddress(0x0F, addr)
+		if err != nil {
+			pt, err = s.store.GetByFunctionCodeAndAddress(0x05, addr)
+		}
 		if err != nil {
 			pt, err = s.store.GetByFunctionCodeAndAddress(0x01, addr)
 		}
@@ -457,15 +468,25 @@ func (s *ModbusTCPServer) writeMultipleRegisters(data []byte) []byte {
 	startAddr := binary.BigEndian.Uint16(data[0:2])
 	quantity := binary.BigEndian.Uint16(data[2:4])
 	byteCount := data[4]
-	if int(byteCount) != len(data)-5 {
-		return s.errorResponse(0x10, 0x02)
+	if quantity < 1 || quantity > 123 {
+		return s.errorResponse(0x10, 0x03)
+	}
+	expectedBytes := int(quantity) * 2
+	if int(byteCount) != expectedBytes || len(data) != 5+expectedBytes {
+		return s.errorResponse(0x10, 0x03)
+	}
+
+	type pendingRegisterWrite struct {
+		point    *config.Point
+		value    float64
+		intValue int32
+		isInt    bool
 	}
 
 	regData := data[5:]
-	written := 0
+	pending := make([]pendingRegisterWrite, 0)
 	for i := uint16(0); i < quantity; i++ {
 		addr := startAddr + i
-		regVal := binary.BigEndian.Uint16(regData[i*2 : i*2+2])
 
 		pt, err := s.store.GetByFunctionCodeAndAddress(0x10, addr)
 		if err != nil {
@@ -475,26 +496,38 @@ func (s *ModbusTCPServer) writeMultipleRegisters(data []byte) []byte {
 			continue
 		}
 
+		// Validate and decode the entire request before modifying the store.
+		if i+1 >= quantity {
+			return s.errorResponse(0x10, 0x03)
+		}
+		regs := []uint16{
+			binary.BigEndian.Uint16(regData[i*2 : i*2+2]),
+			binary.BigEndian.Uint16(regData[(i+1)*2 : (i+1)*2+2]),
+		}
 		switch pt.PointType {
 		case config.TypeAI, config.TypeAO:
-			regs := []uint16{regVal}
-			if i+1 < quantity {
-				nextVal := binary.BigEndian.Uint16(regData[(i+1)*2 : (i+1)*2+2])
-				regs = []uint16{regVal, nextVal}
-			}
-			fval := RegistersToFloat32(regs, s.byteOrder)
-			s.store.SetValue(pt.IOA, float64(fval))
+			pending = append(pending, pendingRegisterWrite{
+				point: pt,
+				value: float64(RegistersToFloat32(regs, s.byteOrder)),
+			})
 		case config.TypePI:
-			regs := []uint16{regVal}
-			if i+1 < quantity {
-				nextVal := binary.BigEndian.Uint16(regData[(i+1)*2 : (i+1)*2+2])
-				regs = []uint16{regVal, nextVal}
-			}
-			ival := RegistersToInt32(regs, s.byteOrder)
-			s.store.SetIntValue(pt.IOA, ival)
+			pending = append(pending, pendingRegisterWrite{
+				point: pt, intValue: RegistersToInt32(regs, s.byteOrder), isInt: true,
+			})
+		default:
+			return s.errorResponse(0x10, 0x02)
 		}
-		written++
+		i++ // second register is part of the same 32-bit value
 	}
+
+	for _, update := range pending {
+		if update.isInt {
+			s.store.SetIntValue(update.point.IOA, update.intValue)
+		} else {
+			s.store.SetValue(update.point.IOA, update.value)
+		}
+	}
+	written := len(pending)
 
 	s.controlCnt.Add(int64(written))
 	slog.Info("Modbus TCP 写多个寄存器", "start", startAddr, "quantity", quantity, "written", written)

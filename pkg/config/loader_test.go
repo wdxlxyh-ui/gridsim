@@ -145,3 +145,180 @@ func TestLoadFromXLSX_InvalidPointType(t *testing.T) {
 		t.Error("expected error for unknown point-type, got nil")
 	}
 }
+
+func TestLoadFromXLSX_ModbusAllowsZeroRegisterAddress(t *testing.T) {
+	dir := t.TempDir()
+	xlsxPath := filepath.Join(dir, "modbus-zero-address.xlsx")
+
+	f := excelize.NewFile()
+	f.SetSheetName("Sheet1", "point")
+	headers := []string{"point-name", "point-number", "value-type", "point-type", "efficient", "base-value", "alias", "register-address", "function-code"}
+	for i, header := range headers {
+		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+		f.SetCellValue("point", cell, header)
+	}
+	values := []interface{}{"AI_0", 1, "FLOAT", "AI", 1.0, 12.5, "", 0, 3}
+	for i, value := range values {
+		cell, _ := excelize.CoordinatesToCellName(i+1, 2)
+		f.SetCellValue("point", cell, value)
+	}
+	if err := f.SaveAs(xlsxPath); err != nil {
+		t.Fatalf("failed to create test xlsx: %v", err)
+	}
+
+	points, err := LoadFromXLSX(xlsxPath, "modbus_tcp")
+	if err != nil {
+		t.Fatalf("LoadFromXLSX failed: %v", err)
+	}
+	if len(points) != 1 || points[0].RegisterAddress != 0 || points[0].FunctionCode != 3 {
+		t.Fatalf("unexpected points: %+v", points)
+	}
+}
+
+func TestLoadFromXLSX_ModbusRejectsDuplicateFunctionAndAddress(t *testing.T) {
+	dir := t.TempDir()
+	xlsxPath := filepath.Join(dir, "modbus-duplicate-address.xlsx")
+
+	f := excelize.NewFile()
+	f.SetSheetName("Sheet1", "point")
+	headers := []string{"point-name", "point-number", "value-type", "point-type", "efficient", "base-value", "alias", "register-address", "function-code"}
+	for i, header := range headers {
+		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+		f.SetCellValue("point", cell, header)
+	}
+	rows := [][]interface{}{
+		{"AI_1", 1, "FLOAT", "AI", 1.0, 1.0, "", 100, 3},
+		{"AI_2", 2, "FLOAT", "AI", 1.0, 2.0, "", 100, 3},
+	}
+	for rowIndex, row := range rows {
+		for columnIndex, value := range row {
+			cell, _ := excelize.CoordinatesToCellName(columnIndex+1, rowIndex+2)
+			f.SetCellValue("point", cell, value)
+		}
+	}
+	if err := f.SaveAs(xlsxPath); err != nil {
+		t.Fatalf("failed to create test xlsx: %v", err)
+	}
+
+	if _, err := LoadFromXLSX(xlsxPath, "modbus_tcp"); err == nil {
+		t.Fatal("expected duplicate Modbus function/address error")
+	}
+}
+
+func TestLoadFromXLSX_ModbusRejectsOverlapping32BitRegisters(t *testing.T) {
+	dir := t.TempDir()
+	xlsxPath := filepath.Join(dir, "modbus-overlap.xlsx")
+
+	f := excelize.NewFile()
+	f.SetSheetName("Sheet1", "point")
+	headers := []string{"point-name", "point-number", "value-type", "point-type", "efficient", "base-value", "alias", "register-address", "function-code"}
+	for i, header := range headers {
+		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+		f.SetCellValue("point", cell, header)
+	}
+	rows := [][]interface{}{
+		{"AI_1", 1, "FLOAT", "AI", 1.0, 1.0, "", 100, 3},
+		{"AI_2", 2, "FLOAT", "AI", 1.0, 2.0, "", 101, 3},
+	}
+	for rowIndex, row := range rows {
+		for columnIndex, value := range row {
+			cell, _ := excelize.CoordinatesToCellName(columnIndex+1, rowIndex+2)
+			f.SetCellValue("point", cell, value)
+		}
+	}
+	if err := f.SaveAs(xlsxPath); err != nil {
+		t.Fatalf("failed to create test xlsx: %v", err)
+	}
+
+	if _, err := LoadFromXLSX(xlsxPath, "modbus_tcp"); err == nil {
+		t.Fatal("expected overlapping 32-bit Modbus register error")
+	}
+}
+
+func TestLoadFromXLSX_BundledModbusSample(t *testing.T) {
+	path := filepath.Join("..", "..", "samples", "ModbusTCP-ESS.xlsx")
+	points, err := LoadFromXLSX(path, "modbus_tcp")
+	if err != nil {
+		t.Fatalf("bundled Modbus sample failed to load: %v", err)
+	}
+	if len(points) != 5 {
+		t.Fatalf("bundled Modbus sample points = %d, want 5", len(points))
+	}
+}
+
+func TestLoadFromXLSX_ModbusAllowsFC6FloatPoint(t *testing.T) {
+	dir := t.TempDir()
+	xlsxPath := filepath.Join(dir, "modbus-fc6-float.xlsx")
+
+	f := excelize.NewFile()
+	f.SetSheetName("Sheet1", "point")
+	headers := []string{"point-name", "point-number", "value-type", "point-type", "efficient", "base-value", "alias", "register-address", "function-code"}
+	for i, header := range headers {
+		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+		f.SetCellValue("point", cell, header)
+	}
+	row := []interface{}{"AO_FC6", 1, "FLOAT", "AO", 1.0, 0.0, "", 31, 6}
+	for columnIndex, value := range row {
+		cell, _ := excelize.CoordinatesToCellName(columnIndex+1, 2)
+		f.SetCellValue("point", cell, value)
+	}
+	if err := f.SaveAs(xlsxPath); err != nil {
+		t.Fatalf("failed to create test xlsx: %v", err)
+	}
+
+	points, err := LoadFromXLSX(xlsxPath, "modbus_tcp")
+	if err != nil {
+		t.Fatalf("FC6 FLOAT point failed to load: %v", err)
+	}
+	if len(points) != 1 || points[0].FunctionCode != 6 || points[0].RegisterAddress != 31 {
+		t.Fatalf("unexpected FC6 point: %+v", points)
+	}
+}
+
+func TestLoadFromXLSX_ModbusRejectsFC3FC6AddressOverlap(t *testing.T) {
+	dir := t.TempDir()
+	xlsxPath := filepath.Join(dir, "modbus-fc3-fc6-overlap.xlsx")
+
+	f := excelize.NewFile()
+	f.SetSheetName("Sheet1", "point")
+	headers := []string{"point-name", "point-number", "value-type", "point-type", "efficient", "base-value", "alias", "register-address", "function-code"}
+	for i, header := range headers {
+		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+		f.SetCellValue("point", cell, header)
+	}
+	rows := [][]interface{}{
+		{"AI_FC3", 1, "FLOAT", "AI", 1.0, 1.0, "", 30, 3},
+		{"AO_FC6", 2, "FLOAT", "AO", 1.0, 2.0, "", 31, 6},
+	}
+	for rowIndex, row := range rows {
+		for columnIndex, value := range row {
+			cell, _ := excelize.CoordinatesToCellName(columnIndex+1, rowIndex+2)
+			f.SetCellValue("point", cell, value)
+		}
+	}
+	if err := f.SaveAs(xlsxPath); err != nil {
+		t.Fatalf("failed to create test xlsx: %v", err)
+	}
+
+	if _, err := LoadFromXLSX(xlsxPath, "modbus_tcp"); err == nil {
+		t.Fatal("expected FC3/FC6 holding-register address overlap error")
+	}
+}
+
+func TestValidatePointTableIEC104IOALimit(t *testing.T) {
+	valid := []*Point{{Name: "最大地址", IOA: 0xFFFFFF, PointType: TypeAI, ValueType: VTFloat}}
+	if err := ValidatePointTable(valid, "iec104"); err != nil {
+		t.Fatalf("expected maximum 3-byte IEC104 IOA to be valid: %v", err)
+	}
+
+	invalid := []*Point{{Name: "超出地址", IOA: 0x1000000, PointType: TypeAI, ValueType: VTFloat}}
+	if err := ValidatePointTable(invalid, "iec104"); err == nil {
+		t.Fatal("expected IEC104 IOA above three-byte range to fail")
+	}
+}
+
+func TestValidatePointTableRejectsEmptyTable(t *testing.T) {
+	if err := ValidatePointTable(nil, "modbus_tcp"); err == nil {
+		t.Fatal("expected an empty point table to fail")
+	}
+}

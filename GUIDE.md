@@ -1,4 +1,4 @@
-# GridSim v3.1.0 部署使用指南
+# GridSim v3.3.0 部署使用指南
 
 > GridSim — IEC104/Modbus 电力仿模拟平台  
 > 部署后 AI 助手 / 开发者通过本文件快速了解全部操作方式。
@@ -58,6 +58,9 @@ bin\gridsim.exe serve --http :8989 --config-dir config --log-dir logs
 | POST | `/api/v1/instances/{id}/start` | 启动实例 |
 | POST | `/api/v1/instances/{id}/stop` | 停止实例 |
 | POST | `/api/v1/instances/{id}/restart` | 重启实例 |
+| GET | `/api/v1/instances/{id}/point-table` | 读取停止实例的点表 |
+| PUT | `/api/v1/instances/{id}/point-table` | 保存停止实例在线编辑后的点表 |
+| POST | `/api/v1/instances/{id}/point-table/upload` | 校验并替换停止实例的 `.xlsx` 点表 |
 
 **创建实例示例：**
 ```bash
@@ -75,6 +78,21 @@ curl -X POST http://localhost:8989/api/v1/instances \
   "protocol": "modbus_tcp",
   "modbus_config": {"port": 2502, "slave_id": 1}
 }
+```
+
+### 2.2.1 停止实例点表替换
+
+实例停止后，可在 Web 管理界面的「配置管理」中点击「编辑点表」，选择「上传并替换」上传新的 `.xlsx` 点表。系统会先解析并校验文件；校验失败时，当前点表不会被修改。
+
+- 仅支持 `.xlsx`，文件大小不超过 10 MB。
+- IEC104 / IEC104 Client：校验 `point` 工作表、点类型、同类型 IOA 重复和 3 字节 IOA 地址范围。
+- Modbus TCP：额外校验功能码、寄存器地址、地址边界与寄存器区间重叠。
+- 校验通过后，当前点表自动备份到 `config/point-table-backups/<实例ID>/`，再替换为新文件。
+- 替换完成后启动实例，新点表才会生效。
+
+```bash
+curl -X POST http://localhost:8989/api/v1/instances/{id}/point-table/upload \
+  -F "file=@new-point-table.xlsx"
 ```
 
 ### 2.3 测点读写

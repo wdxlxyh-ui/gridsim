@@ -8,6 +8,16 @@ import (
 	"gridsim/pkg/config"
 )
 
+// PointChange is a detached notification emitted after a Store setter completes.
+// ValueChanged distinguishes a real AI/DI/PI value transition from a repeated
+// write. AO/DO repeated writes are still meaningful control audit events.
+type PointChange struct {
+	Point        config.Point
+	ValueChanged bool
+}
+
+type PointChangeListener func(PointChange)
+
 type Store struct {
 	mu     sync.RWMutex
 	points map[uint32]*config.Point
@@ -15,6 +25,9 @@ type Store struct {
 	// byFCAddr 二级索引: (functionCode<<16 | registerAddress) → *Point
 	// 用于 Modbus 按功能码+寄存器地址 O(1) 查找，避免全表线性扫描。
 	byFCAddr map[uint32]*config.Point
+
+	listeners    map[uint64]PointChangeListener
+	nextListener uint64
 }
 
 // fcAddrKey 组合功能码与寄存器地址为单一索引键。
@@ -22,17 +35,35 @@ func fcAddrKey(fc uint8, addr uint16) uint32 {
 	return uint32(fc)<<16 | uint32(addr)
 }
 
+func (s *Store) indexModbusPoint(p *config.Point) {
+	if p.FunctionCode == 0 {
+		return
+	}
+	s.byFCAddr[fcAddrKey(p.FunctionCode, p.RegisterAddress)] = p
+
+	// FC5/FC15 share the coil address space; FC6/FC16 share the holding
+	// register address space. Index write-oriented point-table entries under
+	// their canonical read function so single and multiple writes interoperate.
+	switch p.FunctionCode {
+	case 5, 15:
+		s.byFCAddr[fcAddrKey(1, p.RegisterAddress)] = p
+	case 6, 16:
+		s.byFCAddr[fcAddrKey(3, p.RegisterAddress)] = p
+	}
+}
+
 func NewStore(points []*config.Point) *Store {
 	s := &Store{
-		points:   make(map[uint32]*config.Point),
-		byType:   make(map[config.PointType][]*config.Point),
-		byFCAddr: make(map[uint32]*config.Point),
+		points:    make(map[uint32]*config.Point),
+		byType:    make(map[config.PointType][]*config.Point),
+		byFCAddr:  make(map[uint32]*config.Point),
+		listeners: make(map[uint64]PointChangeListener),
 	}
 	for _, p := range points {
 		s.points[p.IOA] = p
 		s.byType[p.PointType] = append(s.byType[p.PointType], p)
 		if p.FunctionCode != 0 {
-			s.byFCAddr[fcAddrKey(p.FunctionCode, p.RegisterAddress)] = p
+			s.indexModbusPoint(p)
 		}
 	}
 	return s
@@ -84,6 +115,58 @@ func (s *Store) SnapshotByType(pt config.PointType) []*config.Point {
 	return snap
 }
 
+// SnapshotAll returns a consistent, detached copy of every point.
+// It is safe to use from persistence samplers while protocol and strategy
+// goroutines are updating AI, DI, PI, AO and DO values.
+func (s *Store) SnapshotAll() []*config.Point {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	result := make([]*config.Point, 0, len(s.points))
+	for _, p := range s.points {
+		cp := *p
+		result = append(result, &cp)
+	}
+	return result
+}
+
+// SubscribeChanges registers a non-blocking-by-contract observer for setter calls.
+// Callbacks run after Store releases its lock, and the returned function is safe
+// to call more than once.
+func (s *Store) SubscribeChanges(listener PointChangeListener) func() {
+	if listener == nil {
+		return func() {}
+	}
+	s.mu.Lock()
+	s.nextListener++
+	id := s.nextListener
+	s.listeners[id] = listener
+	s.mu.Unlock()
+
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			s.mu.Lock()
+			delete(s.listeners, id)
+			s.mu.Unlock()
+		})
+	}
+}
+
+func (s *Store) listenersLocked() []PointChangeListener {
+	listeners := make([]PointChangeListener, 0, len(s.listeners))
+	for _, listener := range s.listeners {
+		listeners = append(listeners, listener)
+	}
+	return listeners
+}
+
+func notifyPointChange(listeners []PointChangeListener, change PointChange) {
+	for _, listener := range listeners {
+		listener(change)
+	}
+}
+
 // AddPoint 向 store 添加一个新测点（线程安全）
 // Returns error if IOA already exists
 func (s *Store) AddPoint(p *config.Point) error {
@@ -96,62 +179,84 @@ func (s *Store) AddPoint(p *config.Point) error {
 	s.points[p.IOA] = &cp
 	s.byType[p.PointType] = append(s.byType[p.PointType], &cp)
 	if cp.FunctionCode != 0 {
-		s.byFCAddr[fcAddrKey(cp.FunctionCode, cp.RegisterAddress)] = &cp
+		s.indexModbusPoint(&cp)
 	}
 	return nil
 }
 
 func (s *Store) SetValue(ioa uint32, value float64) (*config.Point, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	p, ok := s.points[ioa]
 	if !ok {
+		s.mu.Unlock()
 		return nil, fmt.Errorf("IOA %d not found", ioa)
 	}
 
+	valueChanged := false
 	switch p.PointType {
 	case config.TypeAI, config.TypeAO:
+		valueChanged = p.Value != value
 		p.Value = value
 	case config.TypeDI, config.TypeDO:
-		p.BoolValue = int64(value) != 0
+		boolValue := int64(value) != 0
+		valueChanged = p.BoolValue != boolValue || p.Value != value
+		p.BoolValue = boolValue
 		p.Value = value // Also set float64 for consistent API read
 	case config.TypePI:
-		p.IntValue = int32(value)
+		intValue := int32(value)
+		valueChanged = p.IntValue != intValue
+		p.IntValue = intValue
 	}
 
 	p.Timestamp = time.Now()
 	p.Changed = true
+	change := PointChange{Point: *p, ValueChanged: valueChanged}
+	listeners := s.listenersLocked()
+	s.mu.Unlock()
+	notifyPointChange(listeners, change)
 	return p, nil
 }
 
 func (s *Store) SetBoolValue(ioa uint32, val bool) (*config.Point, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	p, ok := s.points[ioa]
 	if !ok {
+		s.mu.Unlock()
 		return nil, fmt.Errorf("IOA %d not found", ioa)
 	}
 
+	value := 0.0
+	if val {
+		value = 1
+	}
+	valueChanged := p.BoolValue != val || p.Value != value
 	p.BoolValue = val
+	p.Value = value
 	p.Timestamp = time.Now()
 	p.Changed = true
+	change := PointChange{Point: *p, ValueChanged: valueChanged}
+	listeners := s.listenersLocked()
+	s.mu.Unlock()
+	notifyPointChange(listeners, change)
 	return p, nil
 }
 
 func (s *Store) SetIntValue(ioa uint32, val int32) (*config.Point, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	p, ok := s.points[ioa]
 	if !ok {
+		s.mu.Unlock()
 		return nil, fmt.Errorf("IOA %d not found", ioa)
 	}
 
+	valueChanged := p.IntValue != val
 	p.IntValue = val
 	p.Timestamp = time.Now()
 	p.Changed = true
+	change := PointChange{Point: *p, ValueChanged: valueChanged}
+	listeners := s.listenersLocked()
+	s.mu.Unlock()
+	notifyPointChange(listeners, change)
 	return p, nil
 }
 

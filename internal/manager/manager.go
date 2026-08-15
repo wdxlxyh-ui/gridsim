@@ -11,11 +11,13 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"gridsim/internal/detail"
 	"gridsim/internal/microgrid"
 	"gridsim/internal/model"
 	"gridsim/internal/storage"
+	persist "gridsim/internal/store"
 	"gridsim/pkg/api"
 	"gridsim/pkg/config"
 	"gridsim/pkg/firewall"
@@ -30,15 +32,27 @@ func generateID() string {
 	return hex.EncodeToString(b)
 }
 
+func instanceProtocolPort(cfg model.InstanceConfig) int {
+	if cfg.Protocol == "modbus_tcp" && cfg.ModbusConfig != nil && cfg.ModbusConfig.Port > 0 {
+		return cfg.ModbusConfig.Port
+	}
+	return cfg.IEC104Port
+}
+
+func usesProtocolServerPort(cfg model.InstanceConfig) bool {
+	return cfg.Protocol != "iec104_client" && cfg.Protocol != "modbus_bridge"
+}
+
 // Instance wraps a running protocol server instance.
 type Instance struct {
-	Config     model.InstanceConfig
-	Protocol   protocol.Protocol
-	Store      *library.Store
-	HTTPServer *http.Server
-	AutoEngine *detail.Engine
-	Logger     *InstanceLogger
-	Microgrid  *microgrid.Engine // non-nil only for microgrid instances
+	Config                 model.InstanceConfig
+	Protocol               protocol.Protocol
+	Store                  *library.Store
+	HTTPServer             *http.Server
+	AutoEngine             *detail.Engine
+	Logger                 *InstanceLogger
+	Microgrid              *microgrid.Engine // non-nil only for microgrid instances
+	persistenceUnsubscribe func()
 }
 
 // MaxInstances is the maximum number of concurrent instances allowed.
@@ -51,6 +65,7 @@ type Manager struct {
 	instances map[string]*Instance
 	store     *storage.ConfigStore
 	cfgDir    string
+	dataStore *persist.Service
 }
 
 // New creates a new Manager.
@@ -65,6 +80,120 @@ func New(store *storage.ConfigStore, cfgDir string) *Manager {
 // Store returns the underlying ConfigStore.
 func (m *Manager) Store() *storage.ConfigStore {
 	return m.store
+}
+
+// SetDataStore injects the optional SQLite persistence service. A nil value
+// disables persistence without changing any simulator behaviour.
+func (m *Manager) SetDataStore(dataStore *persist.Service) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.dataStore = dataStore
+}
+
+// DataStore returns the configured persistence service, or nil when disabled.
+func (m *Manager) DataStore() *persist.Service {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.dataStore
+}
+
+// periodicPersistenceSamples retains the continuous 1-second record for source
+// measurements only. AO/DO are control audit records and are event-driven.
+func periodicPersistenceSamples(points []*config.Point, timestamp int64) []persist.Sample {
+	result := make([]persist.Sample, 0, len(points))
+	for _, point := range points {
+		switch point.PointType {
+		case config.TypeAI, config.TypeDI, config.TypePI:
+			result = append(result, persistenceSample(*point, timestamp))
+		}
+	}
+	return result
+}
+
+func persistenceSample(point config.Point, timestamp int64) persist.Sample {
+	if timestamp <= 0 {
+		timestamp = time.Now().UnixMilli()
+	}
+	return persist.Sample{
+		IOA:       point.IOA,
+		Timestamp: timestamp,
+		Name:      point.Name,
+		PointType: string(point.PointType),
+		Value:     point.Value,
+		BoolValue: point.BoolValue,
+		IntValue:  point.IntValue,
+		QDS:       encodeQDS(point.QDS),
+	}
+}
+
+func shouldPersistImmediately(change library.PointChange) bool {
+	switch change.Point.PointType {
+	case config.TypeAO, config.TypeDO:
+		// Every AO/DO setter call represents a control attempt, even when the
+		// requested value equals the current one.
+		return true
+	case config.TypeAI, config.TypeDI, config.TypePI:
+		return change.ValueChanged
+	default:
+		return false
+	}
+}
+
+// startPersistence samples AI/DI/PI once per interval and subscribes to Store
+// writes for immediate source changes and AO/DO control audit records.
+func (m *Manager) startPersistence(instanceID string, pointStore *library.Store) {
+	dataStore := m.dataStore
+	if dataStore == nil || pointStore == nil {
+		return
+	}
+	if err := dataStore.StartInstance(instanceID, func() []persist.Sample {
+		return periodicPersistenceSamples(pointStore.SnapshotAll(), time.Now().UnixMilli())
+	}); err != nil {
+		slog.Error("启动测点数据持久化失败", "instance", instanceID, "error", err)
+		return
+	}
+
+	unsubscribe := pointStore.SubscribeChanges(func(change library.PointChange) {
+		if shouldPersistImmediately(change) {
+			dataStore.Enqueue(instanceID, persistenceSample(change.Point, change.Point.Timestamp.UnixMilli()))
+		}
+	})
+	if inst, ok := m.instances[instanceID]; ok {
+		if inst.persistenceUnsubscribe != nil {
+			inst.persistenceUnsubscribe()
+		}
+		inst.persistenceUnsubscribe = unsubscribe
+	}
+}
+
+func (m *Manager) stopPersistence(instanceID string) {
+	if inst, ok := m.instances[instanceID]; ok && inst.persistenceUnsubscribe != nil {
+		inst.persistenceUnsubscribe()
+		inst.persistenceUnsubscribe = nil
+	}
+	if m.dataStore != nil {
+		m.dataStore.StopInstance(instanceID)
+	}
+}
+
+func encodeQDS(q config.QualityDescriptor) uint8 {
+	var result uint8
+	if q.Invalid {
+		result |= 1
+	}
+	if q.NotTopical {
+		result |= 2
+	}
+	if q.Substituted {
+		result |= 4
+	}
+	if q.Overflow {
+		result |= 8
+	}
+	if q.Blocked {
+		result |= 16
+	}
+	return result
 }
 
 // ListConfigs returns all instance configurations.
@@ -87,12 +216,23 @@ func (m *Manager) CreateConfig(cfg model.InstanceConfig) (model.InstanceConfig, 
 		return model.InstanceConfig{}, fmt.Errorf("maximum %d instances allowed", MaxInstances)
 	}
 
-	// Check IEC104 port conflict with other configs (skip for client mode, no server port needed)
+	// Check the actual protocol listener port, which may come from modbus_config.
+	cfgPort := instanceProtocolPort(cfg)
+	if usesProtocolServerPort(cfg) && cfg.HttpEnabled && cfgPort == cfg.HttpPort {
+		return model.InstanceConfig{}, fmt.Errorf("protocol port and http port cannot both use %d", cfgPort)
+	}
 	for _, existing := range m.store.List() {
-		if cfg.Protocol == "iec104_client" || cfg.Protocol == "modbus_bridge" {
-			// client mode and modbus_bridge don't use IEC104 server port, skip IEC104 port collision check
-		} else if existing.IEC104Port == cfg.IEC104Port && cfg.IEC104Port != 0 {
-			return model.InstanceConfig{}, fmt.Errorf("port %d already configured for instance %s", cfg.IEC104Port, existing.ID)
+		existingPort := instanceProtocolPort(existing)
+		if usesProtocolServerPort(cfg) && usesProtocolServerPort(existing) {
+			if cfgPort != 0 && existingPort == cfgPort {
+				return model.InstanceConfig{}, fmt.Errorf("port %d already configured for instance %s", cfgPort, existing.ID)
+			}
+		}
+		if usesProtocolServerPort(cfg) && existing.HttpEnabled && existing.HttpPort == cfgPort {
+			return model.InstanceConfig{}, fmt.Errorf("port %d already configured as http port for instance %s", cfgPort, existing.ID)
+		}
+		if cfg.HttpEnabled && usesProtocolServerPort(existing) && existingPort == cfg.HttpPort {
+			return model.InstanceConfig{}, fmt.Errorf("http port %d already configured as protocol port for instance %s", cfg.HttpPort, existing.ID)
 		}
 		if cfg.HttpEnabled && existing.HttpEnabled && existing.HttpPort == cfg.HttpPort {
 			return model.InstanceConfig{}, fmt.Errorf("http port %d already configured for instance %s", cfg.HttpPort, existing.ID)
@@ -140,18 +280,34 @@ func (m *Manager) StartInstance(id string) error {
 		return fmt.Errorf("instance %s not found", id)
 	}
 
+	protocolPort := instanceProtocolPort(cfg)
+	if cfg.Protocol == "modbus_tcp" {
+		// Keep runtime metadata, logs and firewall rules aligned with the port
+		// that protocol.New will actually bind.
+		cfg.IEC104Port = protocolPort
+	}
+	if cfg.HttpEnabled && cfg.HttpPort == protocolPort {
+		return fmt.Errorf("protocol port and http port cannot both use %d", protocolPort)
+	}
 	for _, inst := range m.instances {
-		if inst.Config.IEC104Port == cfg.IEC104Port {
-			return fmt.Errorf("port %d already in use by instance %s", cfg.IEC104Port, inst.Config.ID)
+		existingPort := instanceProtocolPort(inst.Config)
+		if usesProtocolServerPort(inst.Config) && existingPort == protocolPort {
+			return fmt.Errorf("port %d already in use by instance %s", protocolPort, inst.Config.ID)
+		}
+		if inst.Config.HttpEnabled && inst.Config.HttpPort == protocolPort {
+			return fmt.Errorf("port %d already used as http port by instance %s", protocolPort, inst.Config.ID)
+		}
+		if cfg.HttpEnabled && usesProtocolServerPort(inst.Config) && existingPort == cfg.HttpPort {
+			return fmt.Errorf("http port %d already used as protocol port by instance %s", cfg.HttpPort, inst.Config.ID)
 		}
 		if cfg.HttpEnabled && inst.Config.HttpEnabled && inst.Config.HttpPort == cfg.HttpPort {
 			return fmt.Errorf("http port %d already in use by instance %s", cfg.HttpPort, inst.Config.ID)
 		}
 	}
 
-	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.IEC104Port))
+	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", protocolPort))
 	if err != nil {
-		return fmt.Errorf("port %d not available: %w", cfg.IEC104Port, err)
+		return fmt.Errorf("port %d not available: %w", protocolPort, err)
 	}
 	ln.Close()
 
@@ -230,6 +386,7 @@ func (m *Manager) StartInstance(id string) error {
 	}
 
 	m.instances[id] = inst
+	m.startPersistence(id, store)
 
 	slog.Info("实例已启动", "id", id, "port", cfg.IEC104Port, "name", cfg.Name, "points", len(points))
 	return nil
@@ -254,8 +411,31 @@ func (m *Manager) UpdateConfig(cfg model.InstanceConfig) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	newPort := instanceProtocolPort(cfg)
+	if usesProtocolServerPort(cfg) && cfg.HttpEnabled && newPort == cfg.HttpPort {
+		return fmt.Errorf("protocol port and http port cannot both use %d", newPort)
+	}
+	for _, existing := range m.store.List() {
+		if existing.ID == cfg.ID {
+			continue
+		}
+		existingPort := instanceProtocolPort(existing)
+		if usesProtocolServerPort(cfg) && usesProtocolServerPort(existing) && newPort != 0 && existingPort == newPort {
+			return fmt.Errorf("port %d already configured for instance %s", newPort, existing.ID)
+		}
+		if usesProtocolServerPort(cfg) && existing.HttpEnabled && existing.HttpPort == newPort {
+			return fmt.Errorf("port %d already configured as http port for instance %s", newPort, existing.ID)
+		}
+		if cfg.HttpEnabled && usesProtocolServerPort(existing) && existingPort == cfg.HttpPort {
+			return fmt.Errorf("http port %d already configured as protocol port for instance %s", cfg.HttpPort, existing.ID)
+		}
+		if cfg.HttpEnabled && existing.HttpEnabled && existing.HttpPort == cfg.HttpPort {
+			return fmt.Errorf("http port %d already configured for instance %s", cfg.HttpPort, existing.ID)
+		}
+	}
+
 	if inst, ok := m.instances[cfg.ID]; ok {
-		oldPort := inst.Config.IEC104Port
+		oldPort := instanceProtocolPort(inst.Config)
 		inst.Protocol.Stop()
 		if inst.HTTPServer != nil {
 			inst.HTTPServer.Close()
@@ -263,10 +443,17 @@ func (m *Manager) UpdateConfig(cfg model.InstanceConfig) error {
 		}
 		if inst.Logger != nil {
 			inst.Logger.Close()
-			if oldPort != cfg.IEC104Port {
-				RenameInstanceLogDir(m.cfgDir, cfg.ID, cfg.ID, oldPort, cfg.IEC104Port)
+			if oldPort != newPort {
+				RenameInstanceLogDir(m.cfgDir, cfg.ID, cfg.ID, oldPort, newPort)
 			}
 		}
+		if usesProtocolServerPort(inst.Config) {
+			firewall.RemovePort(oldPort)
+		}
+		if inst.Config.HttpEnabled && inst.Config.HttpPort > 0 {
+			firewall.RemovePort(inst.Config.HttpPort)
+		}
+		m.stopPersistence(cfg.ID)
 		delete(m.instances, cfg.ID)
 	}
 
@@ -288,21 +475,30 @@ func (m *Manager) DeleteConfig(id string) error {
 		}
 		if inst.Logger != nil {
 			inst.Logger.Close()
-			RemoveInstanceLogDir(m.cfgDir, inst.Config.ID, inst.Config.IEC104Port)
+			RemoveInstanceLogDir(m.cfgDir, inst.Config.ID, instanceProtocolPort(inst.Config))
 		}
-		firewall.RemovePort(inst.Config.IEC104Port)
+		firewall.RemovePort(instanceProtocolPort(inst.Config))
 		if inst.Config.HttpEnabled && inst.Config.HttpPort > 0 {
 			firewall.RemovePort(inst.Config.HttpPort)
 		}
+		m.stopPersistence(id)
 		delete(m.instances, id)
 	} else {
 		cfg, _ := m.store.Get(id)
 		if cfg.ID != "" {
-			RemoveInstanceLogDir(m.cfgDir, cfg.ID, cfg.IEC104Port)
+			RemoveInstanceLogDir(m.cfgDir, cfg.ID, instanceProtocolPort(cfg))
 		}
 	}
 
-	return m.store.Delete(id)
+	if err := m.store.Delete(id); err != nil {
+		return err
+	}
+	if m.dataStore != nil {
+		if err := m.dataStore.DropInstance(id); err != nil {
+			slog.Warn("删除实例历史数据失败", "id", id, "error", err)
+		}
+	}
+	return nil
 }
 
 func (m *Manager) StopInstance(id string) error {
@@ -328,16 +524,17 @@ func (m *Manager) StopInstance(id string) error {
 
 	if inst.Logger != nil {
 		inst.Logger.Close()
-		RemoveInstanceLogDir(m.cfgDir, inst.Config.ID, inst.Config.IEC104Port)
+		RemoveInstanceLogDir(m.cfgDir, inst.Config.ID, instanceProtocolPort(inst.Config))
 	}
 
-	if inst.Config.Protocol != "iec104_client" {
-		firewall.RemovePort(inst.Config.IEC104Port)
-		if inst.Config.HttpEnabled && inst.Config.HttpPort > 0 {
-			firewall.RemovePort(inst.Config.HttpPort)
-		}
+	if usesProtocolServerPort(inst.Config) {
+		firewall.RemovePort(instanceProtocolPort(inst.Config))
+	}
+	if inst.Config.HttpEnabled && inst.Config.HttpPort > 0 {
+		firewall.RemovePort(inst.Config.HttpPort)
 	}
 
+	m.stopPersistence(id)
 	delete(m.instances, id)
 
 	slog.Info("实例已停止", "id", id, "name", inst.Config.Name)
@@ -453,14 +650,14 @@ func (m *Manager) RunningCount() int {
 
 // DashboardData holds aggregated stats for the dashboard API.
 type DashboardData struct {
-	TotalInstances  int                    `json:"total_instances"`
-	RunningInstances int                   `json:"running_instances"`
-	StoppedInstances int                   `json:"stopped_instances"`
-	ErrorInstances   int                   `json:"error_instances"`
-	TotalPoints      int                   `json:"total_points"`
-	ClientsConnected int                   `json:"clients_connected"`
-	ByProtocol       map[string]int        `json:"by_protocol"`
-	Instances       []*model.InstanceState `json:"instances"`
+	TotalInstances   int                    `json:"total_instances"`
+	RunningInstances int                    `json:"running_instances"`
+	StoppedInstances int                    `json:"stopped_instances"`
+	ErrorInstances   int                    `json:"error_instances"`
+	TotalPoints      int                    `json:"total_points"`
+	ClientsConnected int                    `json:"clients_connected"`
+	ByProtocol       map[string]int         `json:"by_protocol"`
+	Instances        []*model.InstanceState `json:"instances"`
 }
 
 // GetDashboardData returns aggregated dashboard data.
@@ -508,6 +705,7 @@ func (m *Manager) StopAll() {
 		if inst.AutoEngine != nil {
 			inst.AutoEngine.StopAll()
 		}
+		m.stopPersistence(id)
 		delete(m.instances, id)
 		slog.Info("实例已停止", "id", id, "name", inst.Config.Name)
 	}
@@ -623,6 +821,7 @@ func (m *Manager) startMicrogrid(id string) error {
 	}
 
 	m.instances[id] = inst
+	m.startPersistence(id, store)
 	firewall.EnsurePort(cfg.IEC104Port, "gridsim-microgrid")
 	slog.Info("微电网实例已启动", "id", id, "devices", len(topo.Devices))
 	return nil
@@ -688,6 +887,7 @@ func (m *Manager) startClient(id string) error {
 	}
 
 	m.instances[id] = inst
+	m.startPersistence(id, store)
 	slog.Info("客户端实例已启动", "id", id, "remote",
 		fmt.Sprintf("%s:%d", cfg.IEC104ClientConfig.RemoteAddr, cfg.IEC104ClientConfig.RemotePort),
 		"points", len(points))
@@ -710,6 +910,7 @@ func (m *Manager) RegisterMicrogridInstance(id string, inst *Instance, eng *micr
 	defer m.mu.Unlock()
 	inst.Microgrid = eng
 	m.instances[id] = inst
+	m.startPersistence(id, inst.Store)
 }
 
 // ─── Modbus Bridge (Python) Support ───
@@ -822,6 +1023,7 @@ func (m *Manager) startBridge(id string) error {
 	}
 
 	m.instances[id] = inst
+	m.startPersistence(id, store)
 	firewall.EnsurePort(bridgeCfg.ModbusPort, "gridsim-bridge-modbus")
 	slog.Info("Bridge实例已启动", "id", id, "devices", len(devices), "points", len(points))
 	return nil
