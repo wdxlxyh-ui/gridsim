@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
-const http = axios.create({
+export const http = axios.create({
   baseURL: '/api/v1',
   timeout: 10000,
 })
@@ -39,6 +39,66 @@ export async function login(username: string, password: string): Promise<{ token
   const res = await axios.post('/api/v1/auth/login', { username, password })
   return res.data
 }
+
+export interface PersistenceStatus {
+  enabled: boolean
+  size_bytes?: number
+  retention_minutes?: number
+  sample_interval_ms?: number
+  written?: number
+  dropped?: number
+  instances?: number
+}
+
+export interface PersistedSeries {
+  ioa: number
+  name: string
+  point_type: string
+  samples: [number, number][]
+}
+
+export interface HistoryResponse {
+  instance_id: string
+  from: number
+  to: number
+  clamped: boolean
+  truncated: boolean
+  retention_minutes: number
+  series: PersistedSeries[]
+}
+
+export interface PersistedPointSnapshot {
+  ioa: number
+  timestamp: number
+  name: string
+  point_type: string
+  value: number
+  bool_value: boolean
+  int_value: number
+  qds: number
+}
+
+export async function getPersistenceStatus(): Promise<PersistenceStatus> {
+  try {
+    const res = await http.get('/db/status')
+    return res.data
+  } catch {
+    return { enabled: false }
+  }
+}
+
+export async function getPointHistory(instanceId: string, ioas: number[], from: number, to: number, limit = 5000): Promise<HistoryResponse> {
+  const res = await http.get(`/instances/${instanceId}/history`, {
+    params: { ioas: [...new Set(ioas)].join(','), from, to, limit },
+  })
+  return res.data
+}
+
+export async function getLatestPersistedSnapshot(instanceId: string): Promise<{ instance_id: string; source: string; points: PersistedPointSnapshot[] }> {
+  const res = await http.get(`/instances/${instanceId}/snapshot/latest`)
+  return res.data
+}
+
 
 export interface ModbusConfig {
   port?: number

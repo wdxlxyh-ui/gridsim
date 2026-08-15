@@ -46,7 +46,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import * as echarts from 'echarts'
-import { readPointsBatch } from '../api'
+import { readPointsBatch, getPersistenceStatus, getPointHistory } from '../api'
 
 const COLORS = ['#14b8a6', '#f59e0b', '#3b82f6', '#a855f7', '#ec4899', '#22d3ee', '#f97316', '#8b5cf6']
 
@@ -112,8 +112,10 @@ watch(() => props.traces, (newConfigs) => {
   
   if (wasEmpty && newTraces.length > 0) {
     // Panel went from empty to having traces — init chart + start polling
-    nextTick(() => {
+    nextTick(async () => {
       initChart()
+      await backfillHistory()
+      fetchAllPoints()
       startPolling()
     })
   } else if (newTraces.length === 0) {
@@ -195,11 +197,47 @@ function trimData() {
   const cutoff = Date.now() - props.timeRange * 60 * 1000
   panelTraces.value.forEach(t => {
     if (t.data.length === 0 || t.data[0][0] >= cutoff) return
+
+
+
     const idx = t.data.findIndex(d => d[0] >= cutoff)
     t.data = idx === -1 ? [] : t.data.slice(idx)
   })
 }
 
+
+// Backfill persisted history before real-time polling starts. When persistence
+// is disabled or no data exists this quietly falls back to the pre-existing
+// in-memory trend behaviour.
+async function backfillHistory() {
+  if (panelTraces.value.length === 0 || disposed) return
+  const status = await getPersistenceStatus()
+  if (!status.enabled) return
+
+  const retention = status.retention_minutes || 60
+  const range = Math.min(props.timeRange, retention)
+  const to = Date.now()
+  const from = to - range * 60 * 1000
+  const byInstance = new Map<string, number[]>()
+  panelTraces.value.forEach(t => {
+    const ioas = byInstance.get(t.instId) || []
+    ioas.push(t.ioa)
+    byInstance.set(t.instId, ioas)
+  })
+
+  for (const [instId, ioas] of byInstance) {
+    try {
+      const res = await getPointHistory(instId, ioas, from, to)
+      for (const series of res.series) {
+        const trace = panelTraces.value.find(t => t.instId === instId && t.ioa === series.ioa)
+        if (trace) trace.data = series.samples
+      }
+    } catch {
+      // A stopped instance or an old backend must not prevent other series from rendering.
+    }
+  }
+  if (!disposed) updateChart()
+}
 async function fetchAllPoints() {
   if (panelTraces.value.length === 0 || paused.value || disposed) return
   const byInstance = new Map<string, number[]>()
@@ -337,9 +375,10 @@ function startPolling() {
 onMounted(() => {
   // Initialize traces from props
   panelTraces.value = props.traces.map(t => ({ ...t, data: [] }))
-  nextTick(() => {
+  nextTick(async () => {
     if (panelTraces.value.length > 0) {
       initChart()
+      await backfillHistory()
       fetchAllPoints()
       startPolling()
     }

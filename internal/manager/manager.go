@@ -11,11 +11,13 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"gridsim/internal/detail"
 	"gridsim/internal/microgrid"
 	"gridsim/internal/model"
 	"gridsim/internal/storage"
+	persist "gridsim/internal/store"
 	"gridsim/pkg/api"
 	"gridsim/pkg/config"
 	"gridsim/pkg/firewall"
@@ -62,6 +64,7 @@ type Manager struct {
 	instances map[string]*Instance
 	store     *storage.ConfigStore
 	cfgDir    string
+	dataStore *persist.Service
 }
 
 // New creates a new Manager.
@@ -76,6 +79,76 @@ func New(store *storage.ConfigStore, cfgDir string) *Manager {
 // Store returns the underlying ConfigStore.
 func (m *Manager) Store() *storage.ConfigStore {
 	return m.store
+}
+
+// SetDataStore injects the optional SQLite persistence service. A nil value
+// disables persistence without changing any simulator behaviour.
+func (m *Manager) SetDataStore(dataStore *persist.Service) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.dataStore = dataStore
+}
+
+// DataStore returns the configured persistence service, or nil when disabled.
+func (m *Manager) DataStore() *persist.Service {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.dataStore
+}
+
+// startPersistence snapshots all five GridSim point types for a running instance.
+// One unified library.Store exists for every supported protocol, so this covers
+// IEC104, Modbus TCP, IEC104 client, microgrid and Modbus bridge instances.
+func (m *Manager) startPersistence(instanceID string, pointStore *library.Store) {
+	if m.dataStore == nil || pointStore == nil {
+		return
+	}
+	if err := m.dataStore.StartInstance(instanceID, func() []persist.Sample {
+		points := pointStore.SnapshotAll()
+		now := time.Now().UnixMilli()
+		result := make([]persist.Sample, 0, len(points))
+		for _, p := range points {
+			result = append(result, persist.Sample{
+				IOA:       p.IOA,
+				Timestamp: now,
+				Name:      p.Name,
+				PointType: string(p.PointType),
+				Value:     p.Value,
+				BoolValue: p.BoolValue,
+				IntValue:  p.IntValue,
+				QDS:       encodeQDS(p.QDS),
+			})
+		}
+		return result
+	}); err != nil {
+		slog.Error("启动测点数据持久化失败", "instance", instanceID, "error", err)
+	}
+}
+
+func (m *Manager) stopPersistence(instanceID string) {
+	if m.dataStore != nil {
+		m.dataStore.StopInstance(instanceID)
+	}
+}
+
+func encodeQDS(q config.QualityDescriptor) uint8 {
+	var result uint8
+	if q.Invalid {
+		result |= 1
+	}
+	if q.NotTopical {
+		result |= 2
+	}
+	if q.Substituted {
+		result |= 4
+	}
+	if q.Overflow {
+		result |= 8
+	}
+	if q.Blocked {
+		result |= 16
+	}
+	return result
 }
 
 // ListConfigs returns all instance configurations.
@@ -268,6 +341,7 @@ func (m *Manager) StartInstance(id string) error {
 	}
 
 	m.instances[id] = inst
+	m.startPersistence(id, store)
 
 	slog.Info("实例已启动", "id", id, "port", cfg.IEC104Port, "name", cfg.Name, "points", len(points))
 	return nil
@@ -334,6 +408,7 @@ func (m *Manager) UpdateConfig(cfg model.InstanceConfig) error {
 		if inst.Config.HttpEnabled && inst.Config.HttpPort > 0 {
 			firewall.RemovePort(inst.Config.HttpPort)
 		}
+		m.stopPersistence(cfg.ID)
 		delete(m.instances, cfg.ID)
 	}
 
@@ -361,6 +436,7 @@ func (m *Manager) DeleteConfig(id string) error {
 		if inst.Config.HttpEnabled && inst.Config.HttpPort > 0 {
 			firewall.RemovePort(inst.Config.HttpPort)
 		}
+		m.stopPersistence(id)
 		delete(m.instances, id)
 	} else {
 		cfg, _ := m.store.Get(id)
@@ -369,7 +445,15 @@ func (m *Manager) DeleteConfig(id string) error {
 		}
 	}
 
-	return m.store.Delete(id)
+	if err := m.store.Delete(id); err != nil {
+		return err
+	}
+	if m.dataStore != nil {
+		if err := m.dataStore.DropInstance(id); err != nil {
+			slog.Warn("删除实例历史数据失败", "id", id, "error", err)
+		}
+	}
+	return nil
 }
 
 func (m *Manager) StopInstance(id string) error {
@@ -520,14 +604,14 @@ func (m *Manager) RunningCount() int {
 
 // DashboardData holds aggregated stats for the dashboard API.
 type DashboardData struct {
-	TotalInstances  int                    `json:"total_instances"`
-	RunningInstances int                   `json:"running_instances"`
-	StoppedInstances int                   `json:"stopped_instances"`
-	ErrorInstances   int                   `json:"error_instances"`
-	TotalPoints      int                   `json:"total_points"`
-	ClientsConnected int                   `json:"clients_connected"`
-	ByProtocol       map[string]int        `json:"by_protocol"`
-	Instances       []*model.InstanceState `json:"instances"`
+	TotalInstances   int                    `json:"total_instances"`
+	RunningInstances int                    `json:"running_instances"`
+	StoppedInstances int                    `json:"stopped_instances"`
+	ErrorInstances   int                    `json:"error_instances"`
+	TotalPoints      int                    `json:"total_points"`
+	ClientsConnected int                    `json:"clients_connected"`
+	ByProtocol       map[string]int         `json:"by_protocol"`
+	Instances        []*model.InstanceState `json:"instances"`
 }
 
 // GetDashboardData returns aggregated dashboard data.
@@ -575,6 +659,7 @@ func (m *Manager) StopAll() {
 		if inst.AutoEngine != nil {
 			inst.AutoEngine.StopAll()
 		}
+		m.stopPersistence(id)
 		delete(m.instances, id)
 		slog.Info("实例已停止", "id", id, "name", inst.Config.Name)
 	}
@@ -690,6 +775,7 @@ func (m *Manager) startMicrogrid(id string) error {
 	}
 
 	m.instances[id] = inst
+	m.startPersistence(id, store)
 	firewall.EnsurePort(cfg.IEC104Port, "gridsim-microgrid")
 	slog.Info("微电网实例已启动", "id", id, "devices", len(topo.Devices))
 	return nil
@@ -755,6 +841,7 @@ func (m *Manager) startClient(id string) error {
 	}
 
 	m.instances[id] = inst
+	m.startPersistence(id, store)
 	slog.Info("客户端实例已启动", "id", id, "remote",
 		fmt.Sprintf("%s:%d", cfg.IEC104ClientConfig.RemoteAddr, cfg.IEC104ClientConfig.RemotePort),
 		"points", len(points))
@@ -777,6 +864,7 @@ func (m *Manager) RegisterMicrogridInstance(id string, inst *Instance, eng *micr
 	defer m.mu.Unlock()
 	inst.Microgrid = eng
 	m.instances[id] = inst
+	m.startPersistence(id, inst.Store)
 }
 
 // ─── Modbus Bridge (Python) Support ───
@@ -889,6 +977,7 @@ func (m *Manager) startBridge(id string) error {
 	}
 
 	m.instances[id] = inst
+	m.startPersistence(id, store)
 	firewall.EnsurePort(bridgeCfg.ModbusPort, "gridsim-bridge-modbus")
 	slog.Info("Bridge实例已启动", "id", id, "devices", len(devices), "points", len(points))
 	return nil

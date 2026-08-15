@@ -101,6 +101,21 @@ func (s *Store) SnapshotByType(pt config.PointType) []*config.Point {
 	return snap
 }
 
+// SnapshotAll returns a consistent, detached copy of every point.
+// It is safe to use from persistence samplers while protocol and strategy
+// goroutines are updating AI, DI, PI, AO and DO values.
+func (s *Store) SnapshotAll() []*config.Point {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	result := make([]*config.Point, 0, len(s.points))
+	for _, p := range s.points {
+		cp := *p
+		result = append(result, &cp)
+	}
+	return result
+}
+
 // AddPoint 向 store 添加一个新测点（线程安全）
 // Returns error if IOA already exists
 func (s *Store) AddPoint(p *config.Point) error {

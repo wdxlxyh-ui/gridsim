@@ -697,7 +697,7 @@ import {
   getPoints, setPointValue, setAutoChange, getAutoChange, batchAutoChange,
   exportAutoConfig as fetchExport, importAutoConfig as fetchImport,
   exportPointsCSV, uploadCSV, getInstance, listInstances, listCSVFiles, readCSVHeaders,
-  deleteAutoChange, setPointQDS,
+  deleteAutoChange, setPointQDS, getLatestPersistedSnapshot,
   type PointSnapshot, type InstanceState, type QualityDescriptor,
 } from '../api'
 
@@ -1210,6 +1210,26 @@ function onSelectionChange(rows: PointSnapshot[]) {
   rows.forEach(r => selectedIoas[r.ioa] = true)
 }
 
+
+// Use the last durable sample for the first visible state. Live polling then
+// immediately takes over, so this remains compatible with old/disabled servers.
+async function loadPersistedSnapshot() {
+  if (!instanceId.value || points.value.length === 0) return
+  try {
+    const snapshot = await getLatestPersistedSnapshot(instanceId.value)
+    const byIOA = new Map(snapshot.points.map(p => [p.ioa, p]))
+    for (const point of points.value) {
+      const saved = byIOA.get(point.ioa)
+      if (!saved) continue
+      point.value = saved.value
+      point.bool_value = saved.bool_value
+      point.int_value = saved.int_value
+      point.updated_at = new Date(saved.timestamp).toISOString()
+    }
+  } catch {
+    // The persistence API intentionally remains optional for rolling upgrades.
+  }
+}
 async function fetchPoints() {
    if (!instanceId.value) return  // 防御性检查：instanceId 为空时直接返回
    try {
@@ -1257,6 +1277,9 @@ function restartPolling() {
 function togglePolling(val: boolean) {
   if (val) {
     restartPolling()
+
+
+
   } else {
     if (pollTimer) {
       clearInterval(pollTimer)
@@ -1768,6 +1791,7 @@ async function initPage() {
   await loadInstanceState()
   if (instanceStatus.value === 'running') {
     await fetchPoints()
+    await loadPersistedSnapshot()
     await restoreCsvMultiState()
     pollingEnabled.value = true
     restartPolling()
