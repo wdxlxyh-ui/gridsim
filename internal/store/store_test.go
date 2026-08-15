@@ -17,8 +17,20 @@ func newTestService(t *testing.T, retention int, interval time.Duration) *Servic
 	return s
 }
 
+func TestDefaultRetentionIsOneDay(t *testing.T) {
+	if DefaultRetentionMinutes != 24*60 {
+		t.Fatalf("DefaultRetentionMinutes=%d, want 1440", DefaultRetentionMinutes)
+	}
+	s, err := Open(filepath.Join(t.TempDir(), "gridsim.db"), DefaultRetentionMinutes, time.Second)
+	if err != nil {
+		t.Fatalf("Open with default retention: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+}
+
 func TestOpenEnablesWALAndCreatesDedicatedInstanceTable(t *testing.T) {
 	s := newTestService(t, 60, time.Second)
+
 	var mode string
 	if err := s.db.QueryRow(`PRAGMA journal_mode`).Scan(&mode); err != nil {
 		t.Fatal(err)
@@ -201,4 +213,46 @@ func TestEnqueueWritesImmediateEventSample(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatal("immediate event sample was not persisted")
+}
+
+func TestDeleteHistoryRemovesOnlySelectedPoints(t *testing.T) {
+	s := newTestService(t, 60, time.Second)
+	const id = "abc123def456"
+	if err := s.EnsureInstance(id); err != nil {
+		t.Fatal(err)
+	}
+	base := time.Now().UnixMilli()
+	if err := s.insertBatch(id, []Sample{
+		{IOA: 1, Timestamp: base + 1, Name: "AI 1", PointType: "AI", Value: 1},
+		{IOA: 1, Timestamp: base + 2, Name: "AI 1", PointType: "AI", Value: 2},
+		{IOA: 2, Timestamp: base + 1, Name: "AI 2", PointType: "AI", Value: 3},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	deleted, err := s.DeleteHistory(id, []uint32{1, 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if deleted != 2 {
+		t.Fatalf("deleted=%d, want 2", deleted)
+	}
+	if _, err := s.DeleteHistory(id, nil); err == nil {
+		t.Fatal("DeleteHistory accepted an empty selection")
+	}
+
+	removed, _, err := s.History(id, []uint32{1}, base, base+10, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(removed) != 0 {
+		t.Fatalf("deleted point still has history: %+v", removed)
+	}
+	remaining, _, err := s.History(id, []uint32{2}, base, base+10, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(remaining) != 1 || len(remaining[0].Samples) != 1 || remaining[0].Samples[0][1] != 3 {
+		t.Fatalf("unselected point history=%+v, want one unchanged sample", remaining)
+	}
 }

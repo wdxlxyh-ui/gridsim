@@ -1,6 +1,6 @@
 // Package store provides SQLite-backed rolling persistence for GridSim points.
 // Each running instance has an independent time-series table and keeps only
-// the most recent retention window (60 minutes by default).
+// the most recent retention window (24 hours by default).
 package store
 
 import (
@@ -20,7 +20,8 @@ import (
 )
 
 const (
-	DefaultRetentionMinutes = 60
+	DefaultRetentionMinutes = 24 * 60
+	MaxRetentionMinutes     = 7 * 24 * 60
 	DefaultSampleInterval   = time.Second
 	defaultQueueSize        = 8192
 	defaultBatchSize        = 2000
@@ -107,8 +108,8 @@ func tableName(instanceID string) (string, error) {
 
 // Open creates or opens a database. It is safe to call before any instances exist.
 func Open(path string, retentionMinutes int, sampleInterval time.Duration) (*Service, error) {
-	if retentionMinutes <= 0 || retentionMinutes > 240 {
-		return nil, fmt.Errorf("retention minutes must be within 1..240, got %d", retentionMinutes)
+	if retentionMinutes <= 0 || retentionMinutes > MaxRetentionMinutes {
+		return nil, fmt.Errorf("retention minutes must be within 1..%d, got %d", MaxRetentionMinutes, retentionMinutes)
 	}
 	if sampleInterval <= 0 {
 		sampleInterval = DefaultSampleInterval
@@ -469,6 +470,45 @@ func (s *Service) History(instanceID string, ioas []uint32, from, to int64, limi
 		}
 	}
 	return result, truncated, nil
+}
+
+// DeleteHistory removes all persisted samples for the requested points in one instance.
+// It intentionally rejects an empty selection so callers cannot clear an entire instance
+// or database by omission.
+func (s *Service) DeleteHistory(instanceID string, ioas []uint32) (int64, error) {
+	table, err := tableName(instanceID)
+	if err != nil {
+		return 0, err
+	}
+	if len(ioas) == 0 {
+		return 0, fmt.Errorf("at least one IOA is required")
+	}
+	if len(ioas) > 500 {
+		return 0, fmt.Errorf("at most 500 IOAs may be deleted at once")
+	}
+
+	unique := make(map[uint32]struct{}, len(ioas))
+	args := make([]any, 0, len(ioas))
+	for _, ioa := range ioas {
+		if _, exists := unique[ioa]; exists {
+			continue
+		}
+		unique[ioa] = struct{}{}
+		args = append(args, ioa)
+	}
+	if len(args) == 0 {
+		return 0, fmt.Errorf("at least one IOA is required")
+	}
+	placeholders := strings.TrimRight(strings.Repeat("?,", len(args)), ",")
+	result, err := s.db.Exec(fmt.Sprintf(`DELETE FROM %s WHERE ioa IN (%s)`, table, placeholders), args...)
+	if err != nil {
+		return 0, err
+	}
+	deleted, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return deleted, nil
 }
 
 // Stats reports current service state.

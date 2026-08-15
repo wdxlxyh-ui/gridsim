@@ -94,6 +94,19 @@ export async function getPointHistory(instanceId: string, ioas: number[], from: 
   return res.data
 }
 
+export interface DeletePointHistoryResponse {
+  instance_id: string
+  ioas: number[]
+  deleted: number
+}
+
+export async function deletePointHistory(instanceId: string, ioas: number[]): Promise<DeletePointHistoryResponse> {
+  const res = await http.delete(`/instances/${instanceId}/history`, {
+    data: { ioas: [...new Set(ioas)], confirm: true },
+  })
+  return res.data
+}
+
 export async function getLatestPersistedSnapshot(instanceId: string): Promise<{ instance_id: string; source: string; points: PersistedPointSnapshot[] }> {
   const res = await http.get(`/instances/${instanceId}/snapshot/latest`)
   return res.data

@@ -153,7 +153,7 @@ func runServerMode() {
 	pflag.StringVarP(&logLvl, "log", "l", "info", "日志级别: debug/info/warn/error")
 	pflag.StringVar(&dbMode, "db", "auto", "数据持久化: auto|on|off")
 	pflag.StringVar(&dbPath, "db-path", "", "SQLite 文件路径，默认 <config-dir>/db/gridsim.db")
-	pflag.IntVar(&dbRetentionMinutes, "db-retention-minutes", 60, "历史数据保留分钟数 (1-240)")
+	pflag.IntVar(&dbRetentionMinutes, "db-retention-minutes", persist.DefaultRetentionMinutes, "历史数据保留分钟数 (1-10080)")
 	pflag.IntVar(&dbSampleIntervalMs, "db-sample-interval", 1000, "数据库采样周期毫秒")
 	pflag.Parse()
 
@@ -241,8 +241,8 @@ func openDataStore(mode, path, configDir string, retentionMinutes, sampleInterva
 		}
 		return nil
 	}
-	if retentionMinutes < 1 || retentionMinutes > 240 {
-		slog.Error("无效的 --db-retention-minutes 参数", "value", retentionMinutes, "range", "1..240")
+	if retentionMinutes < 1 || retentionMinutes > persist.MaxRetentionMinutes {
+		slog.Error("无效的 --db-retention-minutes 参数", "value", retentionMinutes, "range", fmt.Sprintf("1..%d", persist.MaxRetentionMinutes))
 		if mode == "on" {
 			os.Exit(2)
 		}
@@ -891,6 +891,10 @@ func (ws *webServer) handleInstanceLatestSnapshot(w http.ResponseWriter, r *http
 }
 
 func (ws *webServer) handleInstanceHistory(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method == http.MethodDelete {
+		ws.deleteInstanceHistory(w, r, id)
+		return
+	}
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
@@ -936,6 +940,46 @@ func (ws *webServer) handleInstanceHistory(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"instance_id": id, "from": from, "to": to, "clamped": clamped,
 		"truncated": truncated, "retention_minutes": stats.RetentionMinutes, "series": series,
+	})
+}
+
+func (ws *webServer) deleteInstanceHistory(w http.ResponseWriter, r *http.Request, id string) {
+	dataStore := ws.mgr.DataStore()
+	if dataStore == nil {
+		writeError(w, http.StatusServiceUnavailable, "data persistence is disabled")
+		return
+	}
+	var request struct {
+		IOAs    []uint32 `json:"ioas"`
+		Confirm bool     `json:"confirm"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	if !request.Confirm {
+		writeError(w, http.StatusBadRequest, "history deletion requires confirm=true")
+		return
+	}
+	if len(request.IOAs) == 0 {
+		writeError(w, http.StatusBadRequest, "at least one IOA is required")
+		return
+	}
+	if len(request.IOAs) > 500 {
+		writeError(w, http.StatusBadRequest, "at most 500 IOAs may be deleted at once")
+		return
+	}
+
+	deleted, err := dataStore.DeleteHistory(id, request.IOAs)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "delete history: "+err.Error())
+		return
+	}
+	slog.Info("已清理测点历史数据", "instance", id, "ioas", len(request.IOAs), "deleted", deleted)
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"instance_id": id,
+		"ioas":        request.IOAs,
+		"deleted":     deleted,
 	})
 }
 

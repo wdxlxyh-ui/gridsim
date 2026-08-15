@@ -26,6 +26,9 @@
             <el-option label="5s" :value="5000" />
           </el-select>
           <el-tag v-if="props.mode === 'history'" size="small" type="info" effect="plain">固定查询</el-tag>
+          <el-tag v-if="props.mode === 'history' && historyWindow" size="small" :type="historyWindow.clamped ? 'warning' : 'success'" effect="plain" :title="historyWindowTitle">
+            {{ historyWindow.clamped ? '已截断：' : '实际范围：' }}{{ formatHistoryWindow(historyWindow) }}
+          </el-tag>
           <el-button v-if="props.mode === 'realtime'" size="small" :type="paused ? 'warning' : 'info'" @click="togglePause">
             {{ paused ? '▶' : '⏸' }}
           </el-button>
@@ -51,7 +54,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import * as echarts from 'echarts'
 import { readPointsBatch, getPersistenceStatus, getPointHistory } from '../api'
 
@@ -87,6 +90,7 @@ const props = defineProps<{
   historyFrom: number | null
   historyTo: number | null
   historyQueryToken: number
+  historyCleanup: { token: number; instanceId: string; ioas: number[] } | null
 }>()
 
 const emit = defineEmits<{
@@ -99,6 +103,13 @@ const panelTraces = ref<Trace[]>([])
 const localInterval = ref(props.pollInterval)
 const paused = ref(false)
 const lastUpdate = ref('--')
+const historyWindow = ref<{ from: number; to: number; clamped: boolean; retentionMinutes: number } | null>(null)
+const historyWindowTitle = computed(() => {
+  const window = historyWindow.value
+  if (!window) return ''
+  const prefix = window.clamped ? `请求范围早于保留窗口，已截断为实际范围；当前保留期 ${window.retentionMinutes} 分钟。` : '历史查询实际返回范围。'
+  return `${prefix}${formatHistoryWindow(window)}`
+})
 
 const chartRef = ref<HTMLElement | null>(null)
 let chartInstance: echarts.ECharts | null = null
@@ -187,6 +198,20 @@ watch(() => props.historyQueryToken, async (token) => {
   await queryHistory()
 })
 
+watch(() => props.historyCleanup?.token, () => {
+  const cleanup = props.historyCleanup
+  if (!cleanup) return
+  requestGeneration += 1
+  let changed = false
+  panelTraces.value.forEach(trace => {
+    if (trace.instId === cleanup.instanceId && cleanup.ioas.includes(trace.ioa)) {
+      trace.data = []
+      changed = true
+    }
+  })
+  if (changed) updateChart()
+})
+
 function initChart() {
   if (!chartRef.value) return
   if (chartInstance) chartInstance.dispose()
@@ -198,55 +223,192 @@ function initChart() {
   updateChart()
 }
 
+function traceLabel(trace: Trace): string {
+  return `${trace.inst} · ${trace.alias || trace.name}`
+}
+
+function traceColor(trace: Trace): string {
+  return COLORS[trace.colorIdx % COLORS.length]
+}
+
+function isBinaryTrace(trace: Trace): boolean {
+  return trace.pointType === 'DI' || trace.pointType === 'DO'
+}
+
+function isControlTrace(trace: Trace): boolean {
+  return trace.pointType === 'AO' || trace.pointType === 'DO'
+}
+
+function formatTrendTooltip(params: any[]): string {
+  const rows = Array.isArray(params) ? params : [params]
+  if (rows.length === 0) return ''
+  const axisValue = rows[0]?.axisValue
+  const timestamp = typeof axisValue === 'number' ? axisValue : Date.parse(axisValue)
+  const heading = Number.isFinite(timestamp) ? new Date(timestamp).toLocaleString() : String(axisValue || '')
+  const states = rows.filter(row => !String(row.seriesName || '').startsWith('event:'))
+  const events = rows.filter(row => String(row.seriesName || '').startsWith('event:'))
+  const lines = [`<div style="margin-bottom:4px;color:#cbd5e1">${heading}</div>`]
+  states.forEach(row => {
+    const value = Array.isArray(row.value) ? row.value[1] : row.value
+    lines.push(`<div>${row.marker || ''}${row.seriesName}: <b>${value}</b></div>`)
+  })
+  if (events.length > 0) {
+    lines.push('<div style="margin-top:4px;color:#fbbf24">控制事件</div>')
+    events.forEach(row => {
+      const value = Array.isArray(row.value) ? row.value[1] : row.value
+      const name = String(row.seriesName).slice('event:'.length)
+      lines.push(`<div>${row.marker || ''}${name}: <b>${value}</b></div>`)
+    })
+  }
+  return lines.join('')
+}
+
 function updateChart() {
   if (!chartInstance) return
-  const series = panelTraces.value.map(t => ({
-    name: `${t.inst} · ${t.alias || t.name}`,
-    type: 'line' as const,
-    data: t.data,
-    smooth: false,
-    symbol: 'none',
-    lineStyle: { color: COLORS[t.colorIdx % COLORS.length], width: 1.5 },
-    areaStyle: {
-      color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-        { offset: 0, color: COLORS[t.colorIdx % COLORS.length] + '40' },
-        { offset: 1, color: COLORS[t.colorIdx % COLORS.length] + '05' },
-      ]),
-    },
-  }))
+
+  const numericTraces = panelTraces.value.filter(trace => !isBinaryTrace(trace))
+  const binaryTraces = panelTraces.value.filter(isBinaryTrace)
+  const hasNumeric = numericTraces.length > 0
+  const hasBinary = binaryTraces.length > 0
+  const splitTracks = hasNumeric && hasBinary
+  const numericAxisIndex = hasNumeric ? 0 : -1
+  const binaryAxisIndex = hasNumeric ? 1 : 0
+  const legendNames: string[] = []
+  const series: any[] = []
+
+  const grids: any[] = splitTracks
+    ? [
+        { left: 52, right: 16, top: 28, height: '51%' },
+        { left: 52, right: 16, top: '72%', bottom: 52 },
+      ]
+    : [{ left: 52, right: 16, top: 24, bottom: 52 }]
+  const xAxis: any[] = []
+  const yAxis: any[] = []
+  const titles: any[] = []
+
+  if (hasNumeric) {
+    xAxis.push({
+      type: 'time',
+      gridIndex: numericAxisIndex,
+      axisLine: { lineStyle: { color: '#334155' } },
+      axisLabel: { show: !splitTracks, color: '#64748b', fontSize: 9, formatter: formatAxisTime },
+      splitLine: { lineStyle: { color: '#1e293b' } },
+    })
+    yAxis.push({
+      type: 'value',
+      gridIndex: numericAxisIndex,
+      axisLine: { show: false },
+      axisLabel: { color: '#64748b', fontSize: 9, formatter: (value: number) => Number(value).toFixed(1) },
+      splitLine: { lineStyle: { color: '#1e293b' } },
+      // Leave a small margin around zero so AO=0 event diamonds are visible.
+      min: (extent: { min: number; max: number }) => {
+        const span = Math.max(1, extent.max - extent.min)
+        return extent.min - span * 0.05
+      },
+      max: (extent: { min: number; max: number }) => {
+        const span = Math.max(1, extent.max - extent.min)
+        return extent.max + span * 0.05
+      },
+    })
+    if (splitTracks) {
+      titles.push({ text: '数值趋势 / AO 阶梯状态', left: 52, top: 3, textStyle: { color: '#94a3b8', fontSize: 10, fontWeight: 'normal' } })
+    }
+  }
+
+  if (hasBinary) {
+    xAxis.push({
+      type: 'time',
+      gridIndex: binaryAxisIndex,
+      axisLine: { lineStyle: { color: '#334155' } },
+      axisLabel: { color: '#64748b', fontSize: 9, formatter: formatAxisTime },
+      splitLine: { lineStyle: { color: '#1e293b' } },
+    })
+    yAxis.push({
+      type: 'value',
+      gridIndex: binaryAxisIndex,
+      min: -0.15,
+      max: 1.15,
+      interval: 1,
+      axisLine: { show: false },
+      axisLabel: { color: '#64748b', fontSize: 9, formatter: (value: number) => value === 1 ? '1 / true' : value === 0 ? '0 / false' : '' },
+      splitLine: { lineStyle: { color: '#1e293b' } },
+    })
+    if (splitTracks) {
+      titles.push({ text: 'DI / DO 状态轨道（DO 圆点为控制事件）', left: 52, top: '65%', textStyle: { color: '#94a3b8', fontSize: 10, fontWeight: 'normal' } })
+    }
+  }
+
+  panelTraces.value.forEach(trace => {
+    const label = traceLabel(trace)
+    const color = traceColor(trace)
+    const binary = isBinaryTrace(trace)
+    const control = isControlTrace(trace)
+    const axisIndex = binary ? binaryAxisIndex : numericAxisIndex
+    const controlAO = trace.pointType === 'AO'
+    const controlDO = trace.pointType === 'DO'
+    legendNames.push(label)
+
+    series.push({
+      name: label,
+      type: 'line',
+      xAxisIndex: axisIndex,
+      yAxisIndex: axisIndex,
+      data: trace.data,
+      smooth: false,
+      step: control || trace.pointType === 'DI' ? 'end' : false,
+      symbol: 'none',
+      lineStyle: { color, width: control ? 2 : 1.5 },
+      areaStyle: control || binary ? undefined : {
+        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+          { offset: 0, color: color + '40' },
+          { offset: 1, color: color + '05' },
+        ]),
+      },
+      z: control ? 2 : 1,
+    })
+
+    // Every AO/DO persisted write remains visible, including a repeated write of
+    // the same value that would not create a visible step transition by itself.
+    if (controlAO || controlDO) {
+      series.push({
+        name: `event:${label}`,
+        type: 'scatter',
+        xAxisIndex: axisIndex,
+        yAxisIndex: axisIndex,
+        data: trace.data,
+        symbol: controlAO ? 'diamond' : 'circle',
+        symbolSize: controlAO ? 10 : 8,
+        itemStyle: { color, borderColor: '#e2e8f0', borderWidth: 1 },
+        z: 5,
+      })
+    }
+  })
 
   chartInstance.setOption({
     animation: false,
+    title: titles,
     tooltip: {
       trigger: 'axis',
       backgroundColor: '#1a1f2e',
       borderColor: '#334155',
       textStyle: { color: '#e2e8f0', fontSize: 11, fontFamily: 'monospace' },
+      formatter: formatTrendTooltip,
     },
     legend: {
+      data: legendNames,
       bottom: 0,
       textStyle: { color: '#94a3b8', fontSize: 10 },
     },
-    grid: { left: 45, right: 15, top: 10, bottom: 50 },
-    xAxis: {
-      type: 'time',
-      axisLine: { lineStyle: { color: '#334155' } },
-      axisLabel: { color: '#64748b', fontSize: 9, formatter: formatAxisTime },
-      splitLine: { lineStyle: { color: '#1e293b' } },
-    },
-    yAxis: {
-      type: 'value',
-      axisLine: { show: false },
-      axisLabel: { color: '#64748b', fontSize: 9, formatter: (v: number) => v.toFixed(1) },
-      splitLine: { lineStyle: { color: '#1e293b' } },
-    },
+    grid: grids,
+    xAxis,
+    yAxis,
     dataZoom: [
-      { type: 'inside', orient: 'horizontal' },
-      { type: 'slider', bottom: 22, height: 12, borderColor: '#334155', backgroundColor: '#1e293b',
+      { type: 'inside', xAxisIndex: xAxis.map((_axis, index) => index), orient: 'horizontal' },
+      { type: 'slider', xAxisIndex: xAxis.map((_axis, index) => index), bottom: 22, height: 12, borderColor: '#334155', backgroundColor: '#1e293b',
         fillerColor: '#33415555', textStyle: { color: '#64748b', fontSize: 9 } },
     ],
     series: series.length ? series : [{ type: 'line', data: [] }],
-  }, { notMerge: false, lazyUpdate: true, replaceMerge: ['series'] })
+  }, { notMerge: false, lazyUpdate: true, replaceMerge: ['series', 'xAxis', 'yAxis', 'grid', 'title'] })
 }
 
 function formatAxisTime(value: string | number): string {
@@ -256,6 +418,16 @@ function formatAxisTime(value: string | number): string {
   const minutes = String(date.getMinutes()).padStart(2, '0')
   const seconds = String(date.getSeconds()).padStart(2, '0')
   return `${hours}:${minutes}:${seconds}`
+}
+
+function formatHistoryWindow(window: { from: number; to: number }): string {
+  const format = (value: number) => {
+    const date = new Date(value)
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${month}-${day} ${formatAxisTime(value)}`
+  }
+  return `${format(window.from)} ～ ${format(window.to)}`
 }
 
 function trimData() {
@@ -294,6 +466,12 @@ async function loadPersistedHistory(from: number, to: number, generation = reque
     try {
       const res = await getPointHistory(instId, ioas, from, to)
       if (disposed || generation !== requestGeneration) return
+      historyWindow.value = {
+        from: res.from,
+        to: res.to,
+        clamped: res.clamped,
+        retentionMinutes: res.retention_minutes,
+      }
       for (const series of res.series) {
         const trace = panelTraces.value.find(t => t.instId === instId && t.ioa === series.ioa)
         if (!trace) continue
@@ -312,7 +490,7 @@ async function backfillHistory() {
   const status = await getPersistenceStatus()
   persistenceEnabled = Boolean(status.enabled)
   if (!persistenceEnabled || disposed || generation !== requestGeneration) return
-  const retention = status.retention_minutes || 60
+  const retention = status.retention_minutes || 24 * 60
   const to = Date.now()
   await loadPersistedHistory(to - Math.min(props.timeRange, retention) * 60 * 1000, to, generation)
   if (!disposed && generation === requestGeneration) updateChart()
@@ -321,6 +499,7 @@ async function backfillHistory() {
 async function queryHistory() {
   if (disposed || props.historyFrom === null || props.historyTo === null) return
   const generation = ++requestGeneration
+  historyWindow.value = null
   panelTraces.value.forEach(trace => { trace.data = [] })
   await loadPersistedHistory(props.historyFrom, props.historyTo, generation)
   if (!disposed && generation === requestGeneration) updateChart()
@@ -611,6 +790,6 @@ onUnmounted(() => {
 }
 .panel-chart {
   width: 100%;
-  height: 280px;
+  height: 340px;
 }
 </style>

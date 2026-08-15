@@ -18,6 +18,7 @@
             style="width: 370px"
           />
           <el-button size="small" type="primary" @click="queryHistory">查询历史</el-button>
+          <el-button size="small" type="danger" plain @click="openHistoryCleanup">清理测点历史</el-button>
           <span style="font-size: 12px; color: var(--el-text-color-secondary)">固定结果，不自动刷新</span>
         </template>
         <template v-else>
@@ -57,6 +58,7 @@
         :history-from="historyFrom"
         :history-to="historyTo"
         :history-query-token="historyQueryToken"
+        :history-cleanup="historyCleanup"
         @remove="removePanel"
         @add-trace="onAddTrace"
         @traces-changed="onTracesChanged"
@@ -105,13 +107,60 @@
         <el-button type="primary" @click="confirmAddTrace" :disabled="addTraceIoas.length === 0">确认 ({{ addTraceIoas.length }})</el-button>
       </template>
     </el-dialog>
+
+    <!-- History cleanup dialog -->
+    <el-dialog v-model="showHistoryCleanup" title="清理测点历史数据" width="560px" @opened="loadCleanupInstances">
+      <el-alert
+        title="该操作会永久删除所选测点在数据库中的全部历史样本，无法恢复。运行中的 AI、DI、PI 会在下一个采样周期重新写入新样本。"
+        type="warning"
+        :closable="false"
+        show-icon
+        style="margin-bottom: 16px"
+      />
+      <el-form label-width="72px">
+        <el-form-item label="实例">
+          <el-select v-model="cleanupInstanceId" filterable style="width: 100%" @change="loadCleanupPoints">
+            <el-option v-for="inst in allInstances" :key="inst.id" :label="inst.name + ' (' + inst.id + ')'" :value="inst.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="测点">
+          <el-select
+            v-model="cleanupIOAs"
+            filterable
+            multiple
+            collapse-tags
+            collapse-tags-tooltip
+            style="width: 100%"
+            :loading="cleanupPointsLoading"
+            :disabled="!cleanupInstanceId"
+            placeholder="仅显示存在历史数据的测点"
+          >
+            <el-option
+              v-for="point in cleanupPoints"
+              :key="point.ioa"
+              :label="`${point.name || '未命名'} · ${point.point_type} · IOA:${point.ioa}`"
+              :value="point.ioa"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="cleanupIOAs.length > 0" label="删除范围">
+          <span style="color: var(--el-color-danger)">将清理 {{ cleanupIOAs.length }} 个测点的全部已持久化历史数据</span>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showHistoryCleanup = false">取消</el-button>
+        <el-button type="danger" :loading="cleanupSubmitting" :disabled="cleanupIOAs.length === 0" @click="confirmHistoryCleanup">
+          清理所选历史
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { listInstances, getPoints, getMicrogridPoints, type PointSnapshot } from '../api'
+import { listInstances, getPoints, getMicrogridPoints, getPersistenceStatus, getLatestPersistedSnapshot, deletePointHistory, type PointSnapshot, type PersistedPointSnapshot } from '../api'
 import TrendPanel from './TrendPanel.vue'
 
 const COLORS = ['#14b8a6', '#f59e0b', '#3b82f6', '#a855f7', '#ec4899', '#22d3ee', '#f97316', '#8b5cf6']
@@ -171,6 +220,16 @@ const addTraceInst = ref('')
 const addTraceIoas = ref<number[]>([])
 const addTraceAlias = ref('')
 const addTracePoints = ref<PointSnapshot[]>([])
+
+// History cleanup dialog state. Points come from persisted snapshots so stopped
+// instances can still expose the history records that may be deleted.
+const showHistoryCleanup = ref(false)
+const cleanupInstanceId = ref('')
+const cleanupIOAs = ref<number[]>([])
+const cleanupPoints = ref<PersistedPointSnapshot[]>([])
+const cleanupPointsLoading = ref(false)
+const cleanupSubmitting = ref(false)
+const historyCleanup = ref<{ token: number; instanceId: string; ioas: number[] } | null>(null)
 
 // ── Computed ──
 const allTraces = computed(() => {
@@ -353,6 +412,89 @@ function confirmAddTrace() {
   }
   showAddTrace.value = false
   debouncedSave()
+}
+
+// ── History cleanup ──
+async function openHistoryCleanup() {
+  const status = await getPersistenceStatus()
+  if (!status.enabled) {
+    ElMessage.warning('数据持久化未启用，无法清理历史数据')
+    return
+  }
+  cleanupInstanceId.value = ''
+  cleanupIOAs.value = []
+  cleanupPoints.value = []
+  showHistoryCleanup.value = true
+}
+
+async function loadCleanupInstances() {
+  try {
+    const list = await listInstances()
+    allInstances.value = list.map(s => ({ id: s.id, name: s.name, protocol: s.protocol }))
+  } catch {
+    ElMessage.error('加载实例列表失败')
+  }
+}
+
+async function loadCleanupPoints() {
+  cleanupIOAs.value = []
+  cleanupPoints.value = []
+  if (!cleanupInstanceId.value) return
+  cleanupPointsLoading.value = true
+  try {
+    const result = await getLatestPersistedSnapshot(cleanupInstanceId.value)
+    cleanupPoints.value = result.points.sort((a, b) => a.ioa - b.ioa)
+    if (cleanupPoints.value.length === 0) {
+      ElMessage.info('该实例没有可清理的历史数据')
+    }
+  } catch {
+    ElMessage.error('加载数据库测点失败')
+  } finally {
+    cleanupPointsLoading.value = false
+  }
+}
+
+async function confirmHistoryCleanup() {
+  const instance = allInstances.value.find(item => item.id === cleanupInstanceId.value)
+  if (!instance || cleanupIOAs.value.length === 0) return
+  if (cleanupIOAs.value.length > 500) {
+    ElMessage.warning('单次最多清理 500 个测点')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `将永久删除实例「${instance.name}」中 ${cleanupIOAs.value.length} 个测点的全部历史数据。该操作无法恢复，是否继续？`,
+      '确认清理历史数据',
+      {
+        type: 'warning',
+        confirmButtonText: '确认永久删除',
+        cancelButtonText: '取消',
+      },
+    )
+  } catch {
+    return
+  }
+
+  cleanupSubmitting.value = true
+  try {
+    const ioas = [...cleanupIOAs.value]
+    const result = await deletePointHistory(instance.id, ioas)
+    historyCleanup.value = {
+      token: (historyCleanup.value?.token || 0) + 1,
+      instanceId: instance.id,
+      ioas,
+    }
+    if (trendMode.value === 'history' && historyRange.value) {
+      historyQueryToken.value += 1
+    }
+    showHistoryCleanup.value = false
+    ElMessage.success(`已删除 ${result.deleted} 条历史样本`)
+  } catch {
+    ElMessage.error('清理历史数据失败')
+  } finally {
+    cleanupSubmitting.value = false
+  }
 }
 
 // ── Persistence ──
