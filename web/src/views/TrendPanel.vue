@@ -29,7 +29,13 @@
           <el-button v-if="props.mode === 'realtime'" size="small" :type="paused ? 'warning' : 'info'" @click="togglePause">
             {{ paused ? '▶' : '⏸' }}
           </el-button>
-          <el-button size="small" @click="clearAllData">🔄</el-button>
+          <el-button
+            v-if="props.mode === 'realtime'"
+            size="small"
+            :loading="resetting"
+            title="清空当前曲线，并从当前时刻重新采样"
+            @click="restartFromNow"
+          >从当前开始</el-button>
           <el-button size="small" type="primary" @click="downloadCSV">📥</el-button>
           <el-button size="small" type="danger" text @click="$emit('remove', panelId)">✕</el-button>
         </div>
@@ -89,6 +95,10 @@ let chartInstance: echarts.ECharts | null = null
 let resizeObserver: ResizeObserver | null = null
 let pollTimer: ReturnType<typeof setInterval> | null = null
 let disposed = false
+let fetchInFlight = false
+let restartPending = false
+let requestGeneration = 0
+const resetting = ref(false)
 
 // Reconcile traces when props.traces changes (template switch / add trace from parent).
 // 使用深度监听确保所有属性变化都能触发更新
@@ -139,6 +149,7 @@ watch(() => props.timeRange, () => {
 })
 
 watch(() => props.mode, async (mode) => {
+  requestGeneration += 1
   if (disposed || panelTraces.value.length === 0) return
   if (mode === 'realtime') {
     paused.value = false
@@ -221,7 +232,7 @@ function updateChart() {
         fillerColor: '#33415555', textStyle: { color: '#64748b', fontSize: 9 } },
     ],
     series: series.length ? series : [{ type: 'line', data: [] }],
-  }, true)
+  }, { notMerge: false, lazyUpdate: true, replaceMerge: ['series'] })
 }
 
 function formatAxisTime(value: string | number): string {
@@ -249,7 +260,7 @@ function trimData() {
 // Real-time mode may show a short persisted lead-in, then continuously appends
 // fresh protocol values. Historical mode only calls this flow when the user
 // explicitly presses the query button.
-async function loadPersistedHistory(from: number, to: number) {
+async function loadPersistedHistory(from: number, to: number, generation = requestGeneration) {
   const byInstance = new Map<string, number[]>()
   panelTraces.value.forEach(t => {
     const ioas = byInstance.get(t.instId) || []
@@ -260,6 +271,8 @@ async function loadPersistedHistory(from: number, to: number) {
   for (const [instId, ioas] of byInstance) {
     try {
       const res = await getPointHistory(instId, ioas, from, to)
+      // Ignore late responses after switching modes, clearing, or re-querying.
+      if (disposed || generation !== requestGeneration) return
       for (const series of res.series) {
         const trace = panelTraces.value.find(t => t.instId === instId && t.ioa === series.ioa)
         if (trace) trace.data = series.samples
@@ -272,52 +285,63 @@ async function loadPersistedHistory(from: number, to: number) {
 
 async function backfillHistory() {
   if (panelTraces.value.length === 0 || disposed) return
+  const generation = requestGeneration
   const status = await getPersistenceStatus()
-  if (!status.enabled) return
+  if (!status.enabled || disposed || generation !== requestGeneration) return
   const retention = status.retention_minutes || 60
   const to = Date.now()
-  await loadPersistedHistory(to - Math.min(props.timeRange, retention) * 60 * 1000, to)
-  if (!disposed) updateChart()
+  await loadPersistedHistory(to - Math.min(props.timeRange, retention) * 60 * 1000, to, generation)
+  if (!disposed && generation === requestGeneration) updateChart()
 }
 
 async function queryHistory() {
   if (disposed || props.historyFrom === null || props.historyTo === null) return
+  const generation = ++requestGeneration
   panelTraces.value.forEach(trace => { trace.data = [] })
-  await loadPersistedHistory(props.historyFrom, props.historyTo)
-  if (!disposed) updateChart()
+  await loadPersistedHistory(props.historyFrom, props.historyTo, generation)
+  if (!disposed && generation === requestGeneration) updateChart()
 }
 
 async function fetchAllPoints() {
-  if (props.mode !== 'realtime' || panelTraces.value.length === 0 || paused.value || disposed) return
-  const byInstance = new Map<string, number[]>()
-  panelTraces.value.forEach(t => {
-    if (!byInstance.has(t.instId)) byInstance.set(t.instId, [])
-    byInstance.get(t.instId)!.push(t.ioa)
-  })
-  for (const [instId, ioas] of byInstance) {
-    try {
+  if (props.mode !== 'realtime' || panelTraces.value.length === 0 || paused.value || disposed || fetchInFlight) return
+  const generation = requestGeneration
+  const sampledAt = Date.now()
+  fetchInFlight = true
+  try {
+    const byInstance = new Map<string, number[]>()
+    panelTraces.value.forEach(t => {
+      if (!byInstance.has(t.instId)) byInstance.set(t.instId, [])
+      byInstance.get(t.instId)!.push(t.ioa)
+    })
+    for (const [instId, ioas] of byInstance) {
       const res = await readPointsBatch(instId, ioas)
+      if (disposed || props.mode !== 'realtime' || generation !== requestGeneration) return
       for (const pt of res.points) {
         const trace = panelTraces.value.find(t => t.instId === instId && t.ioa === pt.ioa)
         if (!trace) continue
-        const ts = pt.updated_at ? new Date(pt.updated_at).getTime() : Date.now()
-        let v = pt.value
-        if (pt.point_type === 'DI' || pt.point_type === 'DO') v = pt.bool_value ? 1 : 0
-        else if (pt.point_type === 'PI') v = pt.int_value
-        // Deduplicate: skip if same timestamp as last point
+        let value = pt.value
+        if (pt.point_type === 'DI' || pt.point_type === 'DO') value = pt.bool_value ? 1 : 0
+        else if (pt.point_type === 'PI') value = pt.int_value
         const last = trace.data[trace.data.length - 1]
-        if (last && last[0] === ts) {
-          last[1] = v // update value if changed
-        } else {
-          trace.data.push([ts, v])
-        }
+        if (last && last[0] === sampledAt) last[1] = value
+        else trace.data.push([sampledAt, value])
       }
-    } catch { /* instance may have stopped */ }
+    }
+    if (disposed || generation !== requestGeneration) return
+    lastUpdate.value = new Date(sampledAt).toLocaleTimeString()
+    trimData()
+    updateChart()
+  } catch {
+    // The next interval retries transient read failures without overlapping requests.
+  } finally {
+    fetchInFlight = false
+    if (restartPending) {
+      restartPending = false
+      void fetchAllPoints()
+    } else if (resetting.value) {
+      resetting.value = false
+    }
   }
-  if (disposed) return
-  lastUpdate.value = new Date().toLocaleTimeString()
-  trimData()
-  updateChart()
 }
 
 function restartTimer() {
@@ -339,9 +363,18 @@ function togglePause() {
   }
 }
 
-function clearAllData() {
-  panelTraces.value.forEach(t => { t.data = [] })
+function restartFromNow() {
+  if (props.mode !== 'realtime') return
+  // Invalidate both in-flight history reads and live read responses before clearing.
+  requestGeneration += 1
+  panelTraces.value.forEach(trace => { trace.data = [] })
+  resetting.value = true
   updateChart()
+  if (fetchInFlight) {
+    restartPending = true
+  } else {
+    void fetchAllPoints()
+  }
 }
 
 function removeTrace(i: number) {
