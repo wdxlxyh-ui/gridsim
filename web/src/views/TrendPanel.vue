@@ -1,58 +1,69 @@
 <template>
-  <el-card shadow="never" class="panel-card">
+  <el-card shadow="never" class="panel-card" :class="[`panel-card--${props.panelKind || 'pending'}`, { 'is-paused': paused }]">
     <template #header>
       <div class="panel-header">
-        <div class="panel-traces">
-          <el-tag v-if="panelKindLabel" size="small" effect="plain" class="panel-kind-tag">
-            {{ panelKindLabel }}
-          </el-tag>
-          <el-tag
-            v-for="(t, i) in panelTraces"
-            :key="i"
-            :color="COLORS[t.colorIdx % COLORS.length]"
-            closable
-            :disable-transitions="true"
-            size="small"
-            style="color: #fff; border: none; margin-right: 6px; margin-bottom: 4px"
-            @close="removeTrace(i)"
-          >
-            {{ t.inst }} · {{ t.alias || t.name || 'IOA:' + t.ioa }} · {{ t.pointType || '识别中' }}
-          </el-tag>
-          <el-button size="small" @click="$emit('addTrace', panelId)">+ 添加</el-button>
+        <div class="panel-identity">
+          <span class="panel-beacon" :class="{ 'is-history': props.mode === 'history', 'is-paused': paused }"><i></i></span>
+          <div class="panel-heading">
+            <span class="panel-overline">{{ props.mode === 'realtime' ? 'LIVE TREND' : 'HISTORICAL REPLAY' }}</span>
+            <div class="panel-name-row">
+              <strong>{{ panelKindShortLabel }}</strong>
+              <el-tag size="small" effect="plain" class="panel-kind-tag">{{ panelKindLabel }}</el-tag>
+            </div>
+          </div>
+          <span class="panel-count">{{ visibleTraceCount }} / {{ compatibleTraceCount }} 路可见</span>
         </div>
         <div class="panel-controls">
-          <el-select v-if="props.mode === 'realtime'" v-model="localInterval" size="small" style="width: 90px" @change="restartTimer">
-            <el-option label="200ms" :value="200" />
-            <el-option label="500ms" :value="500" />
-            <el-option label="1s" :value="1000" />
-            <el-option label="2s" :value="2000" />
-            <el-option label="5s" :value="5000" />
+          <span v-if="props.mode === 'realtime'" class="update-state" :class="{ 'is-paused': paused }">{{ paused ? '已暂停' : `采样 ${lastUpdate}` }}</span>
+          <span v-else-if="historyWindow" class="history-state" :class="{ 'is-clamped': historyWindow.clamped }" :title="historyWindowTitle">{{ historyWindow.clamped ? '已截断' : formatHistoryWindow(historyWindow) }}</span>
+          <span v-else class="history-state">等待查询</span>
+          <el-select v-if="props.mode === 'realtime'" v-model="localInterval" size="small" class="interval-select" @change="restartTimer" aria-label="刷新间隔">
+            <el-option label="200 ms" :value="200" />
+            <el-option label="500 ms" :value="500" />
+            <el-option label="1 秒" :value="1000" />
+            <el-option label="2 秒" :value="2000" />
+            <el-option label="5 秒" :value="5000" />
           </el-select>
-          <el-tag v-if="props.mode === 'history'" size="small" type="info" effect="plain">固定查询</el-tag>
-          <el-tag v-if="props.mode === 'history' && historyWindow" size="small" :type="historyWindow.clamped ? 'warning' : 'success'" effect="plain" :title="historyWindowTitle">
-            {{ historyWindow.clamped ? '已截断：' : '实际范围：' }}{{ formatHistoryWindow(historyWindow) }}
-          </el-tag>
-          <el-button v-if="props.mode === 'realtime'" size="small" :type="paused ? 'warning' : 'info'" @click="togglePause">
-            {{ paused ? '▶' : '⏸' }}
-          </el-button>
-          <el-button
-            v-if="props.mode === 'realtime'"
-            size="small"
-            :loading="resetting"
-            title="清空当前曲线，并从当前时刻重新采样"
-            @click="restartFromNow"
-          >从当前开始</el-button>
-          <el-button size="small" type="primary" @click="downloadCSV">📥</el-button>
-          <el-button size="small" type="danger" text @click="$emit('remove', panelId)">✕</el-button>
+          <el-button v-if="props.mode === 'realtime'" size="small" :type="paused ? 'warning' : 'info'" plain @click="togglePause">{{ paused ? '继续' : '暂停' }}</el-button>
+          <el-button v-if="props.mode === 'realtime'" size="small" :loading="resetting" title="清空当前曲线，并从当前时刻重新采样" @click="restartFromNow">重新采样</el-button>
+          <el-button size="small" class="export-button" @click="downloadCSV">导出 CSV</el-button>
+          <el-button size="small" type="danger" text class="remove-panel-button" title="移除该面板" aria-label="移除该面板" @click="$emit('remove', panelId)">移除</el-button>
         </div>
       </div>
     </template>
 
     <div v-if="panelTraces.length === 0" class="panel-empty">
-      <span style="font-size: 32px; margin-bottom: 8px">📊</span>
-      <span style="color: #64748b">点击「+ 添加」选择测点</span>
+      <div class="empty-chart-mark"><span></span><span></span><span></span></div>
+      <strong>尚未配置趋势测点</strong>
+      <span>添加测点后，系统会按采集与控制类型自动分配曲线。</span>
+      <el-button size="small" type="primary" plain @click="$emit('addTrace', panelId)">添加测点</el-button>
     </div>
-    <div v-else ref="chartRef" class="panel-chart"></div>
+    <div v-else class="panel-workspace">
+      <div class="chart-ruler">
+        <span>{{ chartTrackLabel }}</span>
+        <span>{{ props.mode === 'realtime' ? '滚轮缩放 · 拖拽浏览 · 悬停查看样本' : '固定历史结果 · 悬停查看样本' }}</span>
+      </div>
+      <div ref="chartRef" class="panel-chart"></div>
+      <div class="trace-dock">
+        <div class="trace-dock-heading">
+          <div><span class="dock-kicker">TRACE DIRECTORY</span><strong>曲线清单</strong></div>
+          <span>{{ compatibleTraceCount }} 路已配置</span>
+        </div>
+        <div class="trace-list">
+          <div v-for="(t, i) in panelTraces" :key="traceKey(t)" class="trace-chip" :class="{ 'is-hidden': isTraceHidden(t), 'is-incompatible': !isTraceCompatibleWithPanel(t) }">
+            <button class="trace-visibility" type="button" :title="isTraceHidden(t) ? '显示曲线' : '隐藏曲线'" :aria-pressed="!isTraceHidden(t)" @click="toggleTraceVisibility(t)" @mouseenter="highlightTrace(t)" @mouseleave="downplayTrace">
+              <i :style="{ backgroundColor: traceColor(t) }"></i>
+            </button>
+            <button class="trace-details" type="button" :title="`${t.inst} · ${t.alias || t.name || 'IOA:' + t.ioa}`" @click="toggleTraceVisibility(t)" @mouseenter="highlightTrace(t)" @mouseleave="downplayTrace">
+              <span class="trace-name">{{ t.alias || t.name || 'IOA:' + t.ioa }}</span>
+              <span class="trace-meta">{{ t.inst }} · {{ t.pointType || '识别中' }}<template v-if="t.unit"> · {{ t.unit }}</template></span>
+            </button>
+            <button class="trace-remove" type="button" title="移除曲线" :aria-label="`移除 ${t.alias || t.name || '测点'}`" @click="removeTrace(i)">×</button>
+          </div>
+          <button class="add-trace-button" type="button" @click="$emit('addTrace', panelId)"><span>+</span> 添加测点</button>
+        </div>
+      </div>
+    </div>
   </el-card>
 </template>
 
@@ -117,10 +128,56 @@ const emit = defineEmits<{
 }>()
 
 const panelTraces = ref<Trace[]>([])
+const hiddenTraceKeys = ref(new Set<string>())
 const localInterval = ref(props.pollInterval)
 const paused = ref(false)
 const lastUpdate = ref('--')
 const historyWindow = ref<{ from: number; to: number; clamped: boolean; retentionMinutes: number } | null>(null)
+
+const panelKindShortLabel = computed(() => {
+  if (props.panelKind === 'ao-control') return 'AO 控制趋势'
+  if (props.panelKind === 'do-control') return 'DO 控制趋势'
+  if (props.panelKind === 'collection') return '采集趋势'
+  return '趋势面板'
+})
+const chartTrackLabel = computed(() => {
+  if (props.panelKind === 'ao-control') return '控制写入阶梯与事件标记'
+  if (props.panelKind === 'do-control') return '二值控制状态与事件标记'
+  return '采样趋势与状态轨道'
+})
+const compatibleTraceCount = computed(() => panelTraces.value.filter(isTraceCompatibleWithPanel).length)
+const visibleTraceCount = computed(() => panelTraces.value.filter(trace => isTraceCompatibleWithPanel(trace) && !isTraceHidden(trace)).length)
+
+function traceKey(trace: Pick<Trace, 'instId' | 'ioa'>): string {
+  return `${trace.instId}:${trace.ioa}`
+}
+
+function isTraceCompatibleWithPanel(trace: Trace): boolean {
+  return Boolean(props.panelKind && traceBelongsToPanel(trace, props.panelKind))
+}
+
+function isTraceHidden(trace: Trace): boolean {
+  return hiddenTraceKeys.value.has(traceKey(trace))
+}
+
+function toggleTraceVisibility(trace: Trace) {
+  const next = new Set(hiddenTraceKeys.value)
+  const key = traceKey(trace)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  hiddenTraceKeys.value = next
+  updateChart()
+}
+
+function highlightTrace(trace: Trace) {
+  if (isTraceHidden(trace)) return
+  chartInstance?.dispatchAction({ type: 'highlight', seriesName: traceLabel(trace) })
+}
+
+function downplayTrace() {
+  chartInstance?.dispatchAction({ type: 'downplay' })
+}
+
 const historyWindowTitle = computed(() => {
   const window = historyWindow.value
   if (!window) return ''
@@ -165,6 +222,8 @@ watch(() => props.traces, (newConfigs) => {
   }
   
   panelTraces.value = newTraces
+  const activeTraceKeys = new Set(newTraces.map(traceKey))
+  hiddenTraceKeys.value = new Set([...hiddenTraceKeys.value].filter(key => activeTraceKeys.has(key)))
   
   if (wasEmpty && newTraces.length > 0) {
     // Panel went from empty to having traces — init chart + start polling
@@ -237,7 +296,7 @@ watch(() => props.historyCleanup?.token, () => {
 function initChart() {
   if (!chartRef.value) return
   if (chartInstance) chartInstance.dispose()
-  chartInstance = echarts.init(chartRef.value, undefined, { renderer: 'canvas' })
+  chartInstance = echarts.init(chartRef.value, undefined, { renderer: 'canvas', useDirtyRect: true })
   // B2: ResizeObserver for responsive chart
   if (resizeObserver) resizeObserver.disconnect()
   resizeObserver = new ResizeObserver(() => { chartInstance?.resize() })
@@ -295,7 +354,9 @@ function updateChart() {
   if (!chartInstance) return
 
   const kind = props.panelKind
-  const traces = kind ? panelTraces.value.filter(trace => traceBelongsToPanel(trace, kind)) : []
+  const traces = kind
+    ? panelTraces.value.filter(trace => traceBelongsToPanel(trace, kind) && !isTraceHidden(trace))
+    : []
   const numericTraces = kind === 'collection'
     ? traces.filter(trace => trace.pointType === 'AI' || trace.pointType === 'PI')
     : kind === 'ao-control' ? traces : []
@@ -307,15 +368,14 @@ function updateChart() {
   const splitTracks = kind === 'collection' && hasNumeric && hasBinary
   const numericAxisIndex = hasNumeric ? 0 : -1
   const binaryAxisIndex = hasNumeric ? 1 : 0
-  const legendNames: string[] = []
   const series: any[] = []
 
   const grids: any[] = splitTracks
     ? [
-        { left: 52, right: 16, top: 28, height: '51%' },
-        { left: 52, right: 16, top: '72%', bottom: 52 },
+        { left: 58, right: 20, top: 30, height: '47%' },
+        { left: 58, right: 20, top: '70%', bottom: 38 },
       ]
-    : [{ left: 52, right: 16, top: 24, bottom: 52 }]
+    : [{ left: 58, right: 20, top: 30, bottom: 38 }]
   const xAxis: any[] = []
   const yAxis: any[] = []
   const titles: any[] = []
@@ -383,7 +443,6 @@ function updateChart() {
     const axisIndex = binary ? binaryAxisIndex : numericAxisIndex
     const controlAO = trace.pointType === 'AO'
     const controlDO = trace.pointType === 'DO'
-    legendNames.push(label)
 
     series.push({
       name: label,
@@ -395,6 +454,10 @@ function updateChart() {
       step: control || trace.pointType === 'DI' ? 'end' : false,
       symbol: 'none',
       lineStyle: { color, width: control ? 2 : 1.5 },
+      sampling: !control && trace.data.length > 1000 ? 'lttb' : undefined,
+      large: !control && trace.data.length > 4000,
+      largeThreshold: 4000,
+      emphasis: { focus: 'series' },
       areaStyle: control || binary ? undefined : {
         color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
           { offset: 0, color: color + '40' },
@@ -421,25 +484,26 @@ function updateChart() {
 
   chartInstance.setOption({
     animation: false,
+    animationDurationUpdate: 0,
+    aria: { enabled: true },
     title: titles,
     tooltip: {
       trigger: 'axis',
-      backgroundColor: '#1a1f2e',
-      borderColor: '#334155',
-      textStyle: { color: '#e2e8f0', fontSize: 11, fontFamily: 'monospace' },
+      backgroundColor: 'rgba(7, 15, 29, 0.96)',
+      borderColor: '#31537d',
+      borderWidth: 1,
+      padding: [8, 10],
+      textStyle: { color: '#e6f0ff', fontSize: 11, fontFamily: 'Consolas, monospace' },
+      axisPointer: { type: 'line', lineStyle: { color: '#6ca7e8', type: 'dashed', opacity: 0.7 } },
       formatter: formatTrendTooltip,
     },
-    legend: {
-      data: legendNames,
-      bottom: 0,
-      textStyle: { color: '#94a3b8', fontSize: 10 },
-    },
+    legend: { show: false },
     grid: grids,
     xAxis,
     yAxis,
     dataZoom: [
       { type: 'inside', xAxisIndex: xAxis.map((_axis, index) => index), orient: 'horizontal' },
-      { type: 'slider', xAxisIndex: xAxis.map((_axis, index) => index), bottom: 22, height: 12, borderColor: '#334155', backgroundColor: '#1e293b',
+      { type: 'slider', xAxisIndex: xAxis.map((_axis, index) => index), bottom: 8, height: 12, borderColor: '#334155', backgroundColor: '#1e293b',
         fillerColor: '#33415555', textStyle: { color: '#64748b', fontSize: 9 } },
     ],
     series: series.length ? series : [{ type: 'line', data: [] }],
@@ -674,20 +738,21 @@ function restartFromNow() {
 }
 
 function removeTrace(i: number) {
-  panelTraces.value.splice(i, 1)
-  
-  // 重新计算所有测点的colorIdx，确保颜色连续
-  panelTraces.value.forEach((t, idx) => {
-    t.colorIdx = idx
-  })
-  
-  // Notify parent of trace removal so template save reflects the change
-  emit('tracesChanged', props.panelId, panelTraces.value.map(t => ({
-    instId: t.instId, inst: t.inst, ioa: t.ioa, name: t.name,
-    unit: t.unit, alias: t.alias, colorIdx: t.colorIdx, pointType: t.pointType as PointType | undefined,
+  const [removed] = panelTraces.value.splice(i, 1)
+  if (removed) {
+    const next = new Set(hiddenTraceKeys.value)
+    next.delete(traceKey(removed))
+    hiddenTraceKeys.value = next
+  }
+  panelTraces.value.forEach((trace, index) => { trace.colorIdx = index })
+
+  emit('tracesChanged', props.panelId, panelTraces.value.map(trace => ({
+    instId: trace.instId, inst: trace.inst, ioa: trace.ioa, name: trace.name,
+    unit: trace.unit, alias: trace.alias, colorIdx: trace.colorIdx, pointType: trace.pointType as PointType | undefined,
   })))
   if (panelTraces.value.length === 0) {
     if (chartInstance) { chartInstance.dispose(); chartInstance = null }
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
   } else {
     updateChart()
   }
@@ -779,59 +844,83 @@ onUnmounted(() => {
 
 <style scoped>
 .panel-card {
-  background: #0f172a;
-  border: 1px solid #1e293b;
-  display: flex;
-  flex-direction: column;
+  --panel-bg: #0c1729;
+  --panel-bg-elevated: #101f36;
+  --panel-line: rgba(97, 128, 169, 0.28);
+  --panel-muted: #8da1bd;
+  --panel-text: #e6effd;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(145deg, rgba(14, 29, 51, 0.98), rgba(8, 18, 34, 0.98));
+  border: 1px solid var(--panel-line);
+  box-shadow: 0 12px 32px rgba(1, 7, 20, 0.18), inset 0 1px 0 rgba(164, 199, 255, 0.04);
+  transition: border-color 0.22s ease, box-shadow 0.22s ease, transform 0.22s ease;
 }
-.panel-card :deep(.el-card__header) {
-  padding: 10px 14px;
-  border-bottom: 1px solid #1e293b;
-}
-.panel-card :deep(.el-card__body) {
-  padding: 8px 10px 14px;
-  flex: 1;
-  min-height: 0;
-}
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.panel-traces {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
-  flex: 1;
-  min-width: 0;
-}
-.panel-controls {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-}
-.panel-kind-tag {
-  color: #cbd5e1;
-  border-color: #475569;
-  background: #1e293b;
-  margin-right: 6px;
-  margin-bottom: 4px;
-}
-.panel-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 250px;
-  color: #475569;
-  font-size: 13px;
-}
-.panel-chart {
-  width: 100%;
-  height: 340px;
-}
+.panel-card::before { position: absolute; top: 0; left: 0; width: 96px; height: 2px; content: ''; background: #4d94ff; box-shadow: 0 0 16px rgba(77, 148, 255, 0.8); }
+.panel-card--ao-control::before { background: #e8a43a; box-shadow: 0 0 16px rgba(232, 164, 58, 0.7); }
+.panel-card--do-control::before { background: #b18cff; box-shadow: 0 0 16px rgba(177, 140, 255, 0.7); }
+.panel-card:hover { border-color: rgba(110, 163, 229, 0.5); box-shadow: 0 16px 38px rgba(1, 7, 20, 0.28), inset 0 1px 0 rgba(164, 199, 255, 0.06); }
+.panel-card :deep(.el-card__header) { padding: 12px 14px 11px; border-bottom: 1px solid var(--panel-line); background: rgba(5, 14, 29, 0.24); }
+.panel-card :deep(.el-card__body) { padding: 0; }
+.panel-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.panel-identity { display: flex; align-items: center; min-width: 0; gap: 10px; }
+.panel-beacon { display: grid; flex: 0 0 auto; width: 24px; height: 24px; place-items: center; border: 1px solid rgba(70, 155, 254, 0.35); border-radius: 6px; background: rgba(37, 113, 213, 0.12); }
+.panel-beacon i { width: 7px; height: 7px; border-radius: 50%; background: #58d5a7; box-shadow: 0 0 0 3px rgba(88, 213, 167, 0.12), 0 0 11px rgba(88, 213, 167, 0.68); }
+.panel-beacon.is-history { border-color: rgba(232, 164, 58, 0.38); background: rgba(232, 164, 58, 0.1); }
+.panel-beacon.is-history i, .panel-beacon.is-paused i { background: #e8a43a; box-shadow: 0 0 0 3px rgba(232, 164, 58, 0.12), 0 0 11px rgba(232, 164, 58, 0.62); }
+.panel-heading { min-width: 0; }
+.panel-overline, .dock-kicker { display: block; color: #718aac; font-family: Consolas, 'Courier New', monospace; font-size: 9px; font-weight: 700; letter-spacing: 0.12em; line-height: 1.2; }
+.panel-name-row { display: flex; align-items: center; min-width: 0; gap: 7px; margin-top: 3px; }
+.panel-name-row strong { overflow: hidden; color: var(--panel-text); font-size: 13px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.panel-kind-tag { max-width: 220px; overflow: hidden; border-color: rgba(114, 145, 184, 0.35); color: #9eb6d4; background: rgba(65, 89, 124, 0.14); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.panel-card--ao-control .panel-kind-tag { border-color: rgba(232, 164, 58, 0.35); color: #eebc6d; background: rgba(232, 164, 58, 0.09); }
+.panel-card--do-control .panel-kind-tag { border-color: rgba(177, 140, 255, 0.35); color: #c6adff; background: rgba(177, 140, 255, 0.09); }
+.panel-count { padding-left: 10px; border-left: 1px solid var(--panel-line); color: #8095b2; font-family: Consolas, 'Courier New', monospace; font-size: 10px; white-space: nowrap; }
+.panel-controls { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
+.update-state, .history-state { max-width: 156px; overflow: hidden; padding: 4px 7px; border: 1px solid rgba(79, 138, 208, 0.25); border-radius: 4px; color: #8eb8eb; background: rgba(41, 99, 172, 0.1); font-family: Consolas, 'Courier New', monospace; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.update-state.is-paused, .history-state.is-clamped { color: #efbc6a; border-color: rgba(232, 164, 58, 0.3); background: rgba(232, 164, 58, 0.08); }
+.history-state { color: #9eb3cc; border-color: rgba(126, 153, 188, 0.24); background: rgba(70, 91, 122, 0.1); }
+.interval-select { width: 82px; }
+.panel-controls :deep(.el-button) { border-color: rgba(98, 127, 166, 0.36); color: #b4c5dc; background: rgba(17, 34, 57, 0.72); }
+.panel-controls :deep(.el-button:hover) { border-color: #4d94ff; color: #edf5ff; background: rgba(47, 107, 191, 0.18); }
+.panel-controls :deep(.el-button--warning) { color: #f0bd6b; }
+.panel-controls :deep(.el-button--danger.is-text) { border-color: transparent; color: #b98c99; background: transparent; }
+.panel-controls :deep(.el-button--danger.is-text:hover) { color: #ffb1bf; background: rgba(200, 67, 92, 0.1); }
+.export-button { color: #9ed3c1 !important; }
+.remove-panel-button { padding-left: 2px; padding-right: 2px; }
+.panel-workspace { min-width: 0; }
+.chart-ruler { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 14px 0; color: #8196b3; font-size: 10px; }
+.chart-ruler span:first-child { color: #a8bdd7; font-family: Consolas, 'Courier New', monospace; letter-spacing: 0.02em; }
+.panel-chart { width: 100%; height: 336px; }
+.trace-dock { padding: 0 12px 12px; }
+.trace-dock-heading { display: flex; align-items: end; justify-content: space-between; padding: 9px 2px 7px; border-top: 1px solid var(--panel-line); }
+.trace-dock-heading strong { display: block; margin-top: 2px; color: #d6e3f5; font-size: 11px; font-weight: 600; }
+.trace-dock-heading > span { color: #7188a7; font-size: 10px; }
+.trace-list { display: flex; flex-wrap: wrap; gap: 6px; max-height: 116px; overflow: auto; padding: 1px 2px 2px; }
+.trace-chip { display: flex; align-items: stretch; min-width: 0; max-width: min(100%, 260px); border: 1px solid rgba(91, 121, 159, 0.36); border-radius: 5px; background: rgba(17, 33, 55, 0.58); transition: border-color 0.18s ease, opacity 0.18s ease, background 0.18s ease; }
+.trace-chip:hover { border-color: rgba(110, 170, 242, 0.66); background: rgba(31, 65, 108, 0.38); }
+.trace-chip.is-hidden { opacity: 0.5; }
+.trace-chip.is-hidden .trace-name, .trace-chip.is-hidden .trace-meta { text-decoration: line-through; }
+.trace-chip.is-incompatible { border-style: dashed; opacity: 0.58; }
+.trace-visibility, .trace-details, .trace-remove, .add-trace-button { font: inherit; cursor: pointer; }
+.trace-visibility { display: grid; width: 26px; padding: 0; place-items: center; border: 0; border-right: 1px solid rgba(91, 121, 159, 0.26); border-radius: 5px 0 0 5px; background: transparent; }
+.trace-visibility i { width: 10px; height: 3px; border-radius: 2px; box-shadow: 0 0 7px currentColor; }
+.trace-details { display: grid; min-width: 0; flex: 1; gap: 2px; padding: 5px 6px; border: 0; color: inherit; background: transparent; text-align: left; }
+.trace-name, .trace-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trace-name { color: #cfddf1; font-size: 11px; line-height: 1.25; }
+.trace-meta { color: #788eab; font-family: Consolas, 'Courier New', monospace; font-size: 9px; line-height: 1.2; }
+.trace-remove { width: 22px; padding: 0; border: 0; border-radius: 0 5px 5px 0; color: #7890ae; background: transparent; font-size: 16px; line-height: 1; transition: color 0.16s ease, background 0.16s ease; }
+.trace-remove:hover { color: #ffc1cb; background: rgba(211, 76, 100, 0.15); }
+.add-trace-button { display: inline-flex; align-items: center; gap: 5px; min-height: 42px; padding: 0 10px; border: 1px dashed rgba(93, 143, 203, 0.55); border-radius: 5px; color: #90bee9; background: rgba(40, 90, 154, 0.08); font-size: 11px; transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease; }
+.add-trace-button span { font-size: 16px; font-weight: 300; line-height: 1; }
+.add-trace-button:hover { border-color: #67a9fa; color: #e6f1ff; background: rgba(49, 115, 202, 0.18); }
+.panel-empty { display: flex; min-height: 352px; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 20px; color: #8196b2; font-size: 12px; text-align: center; }
+.panel-empty strong { margin-top: 4px; color: #d6e4f6; font-size: 14px; }
+.panel-empty :deep(.el-button) { margin-top: 8px; }
+.empty-chart-mark { display: flex; align-items: end; gap: 4px; height: 35px; padding: 9px 10px; border: 1px solid rgba(76, 139, 210, 0.3); border-radius: 8px; background: rgba(33, 82, 144, 0.1); }
+.empty-chart-mark span { width: 5px; border-radius: 2px 2px 0 0; background: #5e9ef0; box-shadow: 0 0 9px rgba(94, 158, 240, 0.55); }
+.empty-chart-mark span:nth-child(1) { height: 11px; }.empty-chart-mark span:nth-child(2) { height: 22px; }.empty-chart-mark span:nth-child(3) { height: 16px; }
+@media (max-width: 920px) { .panel-header { align-items: flex-start; flex-direction: column; } .panel-controls { justify-content: flex-start; } .panel-chart { height: 320px; } }
+@media (max-width: 560px) { .panel-card :deep(.el-card__header) { padding: 10px; } .panel-identity { align-items: flex-start; } .panel-count { display: none; } .panel-kind-tag { max-width: 155px; } .panel-controls { width: 100%; } .update-state, .history-state { max-width: 130px; } .chart-ruler { align-items: flex-start; flex-direction: column; gap: 3px; padding-left: 10px; } .panel-chart { height: 292px; } .trace-dock { padding: 0 9px 9px; } .trace-chip { max-width: 100%; flex: 1 1 178px; } .trace-list { max-height: 148px; } }
+@media (prefers-reduced-motion: reduce) { .panel-card, .trace-chip, .trace-remove, .add-trace-button { transition: none; } .panel-beacon i { box-shadow: none; } }
 </style>

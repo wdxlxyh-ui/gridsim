@@ -1,13 +1,37 @@
 <template>
-  <div>
-    <!-- Template + Layout toolbar -->
-    <el-card shadow="never" style="margin-bottom: 12px">
-      <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
-        <el-radio-group v-model="trendMode" size="small">
-          <el-radio-button value="realtime">实时趋势</el-radio-button>
-          <el-radio-button value="history">历史查询</el-radio-button>
-        </el-radio-group>
-        <template v-if="trendMode === 'history'">
+  <section class="trend-page">
+    <el-card shadow="never" class="trend-command-deck">
+      <div class="deck-heading">
+        <div class="deck-title-block">
+          <span class="deck-kicker">OPERATIONS / TREND</span>
+          <div class="deck-title-row">
+            <h1>趋势工作台</h1>
+            <span class="mode-indicator" :class="`is-${trendMode}`">
+              <i></i>{{ trendMode === 'realtime' ? '实时采样' : '历史回放' }}
+            </span>
+          </div>
+          <p>{{ trendMode === 'realtime' ? '在统一时间轴上持续观察现场采样与控制写入。' : '按指定时间范围回放已持久化的测点数据。' }}</p>
+        </div>
+        <div class="deck-summary" aria-label="趋势工作台概览">
+          <div class="summary-item"><strong>{{ panels.length }}</strong><span>面板</span></div>
+          <div class="summary-divider"></div>
+          <div class="summary-item"><strong>{{ allTraces.length }}</strong><span>测点</span></div>
+          <div class="summary-divider"></div>
+          <div class="summary-layout">{{ layoutMode === 'single' ? '单列工作区' : layoutMode === 'horizontal' ? '左右分屏' : '纵向堆叠' }}</div>
+        </div>
+      </div>
+
+      <div class="deck-controls">
+        <div class="control-group control-group--mode">
+          <span class="control-label">数据视图</span>
+          <el-radio-group v-model="trendMode" size="small" aria-label="数据视图">
+            <el-radio-button value="realtime">实时趋势</el-radio-button>
+            <el-radio-button value="history">历史查询</el-radio-button>
+          </el-radio-group>
+        </div>
+
+        <div v-if="trendMode === 'history'" class="control-group control-group--history">
+          <span class="control-label">查询范围</span>
           <el-date-picker
             v-model="historyRange"
             type="datetimerange"
@@ -15,40 +39,42 @@
             start-placeholder="开始时间"
             end-placeholder="结束时间"
             format="YYYY-MM-DD HH:mm:ss"
-            style="width: 370px"
+            class="history-range"
           />
-          <el-button size="small" type="primary" @click="queryHistory">查询历史</el-button>
-          <el-button size="small" type="danger" plain @click="openHistoryCleanup">清理测点历史</el-button>
-          <span style="font-size: 12px; color: var(--el-text-color-secondary)">固定结果，不自动刷新</span>
-        </template>
-        <template v-else>
-          <span style="font-size: 12px; color: var(--el-color-success)">持续刷新最新数据</span>
-        </template>
-        <el-divider direction="vertical" />
-        <span style="font-size: 13px; font-weight: 500; white-space: nowrap">模板</span>
-        <el-select v-model="activeTemplateId" size="small" style="width: 200px" @change="loadTemplate" clearable placeholder="无模板">
-          <el-option v-for="tpl in templates" :key="tpl.id" :label="tpl.name" :value="tpl.id" />
-        </el-select>
-        <el-button size="small" @click="saveTemplate" :disabled="!activeTemplateId || allTraces.length === 0">💾 覆盖保存</el-button>
-        <el-button size="small" @click="showSaveAs = true">📋 另存为</el-button>
-        <el-button size="small" @click="deleteTemplate" :disabled="!activeTemplateId" type="danger" text>🗑</el-button>
-        <el-divider direction="vertical" />
-        <el-radio-group v-model="layoutMode" size="small">
-          <el-radio-button value="single">📊 单</el-radio-button>
-          <el-radio-button value="horizontal">⬅➡ 左右</el-radio-button>
-          <el-radio-button value="vertical">⬆⬇ 上下</el-radio-button>
-        </el-radio-group>
-        <el-button size="small" type="primary" @click="addEmptyPanel">+ 面板</el-button>
-        <span style="font-size: 12px; color: var(--el-text-color-secondary); margin-left: auto">
-          {{ panels.length }} 个面板 · {{ layoutMode === 'single' ? '单列' : layoutMode === 'horizontal' ? '左右分屏' : '上下分屏' }}
-        </span>
+          <el-button size="small" type="primary" @click="queryHistory">加载曲线</el-button>
+          <el-button size="small" type="danger" plain @click="openHistoryCleanup">清理历史</el-button>
+        </div>
+        <div v-else class="realtime-note"><span class="live-dot"></span>自动刷新最新样本</div>
+
+        <span class="control-separator"></span>
+
+        <div class="control-group control-group--template">
+          <span class="control-label">看板模板</span>
+          <el-select v-model="activeTemplateId" size="small" class="template-select" @change="loadTemplate" clearable placeholder="选择已保存模板">
+            <el-option v-for="tpl in templates" :key="tpl.id" :label="tpl.name" :value="tpl.id" />
+          </el-select>
+          <div class="template-actions">
+            <el-button size="small" @click="saveTemplate" :disabled="!activeTemplateId || allTraces.length === 0">覆盖保存</el-button>
+            <el-button size="small" @click="showSaveAs = true">另存为</el-button>
+            <el-button size="small" @click="deleteTemplate" :disabled="!activeTemplateId" type="danger" text>删除</el-button>
+          </div>
+        </div>
+
+        <div class="control-group control-group--layout">
+          <span class="control-label">工作区布局</span>
+          <el-radio-group v-model="layoutMode" size="small" aria-label="工作区布局">
+            <el-radio-button value="single">单列</el-radio-button>
+            <el-radio-button value="horizontal">左右</el-radio-button>
+            <el-radio-button value="vertical">上下</el-radio-button>
+          </el-radio-group>
+          <el-button size="small" type="primary" plain @click="addEmptyPanel">添加面板</el-button>
+        </div>
       </div>
     </el-card>
 
-    <!-- Panel grid -->
-    <div :class="'panel-grid panel-grid--' + layoutMode">
+    <div :class="['panel-grid', `panel-grid--${layoutMode}`]">
       <TrendPanel
-        v-for="(p, i) in panels"
+        v-for="p in panels"
         :key="p.id"
         :panel-id="p.id"
         :panel-kind="p.kind"
@@ -66,27 +92,24 @@
       />
     </div>
 
-    <!-- Save-as dialog -->
     <el-dialog v-model="showSaveAs" title="另存为模板" width="360px">
-      <el-input v-model="newTemplateName" placeholder="模板名称，如: 变电站A看板" />
+      <el-input v-model="newTemplateName" placeholder="模板名称，如：变电站 A 看板" />
       <template #footer>
         <el-button @click="showSaveAs = false">取消</el-button>
-        <el-button type="primary" @click="saveAsTemplate" :disabled="!newTemplateName.trim()">保存</el-button>
+        <el-button type="primary" @click="saveAsTemplate" :disabled="!newTemplateName.trim()">保存模板</el-button>
       </template>
     </el-dialog>
 
-    <!-- Add panel dialog -->
     <el-dialog v-model="showAddPanel" title="添加面板 — 选择模板" width="400px">
       <el-select v-model="selectedTemplateForPanel" style="width: 100%" placeholder="选择模板">
         <el-option v-for="tpl in templates" :key="tpl.id" :label="tpl.name" :value="tpl.id" />
       </el-select>
       <template #footer>
         <el-button @click="showAddPanel = false">取消</el-button>
-        <el-button type="primary" @click="addPanel" :disabled="!selectedTemplateForPanel">添加</el-button>
+        <el-button type="primary" @click="addPanel" :disabled="!selectedTemplateForPanel">添加面板</el-button>
       </template>
     </el-dialog>
 
-    <!-- Add trace dialog -->
     <el-dialog v-model="showAddTrace" title="添加测点" width="480px" @opened="initAddTraceDialog">
       <el-form label-width="60px">
         <el-form-item label="实例">
@@ -99,25 +122,16 @@
             <el-option v-for="pt in addTracePoints" :key="pt.ioa" :label="`${pt.name || '未命名'} · ${pt.point_type} · IOA:${pt.ioa}`" :value="pt.ioa" />
           </el-select>
         </el-form-item>
-        <el-form-item label="别名">
-          <el-input v-model="addTraceAlias" placeholder="可选" />
-        </el-form-item>
+        <el-form-item label="别名"><el-input v-model="addTraceAlias" placeholder="可选" /></el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="showAddTrace = false">取消</el-button>
-        <el-button type="primary" @click="confirmAddTrace" :disabled="addTraceIoas.length === 0">确认 ({{ addTraceIoas.length }})</el-button>
+        <el-button type="primary" @click="confirmAddTrace" :disabled="addTraceIoas.length === 0">确认添加（{{ addTraceIoas.length }}）</el-button>
       </template>
     </el-dialog>
 
-    <!-- History cleanup dialog -->
     <el-dialog v-model="showHistoryCleanup" title="清理测点历史数据" width="560px" @opened="loadCleanupInstances">
-      <el-alert
-        title="该操作会永久删除所选测点在数据库中的全部历史样本，无法恢复。运行中的 AI、DI、PI 会在下一个采样周期重新写入新样本。"
-        type="warning"
-        :closable="false"
-        show-icon
-        style="margin-bottom: 16px"
-      />
+      <el-alert title="该操作会永久删除所选测点在数据库中的全部历史样本，无法恢复。运行中的 AI、DI、PI 会在下一个采样周期重新写入新样本。" type="warning" :closable="false" show-icon class="cleanup-alert" />
       <el-form label-width="72px">
         <el-form-item label="实例">
           <el-select v-model="cleanupInstanceId" filterable style="width: 100%" @change="loadCleanupPoints">
@@ -125,37 +139,18 @@
           </el-select>
         </el-form-item>
         <el-form-item label="测点">
-          <el-select
-            v-model="cleanupIOAs"
-            filterable
-            multiple
-            collapse-tags
-            collapse-tags-tooltip
-            style="width: 100%"
-            :loading="cleanupPointsLoading"
-            :disabled="!cleanupInstanceId"
-            placeholder="仅显示存在历史数据的测点"
-          >
-            <el-option
-              v-for="point in cleanupPoints"
-              :key="point.ioa"
-              :label="`${point.name || '未命名'} · ${point.point_type} · IOA:${point.ioa}`"
-              :value="point.ioa"
-            />
+          <el-select v-model="cleanupIOAs" filterable multiple collapse-tags collapse-tags-tooltip style="width: 100%" :loading="cleanupPointsLoading" :disabled="!cleanupInstanceId" placeholder="仅显示存在历史数据的测点">
+            <el-option v-for="point in cleanupPoints" :key="point.ioa" :label="`${point.name || '未命名'} · ${point.point_type} · IOA:${point.ioa}`" :value="point.ioa" />
           </el-select>
         </el-form-item>
-        <el-form-item v-if="cleanupIOAs.length > 0" label="删除范围">
-          <span style="color: var(--el-color-danger)">将清理 {{ cleanupIOAs.length }} 个测点的全部已持久化历史数据</span>
-        </el-form-item>
+        <el-form-item v-if="cleanupIOAs.length > 0" label="删除范围"><span class="cleanup-count">将清理 {{ cleanupIOAs.length }} 个测点的全部已持久化历史数据</span></el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="showHistoryCleanup = false">取消</el-button>
-        <el-button type="danger" :loading="cleanupSubmitting" :disabled="cleanupIOAs.length === 0" @click="confirmHistoryCleanup">
-          清理所选历史
-        </el-button>
+        <el-button type="danger" :loading="cleanupSubmitting" :disabled="cleanupIOAs.length === 0" @click="confirmHistoryCleanup">清理所选历史</el-button>
       </template>
     </el-dialog>
-  </div>
+  </section>
 </template>
 
 <script setup lang="ts">
@@ -738,19 +733,74 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.panel-grid {
-  display: grid;
-  gap: 12px;
+.trend-page {
+  --trend-surface: rgba(11, 20, 38, 0.88);
+  --trend-surface-strong: #0d1a30;
+  --trend-line: rgba(91, 117, 155, 0.28);
+  --trend-muted: #8da1bd;
+  --trend-bright: #e7effd;
+  --trend-blue: #4d94ff;
+  --trend-amber: #f0a636;
 }
-.panel-grid--single {
-  grid-template-columns: 1fr;
+.trend-command-deck {
+  position: relative;
+  margin-bottom: 14px;
+  overflow: hidden;
+  background: linear-gradient(118deg, rgba(13, 27, 49, 0.98), rgba(9, 18, 34, 0.98));
+  border: 1px solid var(--trend-line);
+  box-shadow: 0 16px 38px rgba(2, 8, 23, 0.2), inset 0 1px 0 rgba(148, 190, 255, 0.05);
 }
-.panel-grid--horizontal {
-  grid-template-columns: 1fr 1fr;
+.trend-command-deck::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: '';
+  background-image: linear-gradient(rgba(100, 160, 255, 0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(100, 160, 255, 0.025) 1px, transparent 1px);
+  background-size: 22px 22px;
+  mask-image: linear-gradient(90deg, black, transparent 76%);
 }
-.panel-grid--vertical {
-  grid-template-columns: 1fr;
-  max-height: calc(100vh - 140px);
-  overflow-y: auto;
-}
+.trend-command-deck :deep(.el-card__body) { position: relative; padding: 0; }
+.deck-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 17px 20px 15px; border-bottom: 1px solid var(--trend-line); }
+.deck-title-block { min-width: 0; }
+.deck-kicker { display: block; margin-bottom: 5px; color: #6b87ad; font-family: Consolas, 'Courier New', monospace; font-size: 10px; font-weight: 700; letter-spacing: 0.14em; }
+.deck-title-row { display: flex; align-items: center; gap: 10px; }
+.deck-title-row h1 { margin: 0; color: var(--trend-bright); font-size: 19px; font-weight: 650; letter-spacing: 0.02em; }
+.deck-title-block p { margin: 5px 0 0; color: var(--trend-muted); font-size: 12px; line-height: 1.5; }
+.mode-indicator { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border: 1px solid rgba(78, 150, 255, 0.3); border-radius: 999px; color: #9bc5ff; background: rgba(42, 110, 205, 0.12); font-size: 11px; white-space: nowrap; }
+.mode-indicator i, .live-dot { width: 6px; height: 6px; border-radius: 50%; background: #4fcb9c; box-shadow: 0 0 0 3px rgba(79, 203, 156, 0.12), 0 0 10px rgba(79, 203, 156, 0.7); }
+.mode-indicator.is-history { color: #f2be68; border-color: rgba(240, 166, 54, 0.28); background: rgba(240, 166, 54, 0.1); }
+.mode-indicator.is-history i { background: #f0a636; box-shadow: 0 0 0 3px rgba(240, 166, 54, 0.12); }
+.deck-summary { display: flex; align-items: center; flex-shrink: 0; gap: 13px; padding: 8px 12px; border: 1px solid rgba(109, 138, 179, 0.23); border-radius: 8px; background: rgba(3, 11, 24, 0.34); }
+.summary-item { display: grid; gap: 1px; min-width: 27px; text-align: center; }
+.summary-item strong { color: #e7effd; font-family: Consolas, 'Courier New', monospace; font-size: 15px; font-variant-numeric: tabular-nums; }
+.summary-item span, .summary-layout { color: #778eae; font-size: 10px; white-space: nowrap; }
+.summary-divider { width: 1px; height: 23px; background: var(--trend-line); }
+.summary-layout { color: #adc0d9; }
+.deck-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 11px 16px; padding: 12px 20px; }
+.control-group { display: flex; align-items: center; gap: 7px; min-height: 30px; }
+.control-label { color: #7087a8; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap; }
+.control-group--history { flex: 1 1 520px; }
+.control-group--template { flex: 1 1 360px; }
+.control-group--layout { margin-left: auto; }
+.history-range { width: 370px; max-width: 100%; }
+.template-select { width: 190px; }
+.template-actions { display: flex; align-items: center; gap: 2px; }
+.control-separator { width: 1px; align-self: stretch; min-height: 26px; background: var(--trend-line); }
+.realtime-note { display: inline-flex; align-items: center; gap: 7px; color: #98b9aa; font-size: 12px; }
+.realtime-note .live-dot { display: inline-block; }
+.trend-command-deck :deep(.el-radio-button__inner) { min-width: 54px; border-color: rgba(91, 117, 155, 0.38); color: #9bb0ca; background: rgba(10, 22, 41, 0.54); box-shadow: none; }
+.trend-command-deck :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) { color: #e9f3ff; border-color: #397de0; background: linear-gradient(180deg, #2a68bd, #23549a); box-shadow: -1px 0 0 0 #397de0; }
+.trend-command-deck :deep(.el-button--default) { border-color: rgba(91, 117, 155, 0.38); color: #afc0d7; background: rgba(15, 31, 54, 0.65); }
+.trend-command-deck :deep(.el-button--default:hover) { color: #e7effd; border-color: #4d94ff; background: rgba(47, 107, 191, 0.17); }
+.trend-command-deck :deep(.el-button--primary) { box-shadow: 0 5px 14px rgba(30, 91, 180, 0.2); }
+.panel-grid { display: grid; gap: 14px; align-items: start; }
+.panel-grid--single { grid-template-columns: minmax(0, 1fr); }
+.panel-grid--horizontal { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.panel-grid--vertical { grid-template-columns: minmax(0, 1fr); max-height: calc(100vh - 214px); overflow-y: auto; padding-right: 3px; }
+.cleanup-alert { margin-bottom: 16px; }
+.cleanup-count { color: var(--el-color-danger); }
+@media (max-width: 1180px) { .deck-heading { align-items: flex-start; } .control-group--layout { margin-left: 0; } .control-separator { display: none; } }
+@media (max-width: 800px) { .deck-heading { flex-direction: column; gap: 12px; padding: 15px; } .deck-summary { width: 100%; box-sizing: border-box; } .deck-controls { padding: 12px 15px; gap: 10px; } .control-group--history, .control-group--template { flex-basis: 100%; flex-wrap: wrap; } .history-range { width: 100%; } .template-select { flex: 1; min-width: 160px; } .panel-grid--horizontal { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 520px) { .deck-title-row h1 { font-size: 17px; } .deck-title-block p { font-size: 11px; } .summary-layout { display: none; } .control-group--layout { flex-wrap: wrap; } }
+@media (prefers-reduced-motion: reduce) { .mode-indicator i, .live-dot { box-shadow: none; } }
 </style>
