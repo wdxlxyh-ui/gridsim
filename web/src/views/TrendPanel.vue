@@ -102,8 +102,8 @@ type PanelKind = 'collection' | 'ao-control' | 'do-control'
 
 const PANEL_KIND_LABEL: Record<PanelKind, string> = {
   collection: '采集趋势：AI / DI / PI',
-  'ao-control': 'AO 控制：阶梯状态与事件',
-  'do-control': 'DO 控制：状态与事件',
+  'ao-control': 'AO · 设定值与写入记录',
+  'do-control': 'DO · 开关状态与写入记录',
 }
 
 const props = defineProps<{
@@ -135,15 +135,15 @@ const lastUpdate = ref('--')
 const historyWindow = ref<{ from: number; to: number; clamped: boolean; retentionMinutes: number } | null>(null)
 
 const panelKindShortLabel = computed(() => {
-  if (props.panelKind === 'ao-control') return 'AO 控制趋势'
-  if (props.panelKind === 'do-control') return 'DO 控制趋势'
+  if (props.panelKind === 'ao-control') return 'AO 指令记录'
+  if (props.panelKind === 'do-control') return 'DO 指令记录'
   if (props.panelKind === 'collection') return '采集趋势'
   return '趋势面板'
 })
 const chartTrackLabel = computed(() => {
-  if (props.panelKind === 'ao-control') return '控制写入阶梯与事件标记'
-  if (props.panelKind === 'do-control') return '二值控制状态与事件标记'
-  return '采样趋势与状态轨道'
+  if (props.panelKind === 'ao-control') return '阶梯线：当前设定值 · 菱形：每次写入'
+  if (props.panelKind === 'do-control') return '阶梯线：当前开关状态 · 圆点：每次写入'
+  return 'AI/PI 数值趋势 · DI 状态轨道'
 })
 const compatibleTraceCount = computed(() => panelTraces.value.filter(isTraceCompatibleWithPanel).length)
 const visibleTraceCount = computed(() => panelTraces.value.filter(trace => isTraceCompatibleWithPanel(trace) && !isTraceHidden(trace)).length)
@@ -195,6 +195,8 @@ let restartPending = false
 let requestGeneration = 0
 let controlEventFromAt = Date.now()
 let persistenceEnabled = false
+let chartInteractionActive = false
+let redrawPending = false
 const resetting = ref(false)
 
 // Reconcile traces when props.traces changes (template switch / add trace from parent).
@@ -296,8 +298,12 @@ watch(() => props.historyCleanup?.token, () => {
 function initChart() {
   if (!chartRef.value) return
   if (chartInstance) chartInstance.dispose()
-  chartInstance = echarts.init(chartRef.value, undefined, { renderer: 'canvas', useDirtyRect: true })
-  // B2: ResizeObserver for responsive chart
+  chartInstance = echarts.init(chartRef.value, undefined, { renderer: 'canvas' })
+  const zr = chartInstance.getZr()
+  zr.on('mousedown', beginChartInteraction)
+  zr.on('mouseup', endChartInteraction)
+  zr.on('globalout', endChartInteraction)
+  // ResizeObserver keeps the chart responsive without increasing polling frequency.
   if (resizeObserver) resizeObserver.disconnect()
   resizeObserver = new ResizeObserver(() => { chartInstance?.resize() })
   resizeObserver.observe(chartRef.value)
@@ -340,7 +346,7 @@ function formatTrendTooltip(params: any[]): string {
     lines.push(`<div>${row.marker || ''}${row.seriesName}: <b>${value}</b></div>`)
   })
   if (events.length > 0) {
-    lines.push('<div style="margin-top:4px;color:#fbbf24">控制事件</div>')
+    lines.push('<div style="margin-top:4px;color:#fbbf24">写入记录</div>')
     events.forEach(row => {
       const value = Array.isArray(row.value) ? row.value[1] : row.value
       const name = String(row.seriesName).slice('event:'.length)
@@ -350,8 +356,26 @@ function formatTrendTooltip(params: any[]): string {
   return lines.join('')
 }
 
-function updateChart() {
+function beginChartInteraction() {
+  if (disposed) return
+  chartInteractionActive = true
+}
+
+function endChartInteraction() {
+  if (!chartInteractionActive) return
+  chartInteractionActive = false
+  redrawPending = false
+  updateChart(true)
+}
+
+function updateChart(force = false) {
   if (!chartInstance) return
+  if (chartInteractionActive && !force) {
+    redrawPending = true
+    return
+  }
+
+  redrawPending = false
 
   const kind = props.panelKind
   const traces = kind
@@ -406,7 +430,7 @@ function updateChart() {
     if (splitTracks) {
       titles.push({ text: 'AI / PI 数值趋势', left: 52, top: 3, textStyle: { color: '#94a3b8', fontSize: 10, fontWeight: 'normal' } })
     } else if (kind === 'ao-control') {
-      titles.push({ text: 'AO 阶梯状态（菱形为每次控制事件）', left: 52, top: 3, textStyle: { color: '#94a3b8', fontSize: 10, fontWeight: 'normal' } })
+      titles.push({ text: 'AO 设定值', left: 52, top: 3, textStyle: { color: '#94a3b8', fontSize: 10, fontWeight: 'normal' } })
     }
   }
 
@@ -431,7 +455,7 @@ function updateChart() {
     if (splitTracks) {
       titles.push({ text: 'DI 状态', left: 52, top: '65%', textStyle: { color: '#94a3b8', fontSize: 10, fontWeight: 'normal' } })
     } else if (kind === 'do-control') {
-      titles.push({ text: 'DO 状态（圆点为每次控制事件）', left: 52, top: 3, textStyle: { color: '#94a3b8', fontSize: 10, fontWeight: 'normal' } })
+      titles.push({ text: 'DO 开关状态', left: 52, top: 3, textStyle: { color: '#94a3b8', fontSize: 10, fontWeight: 'normal' } })
     }
   }
 
