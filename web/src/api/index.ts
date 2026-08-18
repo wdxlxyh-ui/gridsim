@@ -821,3 +821,43 @@ export async function exportPyMicrogridPoints(instanceId: string): Promise<Blob>
   const res = await http.get(`/py-microgrid/${instanceId}/export-points`, { responseType: 'blob' })
   return res.data
 }
+
+// ─── Trend template API ────────────────────────────────────────────────────
+
+export interface TrendTraceConfig {
+  inst_id: string
+  inst: string
+  ioa: number
+  name: string
+  unit: string
+  alias: string
+  color_idx: number
+  point_type?: string
+}
+
+export interface TrendTemplatePanel {
+  kind: 'collection' | 'ao-control' | 'do-control'
+  trace_configs: TrendTraceConfig[]
+}
+
+export interface TrendTemplate {
+  id: string
+  name: string
+  panels: TrendTemplatePanel[]
+  created_at: number
+  updated_at: number
+}
+
+export async function listTrendTemplates(): Promise<TrendTemplate[]> {
+  const res = await http.get('/trend/templates')
+  return res.data.templates || []
+}
+
+export async function saveTrendTemplate(template: Omit<TrendTemplate, 'updated_at'> & { updated_at?: number }): Promise<TrendTemplate> {
+  const res = await http.post('/trend/templates', template)
+  return res.data
+}
+
+export async function deleteTrendTemplate(id: string): Promise<void> {
+  await http.delete(`/trend/templates/${encodeURIComponent(id)}`)
+}

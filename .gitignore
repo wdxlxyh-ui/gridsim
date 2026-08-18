@@ -36,6 +36,8 @@ logs/
 # 运行时配置 (用户数据)
 config/instances.json
 config/auto_changes/
+config/trends/templates.json
+config/trends/*.tmp
 config/users.json
 
 # OpenCode 工作目录

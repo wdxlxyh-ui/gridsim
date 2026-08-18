@@ -23,7 +23,12 @@ type InstanceLogger struct {
 }
 
 func NewInstanceLogger(cfgDir string, instanceID string, port int) (*InstanceLogger, error) {
-	logDir := filepath.Join(cfgDir, "logs", fmt.Sprintf("%s-%d", instanceID, port))
+	return NewInstanceLoggerAt(filepath.Join(cfgDir, "logs"), instanceID, port)
+}
+
+// NewInstanceLoggerAt creates an instance logger below an explicit operational log root.
+func NewInstanceLoggerAt(logRoot string, instanceID string, port int) (*InstanceLogger, error) {
+	logDir := filepath.Join(logRoot, fmt.Sprintf("%s-%d", instanceID, port))
 	
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		return nil, fmt.Errorf("create log directory: %w", err)
@@ -122,13 +127,21 @@ func (l *InstanceLogger) GetLogDir() string {
 }
 
 func RemoveInstanceLogDir(cfgDir string, instanceID string, port int) error {
-	logDir := filepath.Join(cfgDir, "logs", fmt.Sprintf("%s-%d", instanceID, port))
+	return RemoveInstanceLogDirAt(filepath.Join(cfgDir, "logs"), instanceID, port)
+}
+
+func RemoveInstanceLogDirAt(logRoot string, instanceID string, port int) error {
+	logDir := filepath.Join(logRoot, fmt.Sprintf("%s-%d", instanceID, port))
 	return os.RemoveAll(logDir)
 }
 
 func RenameInstanceLogDir(cfgDir string, oldID string, newID string, oldPort int, newPort int) error {
-	oldDir := filepath.Join(cfgDir, "logs", fmt.Sprintf("%s-%d", oldID, oldPort))
-	newDir := filepath.Join(cfgDir, "logs", fmt.Sprintf("%s-%d", newID, newPort))
+	return RenameInstanceLogDirAt(filepath.Join(cfgDir, "logs"), oldID, newID, oldPort, newPort)
+}
+
+func RenameInstanceLogDirAt(logRoot string, oldID string, newID string, oldPort int, newPort int) error {
+	oldDir := filepath.Join(logRoot, fmt.Sprintf("%s-%d", oldID, oldPort))
+	newDir := filepath.Join(logRoot, fmt.Sprintf("%s-%d", newID, newPort))
 	
 	if _, err := os.Stat(oldDir); err != nil {
 		if os.IsNotExist(err) {

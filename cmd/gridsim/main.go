@@ -24,6 +24,7 @@ import (
 	"gridsim/internal/model"
 	"gridsim/internal/storage"
 	persist "gridsim/internal/store"
+	"gridsim/internal/trend"
 	"gridsim/pkg/api"
 	"gridsim/pkg/config"
 	apierrors "gridsim/pkg/errors"
@@ -133,6 +134,7 @@ type webServer struct {
 	proxyHandler *api.ProxyHandler
 	eventBus     *events.Bus
 	recorder     *recording.Recorder
+	trendStore   *trend.Store
 }
 
 func runServerMode() {
@@ -168,7 +170,7 @@ func runServerMode() {
 		slog.Warn("加载实例配置失败，使用空配置", "error", err)
 	}
 
-	mgr := manager.New(cfgStore, configDir)
+	mgr := manager.NewWithLogDir(cfgStore, configDir, logDir)
 	dataStore := openDataStore(dbMode, dbPath, configDir, dbRetentionMinutes, dbSampleIntervalMs)
 	if dataStore != nil {
 		mgr.SetDataStore(dataStore)
@@ -181,16 +183,21 @@ func runServerMode() {
 
 	proxyStore := api.NewProxyStore(configDir)
 	if err := proxyStore.Load(); err != nil {
-		slog.Warn("加载代理配置失败", "error", err)
+		slog.Warn("加载代理配置失败，使用空配置", "error", err)
 	}
 	if err := seedBuiltinProxyData(proxyStore); err != nil {
 		slog.Warn("写入内置 API 集合失败", "error", err)
 	}
 
+	trendStore := trend.NewStore(configDir)
+	if err := trendStore.Load(); err != nil {
+		slog.Warn("加载趋势模板失败，使用空配置", "error", err, "path", filepath.Join(configDir, "trends", "templates.json"))
+	}
+
 	// Build HTTP mux
 	mux := http.NewServeMux()
 	userCfg := loadUserConfig(configDir)
-	ws := &webServer{mgr: mgr, cfgDir: configDir, userConfig: userCfg, proxyStore: proxyStore, eventBus: events.NewBus(), recorder: recording.NewRecorder(filepath.Join(configDir, "recordings"))}
+	ws := &webServer{mgr: mgr, cfgDir: configDir, userConfig: userCfg, proxyStore: proxyStore, trendStore: trendStore, eventBus: events.NewBus(), recorder: recording.NewRecorder(filepath.Join(configDir, "recordings"))}
 	ws.registerRoutes(mux, configDir, httpAddr)
 
 	if p := parsePort(httpAddr); p > 0 {
@@ -288,6 +295,8 @@ func (ws *webServer) registerRoutes(mux *http.ServeMux, configDir string, httpAd
 	mux.HandleFunc("/api/v1/protocols", ws.handleProtocols)
 	mux.HandleFunc("/api/v1/dashboard", ws.handleDashboard)
 	mux.HandleFunc("/api/v1/db/status", ws.handleDBStatus)
+	mux.HandleFunc("/api/v1/trend/templates", ws.handleTrendTemplates)
+	mux.HandleFunc("/api/v1/trend/templates/", ws.handleTrendTemplateByID)
 
 	// Proxy API Tester routes
 	ws.proxyHandler = api.NewProxyHandler()
@@ -1933,4 +1942,56 @@ func genBuiltinID(name string) string {
 		h *= 16777619
 	}
 	return fmt.Sprintf("builtin-%08x", h)
+}
+// handleTrendTemplates manages shared trend templates stored in config/trends/templates.json.
+func (ws *webServer) handleTrendTemplates(w http.ResponseWriter, r *http.Request) {
+	if ws.trendStore == nil {
+		writeError(w, http.StatusServiceUnavailable, "trend template storage is unavailable")
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		writeJSON(w, http.StatusOK, map[string]interface{}{"templates": ws.trendStore.List()})
+	case http.MethodPost:
+		var template trend.Template
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 2<<20)).Decode(&template); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid trend template JSON")
+			return
+		}
+		saved, err := ws.trendStore.Save(template)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		slog.Info("趋势模板已保存", "template", saved.ID, "name", saved.Name)
+		writeJSON(w, http.StatusOK, saved)
+	default:
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
+func (ws *webServer) handleTrendTemplateByID(w http.ResponseWriter, r *http.Request) {
+	if ws.trendStore == nil {
+		writeError(w, http.StatusServiceUnavailable, "trend template storage is unavailable")
+		return
+	}
+	id := strings.TrimPrefix(r.URL.Path, "/api/v1/trend/templates/")
+	if id == "" || strings.Contains(id, "/") {
+		writeError(w, http.StatusBadRequest, "invalid trend template ID")
+		return
+	}
+	if r.Method != http.MethodDelete {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if err := ws.trendStore.Delete(id); err != nil {
+		if os.IsNotExist(err) {
+			writeError(w, http.StatusNotFound, "trend template not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "delete trend template: "+err.Error())
+		return
+	}
+	slog.Info("趋势模板已删除", "template", id)
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted", "id": id})
 }

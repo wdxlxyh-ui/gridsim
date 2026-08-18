@@ -65,15 +65,25 @@ type Manager struct {
 	instances map[string]*Instance
 	store     *storage.ConfigStore
 	cfgDir    string
+	logDir    string
 	dataStore *persist.Service
 }
 
-// New creates a new Manager.
+// New creates a manager using cfgDir/logs for instance logs.
 func New(store *storage.ConfigStore, cfgDir string) *Manager {
+	return NewWithLogDir(store, cfgDir, filepath.Join(cfgDir, "logs"))
+}
+
+// NewWithLogDir keeps configuration and operational logs in separate roots.
+func NewWithLogDir(store *storage.ConfigStore, cfgDir, logDir string) *Manager {
+	if logDir == "" {
+		logDir = filepath.Join(cfgDir, "logs")
+	}
 	return &Manager{
 		instances: make(map[string]*Instance),
 		store:     store,
 		cfgDir:    cfgDir,
+		logDir:    logDir,
 	}
 }
 
@@ -351,7 +361,7 @@ func (m *Manager) StartInstance(id string) error {
 		slog.Warn("自动变化引擎加载失败", "id", id, "error", err)
 	}
 
-	logger, err := NewInstanceLogger(m.cfgDir, cfg.ID, cfg.IEC104Port)
+	logger, err := NewInstanceLoggerAt(m.logDir, cfg.ID, instanceProtocolPort(cfg))
 	if err != nil {
 		slog.Warn("创建实例日志目录失败", "id", id, "error", err)
 	}
@@ -444,7 +454,7 @@ func (m *Manager) UpdateConfig(cfg model.InstanceConfig) error {
 		if inst.Logger != nil {
 			inst.Logger.Close()
 			if oldPort != newPort {
-				RenameInstanceLogDir(m.cfgDir, cfg.ID, cfg.ID, oldPort, newPort)
+				RenameInstanceLogDirAt(m.logDir, cfg.ID, cfg.ID, oldPort, newPort)
 			}
 		}
 		if usesProtocolServerPort(inst.Config) {
@@ -475,7 +485,7 @@ func (m *Manager) DeleteConfig(id string) error {
 		}
 		if inst.Logger != nil {
 			inst.Logger.Close()
-			RemoveInstanceLogDir(m.cfgDir, inst.Config.ID, instanceProtocolPort(inst.Config))
+			RemoveInstanceLogDirAt(m.logDir, inst.Config.ID, instanceProtocolPort(inst.Config))
 		}
 		firewall.RemovePort(instanceProtocolPort(inst.Config))
 		if inst.Config.HttpEnabled && inst.Config.HttpPort > 0 {
@@ -486,7 +496,7 @@ func (m *Manager) DeleteConfig(id string) error {
 	} else {
 		cfg, _ := m.store.Get(id)
 		if cfg.ID != "" {
-			RemoveInstanceLogDir(m.cfgDir, cfg.ID, instanceProtocolPort(cfg))
+			RemoveInstanceLogDirAt(m.logDir, cfg.ID, instanceProtocolPort(cfg))
 		}
 	}
 
@@ -524,7 +534,7 @@ func (m *Manager) StopInstance(id string) error {
 
 	if inst.Logger != nil {
 		inst.Logger.Close()
-		RemoveInstanceLogDir(m.cfgDir, inst.Config.ID, instanceProtocolPort(inst.Config))
+		RemoveInstanceLogDirAt(m.logDir, inst.Config.ID, instanceProtocolPort(inst.Config))
 	}
 
 	if usesProtocolServerPort(inst.Config) {
@@ -873,7 +883,7 @@ func (m *Manager) startClient(id string) error {
 		slog.Warn("自动变化引擎加载失败", "id", id, "error", err)
 	}
 
-	logger, err := NewInstanceLogger(m.cfgDir, cfg.ID, cfg.IEC104Port)
+	logger, err := NewInstanceLoggerAt(m.logDir, cfg.ID, instanceProtocolPort(cfg))
 	if err != nil {
 		slog.Warn("创建实例日志目录失败", "id", id, "error", err)
 	}

@@ -156,7 +156,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { listInstances, getPoints, getMicrogridPoints, getPersistenceStatus, getLatestPersistedSnapshot, deletePointHistory, type PointSnapshot, type PersistedPointSnapshot } from '../api'
+import { listInstances, getPoints, getMicrogridPoints, getPersistenceStatus, getLatestPersistedSnapshot, deletePointHistory, listTrendTemplates, saveTrendTemplate, deleteTrendTemplate, type PointSnapshot, type PersistedPointSnapshot, type TrendTemplate as ApiTrendTemplate } from '../api'
 import TrendPanel from './TrendPanel.vue'
 
 const COLORS = ['#14b8a6', '#f59e0b', '#3b82f6', '#a855f7', '#ec4899', '#22d3ee', '#f97316', '#8b5cf6']
@@ -189,7 +189,8 @@ interface Template {
   // panels is the v2 format. traces is retained only to migrate existing browser templates.
   panels?: TemplatePanel[]
   traces?: TraceConfig[]
-  createdAt: number
+  created_at: number
+  updated_at: number
 }
 
 interface Panel {
@@ -398,19 +399,113 @@ function routeTraces(requestedPanelId: string, traces: TraceConfig[]): number {
   return added
 }
 
-function loadTemplates() {
+function readLocalTemplates(): Template[] {
   try {
     const raw = localStorage.getItem('trend_templates')
-    templates.value = raw ? JSON.parse(raw) : []
-  } catch { templates.value = [] }
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.map((item: any) => ({
+      ...item,
+      created_at: item.created_at || item.createdAt || Date.now(),
+      updated_at: item.updated_at || item.updatedAt || item.createdAt || Date.now(),
+    })).filter((item: Template) => item.id && item.name)
+  } catch {
+    return []
+  }
 }
 
-function saveTemplates() {
+function saveLocalTemplates(items = templates.value) {
   try {
-    localStorage.setItem('trend_templates', JSON.stringify(templates.value))
+    localStorage.setItem('trend_templates', JSON.stringify(items))
   } catch (err) {
-    console.error('保存模板失败:', err)
-    ElMessage.error('保存模板失败：本地存储已满或处于隐私模式')
+    console.error('保存模板本地备份失败:', err)
+  }
+}
+
+function apiToTemplate(item: ApiTrendTemplate): Template {
+  return {
+    id: item.id,
+    name: item.name,
+    panels: (item.panels || []).map(panel => ({
+      kind: panel.kind,
+      traceConfigs: (panel.trace_configs || []).map(trace => ({
+        instId: trace.inst_id,
+        inst: trace.inst,
+        ioa: trace.ioa,
+        name: trace.name,
+        unit: trace.unit,
+        alias: trace.alias,
+        colorIdx: trace.color_idx,
+        pointType: isPointType(trace.point_type) ? trace.point_type : undefined,
+      })),
+    })),
+    created_at: item.created_at,
+    updated_at: item.updated_at,
+  }
+}
+
+function templateToApi(item: Template): ApiTrendTemplate {
+  return {
+    id: item.id,
+    name: item.name,
+    panels: (item.panels || []).map(panel => ({
+      kind: panel.kind,
+      trace_configs: panel.traceConfigs.map(trace => ({
+        inst_id: trace.instId,
+        inst: trace.inst,
+        ioa: trace.ioa,
+        name: trace.name,
+        unit: trace.unit,
+        alias: trace.alias,
+        color_idx: trace.colorIdx,
+        point_type: trace.pointType,
+      })),
+    })),
+    created_at: item.created_at,
+    updated_at: item.updated_at,
+  }
+}
+
+async function loadTemplates() {
+  const localTemplates = readLocalTemplates()
+  try {
+    const remoteTemplates = (await listTrendTemplates()).map(apiToTemplate)
+    if (remoteTemplates.length === 0 && localTemplates.length > 0) {
+      // One-time migration for users upgrading from the localStorage-only version.
+      const migrated: Template[] = []
+      for (const local of localTemplates) {
+        let candidate = local
+        if ((!candidate.panels || candidate.panels.length === 0) && candidate.traces?.length) {
+          const legacyTraces = cloneTraces(candidate.traces)
+          if (!await hydrateTracePointTypes(legacyTraces)) continue
+          candidate = { ...candidate, panels: splitTracesByKind(legacyTraces) }
+        }
+        try {
+          migrated.push(apiToTemplate(await saveTrendTemplate(templateToApi(candidate))))
+        } catch {
+          // Keep successfully migrated items and fall back to local data below.
+        }
+      }
+      if (migrated.length === localTemplates.length) {
+        templates.value = migrated
+        localStorage.removeItem('trend_templates')
+        ElMessage.success(`已迁移 ${migrated.length} 个趋势模板到服务端配置`)
+        return
+      }
+      templates.value = migrated.length > 0 ? migrated : localTemplates
+      saveLocalTemplates(templates.value)
+      return
+    }
+    templates.value = remoteTemplates
+    if (remoteTemplates.length > 0) localStorage.removeItem('trend_templates')
+  } catch (err) {
+    templates.value = localTemplates
+    if (localTemplates.length > 0) {
+      ElMessage.warning('趋势模板服务暂不可用，当前使用浏览器中的兼容副本')
+    } else {
+      console.error('加载趋势模板失败:', err)
+    }
   }
 }
 
@@ -440,36 +535,70 @@ async function loadTemplate(id: string) {
   ElMessage.success('模板已加载')
 }
 
-function saveTemplate() {
+async function saveTemplate() {
   if (!activeTemplateId.value) {
     ElMessage.warning('请先选择一个模板，或使用「另存为」创建新模板')
     return
   }
-  const template = templates.value.find(item => item.id === activeTemplateId.value)
-  if (!template) return
-  template.panels = panelSnapshot()
-  delete template.traces
-  saveTemplates()
-  ElMessage.success('模板已保存')
+  const index = templates.value.findIndex(item => item.id === activeTemplateId.value)
+  if (index < 0) return
+  const next: Template = {
+    ...templates.value[index],
+    panels: panelSnapshot(),
+    traces: undefined,
+  }
+  try {
+    templates.value[index] = apiToTemplate(await saveTrendTemplate(templateToApi(next)))
+    ElMessage.success('模板已保存到服务端配置')
+  } catch (err) {
+    saveLocalTemplates()
+    ElMessage.error('模板保存失败，已保留浏览器兼容副本')
+    console.error('保存趋势模板失败:', err)
+  }
 }
 
-function saveAsTemplate() {
+async function saveAsTemplate() {
   const name = newTemplateName.value.trim()
   if (!name) return
-  templates.value.push({ id: genId(), name, panels: panelSnapshot(), createdAt: Date.now() })
-  saveTemplates()
-  activeTemplateId.value = templates.value[templates.value.length - 1].id
-  showSaveAs.value = false
-  newTemplateName.value = ''
-  ElMessage.success('模板已保存')
+  const next: Template = {
+    id: genId(),
+    name,
+    panels: panelSnapshot(),
+    created_at: Date.now(),
+    updated_at: Date.now(),
+  }
+  try {
+    const saved = apiToTemplate(await saveTrendTemplate(templateToApi(next)))
+    templates.value.push(saved)
+    activeTemplateId.value = saved.id
+    showSaveAs.value = false
+    newTemplateName.value = ''
+    ElMessage.success('模板已保存到服务端配置')
+  } catch (err) {
+    templates.value.push(next)
+    activeTemplateId.value = next.id
+    saveLocalTemplates()
+    showSaveAs.value = false
+    newTemplateName.value = ''
+    ElMessage.error('服务端保存失败，已保存浏览器兼容副本')
+    console.error('另存为趋势模板失败:', err)
+  }
 }
 
 function deleteTemplate() {
   if (!activeTemplateId.value) return
-  ElMessageBox.confirm('确定删除该模板？', '确认', { type: 'warning' }).then(() => {
-    templates.value = templates.value.filter(template => template.id !== activeTemplateId.value)
-    saveTemplates()
-    activeTemplateId.value = ''
+  ElMessageBox.confirm('确定删除该模板？', '确认', { type: 'warning' }).then(async () => {
+    const id = activeTemplateId.value
+    try {
+      await deleteTrendTemplate(id)
+      templates.value = templates.value.filter(template => template.id !== id)
+      activeTemplateId.value = ''
+      ElMessage.success('模板已删除')
+    } catch (err) {
+      saveLocalTemplates()
+      ElMessage.error('模板删除失败，服务端配置未改变')
+      console.error('删除趋势模板失败:', err)
+    }
   }).catch(() => {})
 }
 
@@ -650,7 +779,7 @@ async function confirmHistoryCleanup() {
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 function debouncedSave() {
   if (saveTimer) clearTimeout(saveTimer)
-  saveTimer = setTimeout(() => { savePanels(); saveTemplates() }, 500)
+  saveTimer = setTimeout(() => { savePanels() }, 500)
 }
 
 function savePanels() {
@@ -702,7 +831,7 @@ function genId(): string {
 }
 
 onMounted(async () => {
-  loadTemplates()
+  await loadTemplates()
   loadPanels()
   await migrateSavedPanels()
 
@@ -728,7 +857,6 @@ onMounted(async () => {
 onUnmounted(() => {
   if (saveTimer) clearTimeout(saveTimer)
   savePanels()
-  saveTemplates()
 })
 </script>
 
