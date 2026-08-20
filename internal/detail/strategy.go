@@ -61,6 +61,8 @@ func (sr *strategyRunner) runOnce(cfg *model.AutoChangeConfig, state *strategySt
 	case model.StrategyCustomFormula:
 		sr.doCustomFormula(cfg, state)
 	case model.StrategyManual:
+	case model.StrategyTimestamp:
+		sr.doTimestamp(cfg)
 	}
 }
 
@@ -606,4 +608,83 @@ func parseIOAList(s string) []uint32 {
 		result = append(result, uint32(v))
 	}
 	return result
+}
+// doTimestamp 实现时间戳策略，将时间戳拆分为高低两个测点
+func (sr *strategyRunner) doTimestamp(cfg *model.AutoChangeConfig) {
+	// 检查必需的参数
+	if cfg.Params.TimestampHighIOA == 0 || cfg.Params.TimestampLowIOA == 0 {
+		slog.Warn("时间戳策略: 未配置高低位测点IOA", "ioa", cfg.PointIOA)
+		return
+	}
+
+	// 获取当前时间
+	now := time.Now()
+	var targetTime time.Time
+
+	// 根据时间戳模式选择目标时间
+	switch strings.ToLower(cfg.Params.TimestampMode) {
+	case "current":
+		targetTime = now
+	case "next_quarter":
+		// 计算下一个整十五分钟
+		minutes := now.Minute()
+		minutesToAdd := 15 - (minutes % 15)
+		targetTime = now.Add(time.Duration(minutesToAdd) * time.Minute)
+		// 归零秒和纳秒
+		targetTime = targetTime.Truncate(time.Minute)
+	case "next_hour":
+		// 计算下一个整点
+		targetTime = now.Add(time.Hour).Truncate(time.Hour)
+	default:
+		// 默认使用当前时间
+		targetTime = now
+		slog.Debug("时间戳策略: 使用默认模式current", "ioa", cfg.PointIOA)
+	}
+
+	// 根据时间戳格式转换为对应的时间戳
+	var timestamp uint64
+	switch strings.ToLower(cfg.Params.TimestampFormat) {
+	case "milliseconds":
+		timestamp = uint64(targetTime.UnixNano() / 1e6) // 毫秒时间戳
+	case "seconds":
+		fallthrough
+	default:
+		timestamp = uint64(targetTime.Unix()) // 秒级时间戳
+		slog.Debug("时间戳策略: 使用秒级时间戳格式", "ioa", cfg.PointIOA)
+	}
+
+	// 将64位时间戳拆分为两个32位整数（高位和低位）
+	// 注意：32位整数最大为4294967295，但时间戳可能会超过这个范围
+	// 所以我们需要更合理的拆分方式
+	high := uint32((timestamp >> 16) & 0xFFFF)  // 取高16位
+	low := uint32(timestamp & 0xFFFF)           // 取低16位
+
+	// 获取测点
+	highPoint, highOk := sr.store.Get(cfg.Params.TimestampHighIOA)
+	lowPoint, lowOk := sr.store.Get(cfg.Params.TimestampLowIOA)
+
+	if !highOk || !lowOk {
+		slog.Warn("时间戳策略: 高低位测点不存在", 
+			"ioa", cfg.PointIOA, 
+			"high_ioa", cfg.Params.TimestampHighIOA, 
+			"low_ioa", cfg.Params.TimestampLowIOA)
+		return
+	}
+
+	// 写入高位测点
+	sr.store.SetValue(cfg.Params.TimestampHighIOA, float64(high))
+	sr.publisher.Publish(highPoint)
+
+	// 写入低位测点
+	sr.store.SetValue(cfg.Params.TimestampLowIOA, float64(low))
+	sr.publisher.Publish(lowPoint)
+
+	// 记录日志用于调试
+	slog.Debug("时间戳策略: 已更新时间戳", 
+		"target_time", targetTime.Format("2006-01-02 15:04:05"),
+		"timestamp", timestamp,
+		"high", high,
+		"low", low,
+		"high_ioa", cfg.Params.TimestampHighIOA,
+		"low_ioa", cfg.Params.TimestampLowIOA)
 }

@@ -16,6 +16,7 @@ const (
 	StrategyAPIUpdate     StrategyType = "apiupdate"
 	StrategyManual        StrategyType = "manual"
 	StrategyCustomFormula StrategyType = "custom"
+	StrategyTimestamp     StrategyType = "timestamp"
 )
 
 type StrategyParams struct {
@@ -45,6 +46,10 @@ type StrategyParams struct {
 	CustomIOAs       string  `json:"custom_ioas,omitempty"`
 	CustomFormula    string  `json:"custom_formula,omitempty"`
 	CSVLoop          *bool   `json:"csv_loop,omitempty"`
+	TimestampMode    string  `json:"timestamp_mode,omitempty"`    // 时间戳模式：current, next_quarter, next_hour
+	TimestampFormat  string  `json:"timestamp_format,omitempty"`  // 时间戳格式：seconds, milliseconds
+	TimestampHighIOA uint32  `json:"timestamp_high_ioa,omitempty"` // 时间戳高位测点IOA
+	TimestampLowIOA  uint32  `json:"timestamp_low_ioa,omitempty"`  // 时间戳低位测点IOA
 }
 
 type AutoChangeConfig struct {

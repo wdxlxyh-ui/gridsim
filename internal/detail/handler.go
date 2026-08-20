@@ -1060,16 +1060,18 @@ func formatPointValueStr(p *config.Point) string {
 
 func strategyToCode(s model.StrategyType) string {
 	m := map[model.StrategyType]string{
-		model.StrategyIncrement: "1",
-		model.StrategyRandom:    "2",
-		model.StrategyCSV:       "3",
-		model.StrategyMax:       "4",
-		model.StrategyMin:       "5",
-		model.StrategySOC:       "6",
-		model.StrategyEnergy:    "7",
-		model.StrategyAOFollow:  "8",
-		model.StrategyAPIUpdate: "9",
-		model.StrategyManual:    "10",
+		model.StrategyIncrement:     "1",
+		model.StrategyRandom:        "2",
+		model.StrategyCSV:           "3",
+		model.StrategyMax:           "4",
+		model.StrategyMin:           "5",
+		model.StrategySOC:           "6",
+		model.StrategyEnergy:        "7",
+		model.StrategyAOFollow:      "8",
+		model.StrategyAPIUpdate:     "9",
+		model.StrategyManual:        "10",
+		model.StrategyCustomFormula: "11",
+		model.StrategyTimestamp:     "12",
 	}
 	return m[s]
 }
@@ -1103,6 +1105,12 @@ func paramsToABCDEFG(strategy model.StrategyType, p *model.StrategyParams) (a, b
 		return floatToStr(p.APIInitValue), "", "", "", "", "", ""
 	case model.StrategyCustomFormula:
 		return p.CustomIOAs, p.CustomFormula, strconv.Itoa(p.PeriodMs), "", "", "", ""
+	case model.StrategyTimestamp:
+		return strconv.FormatUint(uint64(p.TimestampHighIOA), 10),
+			strconv.FormatUint(uint64(p.TimestampLowIOA), 10),
+			p.TimestampMode,
+			p.TimestampFormat,
+			strconv.Itoa(p.PeriodMs), "", ""
 	}
 	return "", "", "", "", "", "", ""
 }
@@ -1156,6 +1164,12 @@ func abcdefgToParams(strategy model.StrategyType, a, b, c, d, e, f, g string) mo
 		p.CustomIOAs = strings.TrimSpace(a)
 		p.CustomFormula = strings.TrimSpace(b)
 		p.PeriodMs = parseIntCol(c)
+	case model.StrategyTimestamp:
+		p.TimestampHighIOA = parseUint32Col(a)
+		p.TimestampLowIOA = parseUint32Col(b)
+		p.TimestampMode = strings.TrimSpace(c)
+		p.TimestampFormat = strings.TrimSpace(d)
+		p.PeriodMs = parseIntCol(e)
 	}
 	return p
 }
@@ -1182,6 +1196,10 @@ func codeToStrategy(code string) model.StrategyType {
 		return model.StrategyAPIUpdate
 	case "10":
 		return model.StrategyManual
+	case "11":
+		return model.StrategyCustomFormula
+	case "12":
+		return model.StrategyTimestamp
 	}
 	// Also match by name (case-insensitive)
 	switch strings.ToLower(strings.TrimSpace(code)) {
@@ -1205,6 +1223,10 @@ func codeToStrategy(code string) model.StrategyType {
 		return model.StrategyAPIUpdate
 	case "manual":
 		return model.StrategyManual
+	case "custom":
+		return model.StrategyCustomFormula
+	case "timestamp":
+		return model.StrategyTimestamp
 	}
 	return ""
 }
