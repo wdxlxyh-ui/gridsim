@@ -578,6 +578,37 @@
              适用于外部系统联调场景
            </div>
         </div>
+        <div v-show="autoStrategyTab === 'timestamp'">
+          <el-form label-width="120px" size="small">
+            <el-form-item label="高位测点">
+              <el-select v-model="autoForm.timestamp_high_ioa" filterable placeholder="选择高位 IOA" style="width: 280px">
+                <el-option v-for="pt in timestampPointOptions" :key="pt.ioa" :label="pt.name + ' (IOA: ' + pt.ioa + ')'" :value="pt.ioa" :disabled="pt.ioa === autoForm.timestamp_low_ioa" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="低位测点">
+              <el-select v-model="autoForm.timestamp_low_ioa" filterable placeholder="选择低位 IOA" style="width: 280px">
+                <el-option v-for="pt in timestampPointOptions" :key="pt.ioa" :label="pt.name + ' (IOA: ' + pt.ioa + ')'" :value="pt.ioa" :disabled="pt.ioa === autoForm.timestamp_high_ioa" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="目标时间">
+              <el-radio-group v-model="autoForm.timestamp_mode">
+                <el-radio value="current">当前时间</el-radio>
+                <el-radio value="next_quarter">下个整 15 分钟</el-radio>
+                <el-radio value="next_hour">下个整点</el-radio>
+              </el-radio-group>
+            </el-form-item>
+            <el-form-item label="时间戳格式">
+              <el-radio-group v-model="autoForm.timestamp_format">
+                <el-radio value="seconds">秒</el-radio>
+                <el-radio value="milliseconds">毫秒</el-radio>
+              </el-radio-group>
+            </el-form-item>
+            <el-form-item label="更新周期(ms)">
+              <el-input-number v-model="autoForm.period_ms" :min="100" :step="100" style="width: 200px" />
+            </el-form-item>
+          </el-form>
+          <el-alert title="策略将时间戳拆分为高位和低位，并分别写入所选 IOA；两个测点不能相同。" type="info" :closable="false" show-icon />
+        </div>
         <div v-show="autoStrategyTab === 'custom'">
             <el-form label-width="100px" size="small">
               <el-form-item label="关联测点">
@@ -818,6 +849,10 @@ const autoForm = reactive({
   energy_period_ms: 1000,
   follow_ao_ioa: 20,
   api_init_value: 0,
+  timestamp_high_ioa: 0,
+  timestamp_low_ioa: 0,
+  timestamp_mode: 'current',
+  timestamp_format: 'seconds',
 })
 
 // ---- CSV 文件列表 ----
@@ -863,6 +898,9 @@ const customFormulaPreview = computed(() => {
 })
 
 const aoPoints = computed(() => points.value.filter(p => p.point_type === 'AO'))
+const timestampPointOptions = computed(() =>
+  points.value.filter(p => p.point_type !== 'AO' && p.point_type !== 'DO'),
+)
 
 // 解析跨实例 key: "inst-abc:30001" → { instanceId, ioa }
 function parseCrossKey(key: string): { instanceId: string; ioa: number } | null {
@@ -1346,6 +1384,7 @@ const strategyCards = [
   { key: 'apiupdate', icon: '🌐', label: '接口更新', desc: '仅允许API写入' },
   { key: 'manual', icon: '✋', label: '手动置数', desc: '引擎不自动计算' },
   { key: 'custom', icon: '🧮', label: '自定义公式', desc: '四则运算表达式' },
+  { key: 'timestamp', icon: '🕒', label: '时间戳', desc: '拆分写入高位和低位测点' },
 ]
 
 // Strategy template presets
@@ -1359,6 +1398,7 @@ const strategyTemplates = [
   { key: 'energy', label: '⚡ 电量累计', params: { init_energy: 0, stat_type: 0, energy_power_ioa: 16385, energy_period_ms: 1000 } },
   { key: 'aofollow', label: '🔗 AO跟随联动', params: { follow_ao_ioa: 0 } },
   { key: 'manual', label: '✋ 手动置数', params: {} },
+  { key: 'timestamp', label: '🕒 当前时间戳', params: { timestamp_mode: 'current', timestamp_format: 'seconds', period_ms: 1000 } },
   { key: 'csv', label: '📋 CSV回放', params: { csv_loop: true, time_format: 'relative', time_unit: 'ms' } },
 ]
 
@@ -1373,6 +1413,8 @@ function applyStrategyTemplate(tpl: typeof strategyTemplates[0]) {
     init_soc: 50, rated_cap: 100, power_ioa: 16385, integral_ms: 1000,
     init_energy: 0, stat_type: 0, energy_power_ioa: 16385, energy_period_ms: 1000,
     follow_ao_ioa: 20, api_init_value: 0,
+    timestamp_high_ioa: 0, timestamp_low_ioa: 0,
+    timestamp_mode: 'current', timestamp_format: 'seconds',
   }
   Object.assign(autoForm, defaults, tpl.params)
 }
@@ -1431,6 +1473,8 @@ function resetAutoForm() {
       init_soc: 50, rated_cap: 100, power_ioa: 16385, integral_ms: 1000,
       init_energy: 0, stat_type: 0, energy_power_ioa: 16385, energy_period_ms: 1000,
       follow_ao_ioa: 0, api_init_value: 0,
+      timestamp_high_ioa: 0, timestamp_low_ioa: 0,
+      timestamp_mode: 'current', timestamp_format: 'seconds',
     })
     customSelectedIoas.value = []
     customFormulaTokens.value = []
@@ -1485,6 +1529,21 @@ case 'aofollow':
        break
      case 'manual':
        break
+     case 'timestamp':
+       if (!autoForm.timestamp_high_ioa || !autoForm.timestamp_low_ioa) {
+         ElMessage.error('请选择时间戳高位和低位测点')
+         return
+       }
+       if (autoForm.timestamp_high_ioa === autoForm.timestamp_low_ioa) {
+         ElMessage.error('时间戳高位和低位测点不能相同')
+         return
+       }
+       params.timestamp_high_ioa = autoForm.timestamp_high_ioa
+       params.timestamp_low_ioa = autoForm.timestamp_low_ioa
+       params.timestamp_mode = autoForm.timestamp_mode
+       params.timestamp_format = autoForm.timestamp_format
+       params.period_ms = autoForm.period_ms
+       break
      case 'custom':
        params.custom_ioas = customSelectedIoas.value.join(';')
        params.custom_formula = customFormulaPreview.value
@@ -1519,7 +1578,7 @@ case 'aofollow':
 function strategyLabel(s: string): string {
   const map: Record<string, string> = {
     increment: '递增', random: '随机', csv: 'CSV', max: 'MAX',
-    min: 'MIN', soc: 'SOC', energy: '电量', aofollow: 'AO关联', apiupdate: '接口更新', manual: '手动',
+    min: 'MIN', soc: 'SOC', energy: '电量', aofollow: 'AO关联', apiupdate: '接口更新', manual: '手动', timestamp: '时间戳',
   }
   return map[s] || s
 }
