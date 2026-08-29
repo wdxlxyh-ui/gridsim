@@ -229,35 +229,38 @@
   </div>
 
   <!-- Floating Action Button: Onboarding Guide -->
-  <el-dropdown trigger="click" placement="top-end" @command="(cmd: string) => guideRef?.start(cmd as 'basic' | 'advanced')">
-    <div class="onboard-fab" title="操作引导">
-      <span class="onboard-fab-icon">❓</span>
+  <el-dropdown trigger="click" placement="top-end" @command="handleGuideCommand">
+    <button type="button" class="onboard-fab" aria-label="打开操作引导菜单">
+      <el-icon :size="18" aria-hidden="true"><QuestionFilled /></el-icon>
       <span class="onboard-fab-label">操作引导</span>
-    </div>
+    </button>
     <template #dropdown>
       <el-dropdown-menu>
-        <el-dropdown-item command="basic">🚀 基础引导</el-dropdown-item>
-        <el-dropdown-item command="advanced">🎯 高级引导 · 操作流程</el-dropdown-item>
+        <el-dropdown-item command="basic" :icon="Reading">基础引导</el-dropdown-item>
+        <el-dropdown-item command="advanced" :icon="Aim">高级引导 · 操作流程</el-dropdown-item>
       </el-dropdown-menu>
     </template>
   </el-dropdown>
-
-  <!-- Onboarding Guide Overlay -->
-  <OnboardingGuide ref="guideRef" />
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, inject, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Grid, CaretRight, VideoPause, DataLine, Connection,
   Plus, Monitor, ArrowRight, Clock, Coin, Lightning, DataBoard, Refresh,
+  QuestionFilled, Reading, Aim,
 } from '@element-plus/icons-vue'
 import { getDashboard, type DashboardData, type DashboardBriefInstance } from '../api'
 import SkeletonScreen from '../components/SkeletonScreen.vue'
-import OnboardingGuide from '../components/OnboardingGuide.vue'
 
-const guideRef = ref<InstanceType<typeof OnboardingGuide> | null>(null)
+type GuideMode = 'basic' | 'advanced'
+
+const startOnboardingGuide = inject<(mode: GuideMode) => void>('startOnboardingGuide', () => {})
+
+function handleGuideCommand(command: string) {
+  if (command === 'basic' || command === 'advanced') startOnboardingGuide(command)
+}
 
 const router = useRouter()
 const data = ref<DashboardData | null>(null)
@@ -884,28 +887,31 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 18px 0 14px;
   height: 44px;
+  padding: 0 18px 0 14px;
+  border: 0;
   border-radius: 22px;
+  color: #fff;
+  font: inherit;
   background: linear-gradient(135deg, #1e40af, #3b82f6);
   box-shadow: 0 4px 20px rgba(59, 130, 246, 0.45);
   cursor: pointer;
-  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
   user-select: none;
 }
 
 .onboard-fab:hover {
-  transform: translateY(-3px) scale(1.04);
+  background: linear-gradient(135deg, #1d4ed8, #60a5fa);
   box-shadow: 0 8px 28px rgba(59, 130, 246, 0.6);
 }
 
 .onboard-fab:active {
-  transform: scale(0.97);
+  box-shadow: 0 2px 12px rgba(59, 130, 246, 0.4);
 }
 
-.onboard-fab-icon {
-  font-size: 18px;
-  line-height: 1;
+.onboard-fab:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 3px;
 }
 
 .onboard-fab-label {
@@ -913,5 +919,21 @@ onUnmounted(() => {
   font-weight: 600;
   color: #fff;
   white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .onboard-fab {
+    right: 16px;
+    bottom: 16px;
+    justify-content: center;
+    width: 44px;
+    padding: 0;
+  }
+
+  .onboard-fab-label { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboard-fab { transition: none; }
 }
 </style>

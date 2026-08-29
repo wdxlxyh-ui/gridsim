@@ -66,18 +66,29 @@
       </el-container>
     </el-container>
   </template>
+
+  <OnboardingGuide ref="onboardingGuideRef" />
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch, provide } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Grid, Setting, Monitor, DataLine, Fold, ArrowDown, Connection, Search } from '@element-plus/icons-vue'
 import { getStatus, clearToken, type GlobalStatus } from './api'
+import OnboardingGuide from './components/OnboardingGuide.vue'
+
+type GuideMode = 'basic' | 'advanced'
 
 const route = useRoute()
 const router = useRouter()
+const onboardingGuideRef = ref<InstanceType<typeof OnboardingGuide> | null>(null)
 const sidebarCollapsed = ref(true)
 const globalSearch = ref('')
+
+provide('startOnboardingGuide', (mode: GuideMode) => {
+  void onboardingGuideRef.value?.start(mode)
+})
+
 const currentRoute = computed(() => {
   const path = route.path
   if (path.startsWith('/detail/')) return '/monitor'
