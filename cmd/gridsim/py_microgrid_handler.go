@@ -48,6 +48,10 @@ func (ws *webServer) registerPyMicrogridRoutes(mux *http.ServeMux) {
 			ws.handlePyMicrogridUploadCurve(w, r, id)
 		case strings.HasPrefix(action, "export-points"):
 			ws.handlePyMicrogridExportPoints(w, r, id)
+		case strings.HasPrefix(action, "tsdb-config"):
+			ws.handlePyMicrogridTsdbConfig(w, r, id)
+		case strings.HasPrefix(action, "tsdb-test"):
+			ws.handlePyMicrogridTsdbTest(w, r, id)
 		default:
 			writeError(w, http.StatusNotFound, "unknown py-microgrid endpoint: "+action)
 		}

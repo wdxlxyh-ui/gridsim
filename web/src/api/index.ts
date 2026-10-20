@@ -861,3 +861,80 @@ export async function saveTrendTemplate(template: Omit<TrendTemplate, 'updated_a
 export async function deleteTrendTemplate(id: string): Promise<void> {
   await http.delete(`/trend/templates/${encodeURIComponent(id)}`)
 }
+
+
+
+export interface AdminOperationResponse {
+  status: string
+  backup_path?: string
+  deleted_rows?: number
+  removed_files?: number
+  preserved?: string[]
+}
+
+export async function changeAdminPassword(currentPassword: string, newPassword: string, confirmPassword: string): Promise<void> {
+  await http.put('/admin/password', {
+    current_password: currentPassword,
+    new_password: newPassword,
+    confirm_password: confirmPassword,
+  })
+}
+
+export async function clearAdminDatabase(password: string, confirmation: string): Promise<AdminOperationResponse> {
+  const res = await http.post('/admin/database/clear', { password, confirmation })
+  return res.data
+}
+
+export async function clearAdminConfig(password: string, confirmation: string): Promise<AdminOperationResponse> {
+  const res = await http.post('/admin/config/clear', { password, confirmation })
+  return res.data
+}
+
+// ─── TSDB Configuration API ─────────────────────────────────────────────────
+
+export interface EnosConfig {
+  apigw_address: string
+  access_key: string
+  secret_key: string
+  org_id: string
+}
+
+export interface AssetSubscription {
+  asset_id: string
+  point_ids: string[]
+}
+
+export interface ReplayConfig {
+  enabled: boolean
+  /** relative: 回放时刻 = 当前时刻 - target_lag_sec; absolute: 从 replay_start_time 起随墙钟推进 */
+  time_mode: 'relative' | 'absolute'
+  replay_start_time: string // YYYY-MM-DD HH:MM:SS (UTC+8), only used when time_mode = absolute
+  fetch_interval_sec: number
+  lookback_sec: number
+  delay_sec: number
+  target_lag_sec: number
+  assets: AssetSubscription[]
+}
+
+export interface TsdbConfig {
+  enos: EnosConfig
+  replay: ReplayConfig
+  /** read-only: per-instance workspace (py_instances/<id>) exists */
+  workspace_ready?: boolean
+  /** read-only: replay engine code present in the Python project this instance runs */
+  engine_available?: boolean
+}
+
+export async function getTsdbConfig(instanceId: string): Promise<TsdbConfig> {
+  const res = await http.get(`/py-microgrid/${instanceId}/tsdb-config`)
+  return res.data
+}
+
+export async function saveTsdbConfig(instanceId: string, config: TsdbConfig): Promise<void> {
+  await http.put(`/py-microgrid/${instanceId}/tsdb-config`, config)
+}
+
+export async function testTsdbConnection(instanceId: string, enosConfig: EnosConfig): Promise<{ success: boolean; message: string }> {
+  const res = await http.post(`/py-microgrid/${instanceId}/tsdb-test`, enosConfig)
+  return res.data
+}

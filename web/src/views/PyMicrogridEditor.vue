@@ -67,6 +67,13 @@
           @save="handleSaveConfig"
           @upload-curve="handleUploadCurve"
         />
+        <el-divider style="margin: 24px 0" />
+        <TsdbConfigEditor
+          :instance-id="instanceId"
+          :disabled="running"
+          :device-config="deviceConfig"
+          @saved="handleTsdbConfigSaved"
+        />
       </el-tab-pane>
     </el-tabs>
   </div>
@@ -80,6 +87,7 @@ import PyMicrogridTopologySvg from '../components/py-microgrid/PyMicrogridTopolo
 import PyMicrogridDashboardCard from '../components/py-microgrid/PyMicrogridDashboardCard.vue'
 import PyMicrogridDeviceCards from '../components/py-microgrid/PyMicrogridDeviceCards.vue'
 import PyConfigEditor from '../components/py-microgrid/PyConfigEditor.vue'
+import TsdbConfigEditor from '../components/py-microgrid/TsdbConfigEditor.vue'
 import {
   getInstance,
   startInstance,
@@ -212,6 +220,12 @@ async function handleExportPoints() {
     URL.revokeObjectURL(url)
   } catch (e: any) { ElMessage.error('导出失败: ' + (e?.response?.data?.error || e.message)) }
   finally { exporting.value = false }
+}
+
+async function handleTsdbConfigSaved() {
+  // Device mappings are written into device.json; refresh what the other tabs show.
+  await fetchConfig()
+  await fetchTopology()
 }
 
 function startPolling() {
