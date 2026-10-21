@@ -651,6 +651,8 @@ func (s *Service) instanceTables() ([]string, error) {
 	return tables, rows.Err()
 }
 
+// Close shuts down the store service cleanly.
+func (s *Service) Close() error {
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
