@@ -94,3 +94,30 @@ func TestStoreWritesVersionedJSON(t *testing.T) {
 		t.Fatalf("unexpected document: %+v", document)
 	}
 }
+
+
+
+func TestStoreClearPersistsEmptyTemplates(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "templates.json")
+	store := NewStoreAt(path)
+	if _, err := store.Save(testTemplate()); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Clear(); err != nil {
+		t.Fatal(err)
+	}
+	if got := store.List(); len(got) != 0 {
+		t.Fatalf("templates=%d, want 0", len(got))
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document fileData
+	if err := json.Unmarshal(data, &document); err != nil {
+		t.Fatal(err)
+	}
+	if document.Version != fileVersion || len(document.Templates) != 0 {
+		t.Fatalf("unexpected empty document: %+v", document)
+	}
+}

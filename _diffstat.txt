@@ -1,0 +1,20 @@
+﻿ README.md                                          |    1 +
+ cmd/gridsim/main.go                                |   41 +-
+ cmd/gridsim/py_microgrid_handler.go                |  215 +++
+ "docs/API-\346\226\207\346\241\243.md"             |  318 ++++-
+ ...267\245\345\205\267\346\226\207\346\241\243.md" | 1502 ++++++++------------
+ internal/detail/engine.go                          |  157 +-
+ internal/manager/manager.go                        |    7 +
+ internal/storage/store.go                          |    9 +
+ internal/store/store.go                            |  142 +-
+ internal/store/store_test.go                       |   37 +
+ internal/trend/store.go                            |    9 +
+ internal/trend/store_test.go                       |   27 +
+ pkg/api/proxy_store.go                             |   10 +
+ pkg/middleware/auth.go                             |   77 +-
+ web/package.json                                   |    2 +-
+ web/src/App.vue                                    |   33 +-
+ web/src/api/index.ts                               |   78 +
+ web/src/router/index.ts                            |   14 +
+ web/src/views/PyMicrogridEditor.vue                |   13 +
+ 19 files changed, 1658 insertions(+), 1034 deletions(-)

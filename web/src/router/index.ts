@@ -9,6 +9,7 @@ const routes = [
   { path: '/monitor', name: 'monitor', component: () => import('@/views/MonitorPage.vue'), meta: { title: '运行监控' } },
   { path: '/trend', name: 'trend', component: () => import('@/views/TrendPage.vue'), meta: { title: '实时趋势' } },
   { path: '/proxy', name: 'proxy', component: () => import('@/views/ProxyPage.vue'), meta: { title: '接口测试' } },
+  { path: '/advanced', name: 'advanced', component: () => import('@/views/AdvancedPage.vue'), meta: { title: '高级操作', adminOnly: true } },
   { path: '/detail/:id', name: 'detail', component: () => import('@/views/DetailPage.vue'), meta: { title: '实例详情' } },
   { path: '/microgrid/:id', name: 'microgrid', component: () => import('@/views/MicrogridEditor.vue'), meta: { title: '微电网编辑' } },
   { path: '/py-microgrid/:id', name: 'py-microgrid', component: () => import('@/views/PyMicrogridEditor.vue'), meta: { title: 'Python微电网' } },
@@ -22,11 +23,24 @@ const router = createRouter({
 // Navigation guard: redirect to login if not authenticated
 router.beforeEach((to, _from, next) => {
   const token = getToken()
+  if (to.meta.adminOnly && token && getTokenRole(token) !== 'admin') {
+    next('/dashboard')
+    return
+  }
   if (to.meta.public || token) {
     next()
   } else {
     next('/login')
   }
 })
+
+function getTokenRole(token: string): string {
+  try {
+    const payload = token.split('.')[1]
+    return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))).role || ''
+  } catch {
+    return ''
+  }
+}
 
 export default router

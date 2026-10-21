@@ -44,16 +44,18 @@
         <el-aside class="app-sidebar" :class="{ collapsed: sidebarCollapsed }"
           @mouseenter="sidebarCollapsed = false" @mouseleave="sidebarCollapsed = true">
           <nav class="sidebar-nav">
-            <div
-              v-for="item in menuItems" :key="item.path"
-              class="nav-item"
-              :class="{ active: currentRoute === item.path || (item.path === '/monitor' && currentRoute.startsWith('/detail')) }"
-              @click="$router.push(item.path)"
-            >
-              <div class="nav-pill"></div>
-              <el-icon :size="18"><component :is="item.icon" /></el-icon>
-              <span class="nav-label">{{ item.label }}</span>
-            </div>
+            <template v-for="item in menuItems" :key="item.path">
+              <div
+                v-if="!item.adminOnly || isAdmin"
+                class="nav-item"
+                :class="{ active: currentRoute === item.path || (item.path === '/monitor' && currentRoute.startsWith('/detail')) }"
+                @click="$router.push(item.path)"
+              >
+                <div class="nav-pill"></div>
+                <el-icon :size="18"><component :is="item.icon" /></el-icon>
+                <span class="nav-label">{{ item.label }}</span>
+              </div>
+            </template>
           </nav>
         </el-aside>
         <el-main class="app-main">
@@ -80,7 +82,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Grid, Setting, Monitor, DataLine, Fold, ArrowDown, Connection, Search } from '@element-plus/icons-vue'
+import { Grid, Setting, Monitor, DataLine, Fold, ArrowDown, Connection, Search, Lock } from '@element-plus/icons-vue'
 import { getStatus, clearToken, type GlobalStatus } from './api'
 import OnboardingGuide from './components/OnboardingGuide.vue'
 
@@ -105,6 +107,8 @@ const isLoginPage = computed(() => route.path === '/login')
 const status = ref<GlobalStatus | null>(null)
 const version = ref('3.1.0')
 const username = ref('')
+const role = ref('')
+const isAdmin = computed(() => role.value === 'admin')
 
 const menuItems = [
   { path: '/dashboard', label: '仪表盘', icon: Grid },
@@ -112,6 +116,7 @@ const menuItems = [
   { path: '/monitor', label: '运行监控', icon: Monitor },
   { path: '/trend', label: '实时趋势', icon: DataLine },
   { path: '/proxy', label: '接口测试', icon: Connection },
+  { path: '/advanced', label: '高级操作', icon: Lock, adminOnly: true },
 ]
 
 const animatedRunning = ref(0)
@@ -135,6 +140,7 @@ function animateCount(target: number, current: { value: number }) {
 
 function updateUserFromToken() {
   username.value = ''
+  role.value = ''
   try {
     const raw = localStorage.getItem('iec104_token')
     if (!raw) return
@@ -142,11 +148,12 @@ function updateUserFromToken() {
     if (parts.length !== 3) return
     const payload = JSON.parse(atob(parts[1]))
     if (payload.username) username.value = payload.username
+    if (payload.role) role.value = payload.role
   } catch { /* ignore parse errors, keep token intact */ }
 }
 
 function handleUserCommand(cmd: string) {
-  if (cmd === 'logout') { clearToken(); username.value = ''; router.push('/login') }
+  if (cmd === 'logout') { clearToken(); username.value = ''; role.value = ''; router.push('/login') }
 }
 
 function handleGuideClick() {
@@ -169,7 +176,7 @@ async function refreshStatus() {
 }
 
 function handleToggleSidebar() { sidebarCollapsed.value = !sidebarCollapsed.value }
-function handleAuthLogout() { username.value = ''; router.push('/login') }
+function handleAuthLogout() { username.value = ''; role.value = ''; router.push('/login') }
 
 onMounted(async () => {
   await refreshStatus()

@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -31,6 +32,38 @@ const (
 	RoleKey     contextKey = "role"
 )
 
+func authenticateRequest(r *http.Request) (context.Context, error) {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return nil, fmt.Errorf("missing authorization header")
+	}
+	parts := strings.SplitN(authHeader, " ", 2)
+	if len(parts) != 2 || parts[0] != "Bearer" || strings.TrimSpace(parts[1]) == "" {
+		return nil, fmt.Errorf("invalid authorization header")
+	}
+
+	token, err := jwt.Parse(parts[1], func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method %s", token.Method.Alg())
+		}
+		return []byte(authConfig.Secret), nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("invalid token: %w", err)
+	}
+	if !token.Valid {
+		return nil, fmt.Errorf("invalid token")
+	}
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return nil, fmt.Errorf("invalid token claims")
+	}
+	ctx := context.WithValue(r.Context(), UserIDKey, claims["user_id"])
+	ctx = context.WithValue(ctx, UsernameKey, claims["username"])
+	ctx = context.WithValue(ctx, RoleKey, claims["role"])
+	return ctx, nil
+}
+
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
@@ -38,40 +71,30 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			http.Error(w, "missing authorization header", http.StatusUnauthorized)
-			return
-		}
-
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			http.Error(w, "invalid authorization header", http.StatusUnauthorized)
-			return
-		}
-
-		tokenString := parts[1]
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			return []byte(authConfig.Secret), nil
-		})
-
-		if err != nil || !token.Valid {
+		ctx, err := authenticateRequest(r)
+		if err != nil {
 			slog.Warn("invalid token", "error", err)
-			http.Error(w, "invalid token", http.StatusUnauthorized)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
 
-		claims, ok := token.Claims.(jwt.MapClaims)
-		if !ok {
-			http.Error(w, "invalid token claims", http.StatusUnauthorized)
+// AdminMiddleware protects destructive administration operations. It is mounted
+// only on /api/v1/admin/ so existing public and operator APIs remain compatible.
+func AdminMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx, err := authenticateRequest(r)
+		if err != nil {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-
-		ctx := context.WithValue(r.Context(), UserIDKey, claims["user_id"])
-		ctx = context.WithValue(ctx, UsernameKey, claims["username"])
-		ctx = context.WithValue(ctx, RoleKey, claims["role"])
-
+		role, _ := ctx.Value(RoleKey).(string)
+		if role != "admin" {
+			http.Error(w, "admin role required", http.StatusForbidden)
+			return
+		}
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

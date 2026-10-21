@@ -551,6 +551,13 @@ func (m *Manager) StopInstance(id string) error {
 	return nil
 }
 
+// ClearConfigs stops all instances and removes every instance configuration.
+// Users, database files and external backup files are managed by the caller.
+func (m *Manager) ClearConfigs() error {
+	m.StopAll()
+	return m.store.Clear()
+}
+
 func (m *Manager) CfgDir() string {
 	return m.cfgDir
 }
@@ -1047,9 +1054,15 @@ func (m *Manager) ensureBridgeWorkspace(instanceID, templateDir string) (string,
 	instancesDir := filepath.Join(m.cfgDir, "py_instances")
 	workDir := filepath.Join(instancesDir, instanceID)
 
-	// If workspace already exists, just return it
-	if _, err := os.Stat(workDir); err == nil {
-		return workDir, nil
+	// If workspace already exists, verify it's complete
+	if info, err := os.Stat(workDir); err == nil && info.IsDir() {
+		// Verify essential files exist
+		deviceJSONPath := filepath.Join(workDir, "config", "device.json")
+		if _, err := os.Stat(deviceJSONPath); err == nil {
+			return workDir, nil
+		}
+		slog.Warn("工作区存在但config/device.json缺失，重新创建", "id", instanceID, "path", workDir)
+		// Fall through to recreate
 	}
 
 	// Create workspace structure

@@ -138,3 +138,12 @@ func (s *ConfigStore) IsDirty() bool {
 	defer s.mu.RUnlock()
 	return s.dirty
 }
+
+// Clear removes all instance configurations and persists an empty array.
+func (s *ConfigStore) Clear() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.configs = make([]model.InstanceConfig, 0)
+	s.dirty = true
+	return s.save()
+}

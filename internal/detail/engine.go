@@ -19,16 +19,18 @@ type publisher interface {
 const maxConcurrentTasks = 100
 
 type Engine struct {
-	mu         sync.RWMutex
-	store      *library.Store
-	pub        publisher
-	strategy   *strategyRunner
-	acStore    *AutoChangeStore
-	tasks      map[uint32]*changeTask
-	state      map[uint32]*strategyState
-	instanceID string
-	cfgDir     string
-	wg         sync.WaitGroup
+	mu            sync.RWMutex
+	store         *library.Store
+	pub           publisher
+	strategy      *strategyRunner
+	acStore       *AutoChangeStore
+	tasks         map[uint32]*changeTask
+	state         map[uint32]*strategyState
+	instanceID    string
+	cfgDir        string
+	wg            sync.WaitGroup
+	aoFollowIndex map[uint32][]uint32 // AO IOA → 目标 AI/DI/PI IOA 列表（反向索引）
+	indexMu       sync.RWMutex        // 保护 aoFollowIndex 的独立锁
 }
 
 type changeTask struct {
@@ -37,14 +39,15 @@ type changeTask struct {
 
 func NewEngine(instanceID string, store *library.Store, pub publisher, acStore *AutoChangeStore, cfgDir string, provider StoreProvider) *Engine {
 	return &Engine{
-		store:      store,
-		pub:        pub,
-		strategy:   newStrategyRunner(store, pub, cfgDir, instanceID, provider),
-		acStore:    acStore,
-		tasks:      make(map[uint32]*changeTask),
-		state:      make(map[uint32]*strategyState),
-		instanceID: instanceID,
-		cfgDir:     cfgDir,
+		store:         store,
+		pub:           pub,
+		strategy:      newStrategyRunner(store, pub, cfgDir, instanceID, provider),
+		acStore:       acStore,
+		tasks:         make(map[uint32]*changeTask),
+		state:         make(map[uint32]*strategyState),
+		instanceID:    instanceID,
+		cfgDir:        cfgDir,
+		aoFollowIndex: make(map[uint32][]uint32),
 	}
 }
 
@@ -53,12 +56,33 @@ func (e *Engine) LoadAndStart() error {
 	if err != nil {
 		return err
 	}
+	// 重建 AO Follow 索引
+	e.rebuildAOFollowIndex(configs)
 	for _, cfg := range configs {
 		if cfg.Enabled {
 			e.startTask(cfg)
 		}
 	}
 	return nil
+}
+
+// rebuildAOFollowIndex 重建 AO Follow 反向索引
+func (e *Engine) rebuildAOFollowIndex(configs map[uint32]*model.AutoChangeConfig) {
+	e.indexMu.Lock()
+	defer e.indexMu.Unlock()
+
+	// 清空旧索引
+	e.aoFollowIndex = make(map[uint32][]uint32)
+
+	// 重建索引
+	for _, cfg := range configs {
+		if cfg.Strategy == model.StrategyAOFollow && cfg.Enabled && cfg.Params.FollowAOIOA != 0 {
+			e.aoFollowIndex[cfg.Params.FollowAOIOA] = append(
+				e.aoFollowIndex[cfg.Params.FollowAOIOA],
+				cfg.PointIOA,
+			)
+		}
+	}
 }
 
 func (e *Engine) StartOrUpdate(cfg *model.AutoChangeConfig) error {
@@ -74,7 +98,35 @@ func (e *Engine) StartOrUpdate(cfg *model.AutoChangeConfig) error {
 	if cfg.Enabled {
 		e.startTaskLocked(cfg)
 	}
+
+	// 更新 AO Follow 索引
+	e.updateAOFollowIndex(cfg)
+
 	return nil
+}
+
+// updateAOFollowIndex 更新单个配置的 AO Follow 索引
+func (e *Engine) updateAOFollowIndex(cfg *model.AutoChangeConfig) {
+	e.indexMu.Lock()
+	defer e.indexMu.Unlock()
+
+	// 先从所有 AO 的索引中移除该目标点
+	for aoIOA, targets := range e.aoFollowIndex {
+		for i, targetIOA := range targets {
+			if targetIOA == cfg.PointIOA {
+				e.aoFollowIndex[aoIOA] = append(targets[:i], targets[i+1:]...)
+				break
+			}
+		}
+	}
+
+	// 如果是 AO Follow 策略且启用，添加到索引
+	if cfg.Strategy == model.StrategyAOFollow && cfg.Enabled && cfg.Params.FollowAOIOA != 0 {
+		e.aoFollowIndex[cfg.Params.FollowAOIOA] = append(
+			e.aoFollowIndex[cfg.Params.FollowAOIOA],
+			cfg.PointIOA,
+		)
+	}
 }
 
 func (e *Engine) Remove(ioa uint32) error {
@@ -82,7 +134,32 @@ func (e *Engine) Remove(ioa uint32) error {
 	defer e.mu.Unlock()
 
 	e.stopTaskLocked(ioa)
+
+	// 从索引中移除
+	cfg, exists := e.acStore.Get(e.instanceID, ioa)
+	if exists && cfg.Strategy == model.StrategyAOFollow {
+		e.removeFromAOFollowIndex(cfg.Params.FollowAOIOA, ioa)
+	}
+
 	return e.acStore.Delete(e.instanceID, ioa)
+}
+
+// removeFromAOFollowIndex 从 AO Follow 索引中移除指定目标点
+func (e *Engine) removeFromAOFollowIndex(aoIOA, targetIOA uint32) {
+	e.indexMu.Lock()
+	defer e.indexMu.Unlock()
+
+	targets, ok := e.aoFollowIndex[aoIOA]
+	if !ok {
+		return
+	}
+
+	for i, t := range targets {
+		if t == targetIOA {
+			e.aoFollowIndex[aoIOA] = append(targets[:i], targets[i+1:]...)
+			return
+		}
+	}
 }
 
 func (e *Engine) StopAll() {
@@ -133,6 +210,10 @@ func (e *Engine) SaveAll(configs map[uint32]*model.AutoChangeConfig) error {
 		delete(e.state, ioa)
 	}
 	e.wg.Wait()
+
+	// 重建 AO Follow 索引
+	e.rebuildAOFollowIndex(configs)
+
 	for _, cfg := range configs {
 		if cfg.Enabled {
 			e.startTaskLocked(cfg)
@@ -229,32 +310,26 @@ func (e *Engine) stopTaskLocked(ioa uint32) {
 }
 
 func (e *Engine) HandleAOFollow(aoIOA uint32) {
-	// Collect targets under RLock, then process without lock
-	type followTarget struct {
-		IOA   uint32
-		Value float64
+	// 通过反向索引 O(1) 获取目标点列表
+	e.indexMu.RLock()
+	targetIOAs := e.aoFollowIndex[aoIOA]
+	e.indexMu.RUnlock()
+
+	// 无关联点，直接返回
+	if len(targetIOAs) == 0 {
+		return
 	}
-	var targets []followTarget
 
-	func() {
-		e.mu.RLock()
-		defer e.mu.RUnlock()
+	// 获取 AO 当前值
+	aoPoint, ok := e.store.Get(aoIOA)
+	if !ok {
+		return
+	}
 
-		for _, cfg := range e.acStore.All(e.instanceID) {
-			if cfg.Strategy == model.StrategyAOFollow && cfg.Enabled && cfg.Params.FollowAOIOA == aoIOA {
-				p, ok := e.store.Get(aoIOA)
-				if !ok {
-					continue
-				}
-				targets = append(targets, followTarget{IOA: cfg.PointIOA, Value: p.Value})
-			}
-		}
-	}()
-
-	for _, t := range targets {
-		e.store.SetValue(t.IOA, t.Value)
-		if target, ok := e.store.Get(t.IOA); ok {
-			e.pub.Publish(target)
+	// 更新所有关联点
+	for _, targetIOA := range targetIOAs {
+		if pt, err := e.store.SetValue(targetIOA, aoPoint.Value); err == nil {
+			e.pub.Publish(pt)
 		}
 	}
 }

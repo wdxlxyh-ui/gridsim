@@ -153,3 +153,13 @@ func (s *ProxyStore) SetActiveEnv(id string) error {
 	s.ActiveEnvID = id
 	return s.Save()
 }
+
+// Reset removes all user-managed proxy collections and environments.
+func (s *ProxyStore) Reset() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Collections = []*CollectionItem{}
+	s.Environments = []*Environment{}
+	s.ActiveEnvID = ""
+	return s.Save()
+}

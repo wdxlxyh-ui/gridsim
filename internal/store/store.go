@@ -6,6 +6,7 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -91,6 +92,7 @@ type Service struct {
 	queue            chan queuedSample
 	stopWriter       chan struct{}
 	writerDone       chan struct{}
+	flushRequests    chan chan error
 
 	mu       sync.Mutex
 	samplers map[string]*sampler
@@ -137,6 +139,7 @@ func Open(path string, retentionMinutes int, sampleInterval time.Duration) (*Ser
 		queue:            make(chan queuedSample, defaultQueueSize),
 		stopWriter:       make(chan struct{}),
 		writerDone:       make(chan struct{}),
+		flushRequests:    make(chan chan error),
 		samplers:         make(map[string]*sampler),
 	}
 	if err := s.migrate(); err != nil {
@@ -280,19 +283,24 @@ func (s *Service) writerLoop() {
 	batch := make(map[string][]Sample)
 	count := 0
 
-	flush := func() {
+	flush := func() error {
 		if count == 0 {
-			return
+			return nil
 		}
+		var firstErr error
 		for id, rows := range batch {
 			if err := s.insertBatch(id, rows); err != nil {
 				slog.Error("SQLite 测点数据写入失败", "instance", id, "rows", len(rows), "error", err)
+				if firstErr == nil {
+					firstErr = err
+				}
 				continue
 			}
 			s.written.Add(int64(len(rows)))
 		}
 		batch = make(map[string][]Sample)
 		count = 0
+		return firstErr
 	}
 
 	for {
@@ -301,13 +309,15 @@ func (s *Service) writerLoop() {
 			batch[q.instanceID] = append(batch[q.instanceID], q.sample)
 			count++
 			if count >= defaultBatchSize {
-				flush()
+				_ = flush()
 			}
 		case <-flushTicker.C:
-			flush()
+			_ = flush()
 		case <-cleanupTicker.C:
-			flush()
+			_ = flush()
 			s.cleanupAll()
+		case done := <-s.flushRequests:
+			done <- flush()
 		case <-s.stopWriter:
 			for {
 				select {
@@ -315,7 +325,7 @@ func (s *Service) writerLoop() {
 					batch[q.instanceID] = append(batch[q.instanceID], q.sample)
 					count++
 				default:
-					flush()
+					_ = flush()
 					return
 				}
 			}
@@ -523,8 +533,124 @@ func (s *Service) Stats() Stats {
 	return stat
 }
 
-// Close stops all samplers, flushes queued rows and closes SQLite.
-func (s *Service) Close() error {
+// Flush waits until all queued samples have been written to SQLite.
+func (s *Service) Flush() error {
+	s.mu.Lock()
+	closed := s.closed
+	s.mu.Unlock()
+	if closed {
+		return fmt.Errorf("persistence service is closed")
+	}
+	done := make(chan error, 1)
+	select {
+	case s.flushRequests <- done:
+		return <-done
+	case <-s.writerDone:
+		return fmt.Errorf("persistence writer is stopped")
+	}
+}
+
+// BackupTo flushes queued samples and copies a checkpointed SQLite database.
+func (s *Service) BackupTo(path string) error {
+	if filepath.Clean(path) == filepath.Clean(s.path) {
+		return fmt.Errorf("backup path must differ from database path")
+	}
+	if err := s.Flush(); err != nil {
+		return err
+	}
+	if _, err := s.db.Exec(`PRAGMA wal_checkpoint(TRUNCATE)`); err != nil {
+		return fmt.Errorf("checkpoint sqlite database: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		return fmt.Errorf("create backup directory: %w", err)
+	}
+	src, err := os.Open(s.path)
+	if err != nil {
+		return fmt.Errorf("open sqlite database for backup: %w", err)
+	}
+	defer src.Close()
+	dst, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
+		return fmt.Errorf("create sqlite backup: %w", err)
+	}
+	if _, err := io.Copy(dst, src); err != nil {
+		dst.Close()
+		return fmt.Errorf("copy sqlite backup: %w", err)
+	}
+	if err := dst.Close(); err != nil {
+		return fmt.Errorf("close sqlite backup: %w", err)
+	}
+	return nil
+}
+
+// ClearAll stops samplers, flushes pending writes and removes all instance tables.
+func (s *Service) ClearAll() (int64, error) {
+	s.mu.Lock()
+	ids := make([]string, 0, len(s.samplers))
+	for id := range s.samplers {
+		ids = append(ids, id)
+	}
+	s.mu.Unlock()
+	for _, id := range ids {
+		s.StopInstance(id)
+	}
+	if err := s.Flush(); err != nil {
+		return 0, err
+	}
+	tables, err := s.instanceTables()
+	if err != nil {
+		return 0, err
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	var deleted int64
+	for _, table := range tables {
+		var count int64
+		if err := tx.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s`, table)).Scan(&count); err != nil {
+			tx.Rollback()
+			return 0, err
+		}
+		deleted += count
+		if _, err := tx.Exec(fmt.Sprintf(`DROP TABLE IF EXISTS %s`, table)); err != nil {
+			tx.Rollback()
+			return 0, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	if _, err := s.db.Exec(`PRAGMA wal_checkpoint(TRUNCATE)`); err != nil {
+		return 0, fmt.Errorf("checkpoint cleared database: %w", err)
+	}
+	if _, err := s.db.Exec(`VACUUM`); err != nil {
+		return 0, fmt.Errorf("vacuum cleared database: %w", err)
+	}
+	s.written.Store(0)
+	s.dropped.Store(0)
+	return deleted, nil
+}
+
+func (s *Service) instanceTables() ([]string, error) {
+	rows, err := s.db.Query(`SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'ts_%'`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	tables := make([]string, 0)
+	for rows.Next() {
+		var table string
+		if err := rows.Scan(&table); err != nil {
+			return nil, err
+		}
+		if strings.HasPrefix(table, "ts_") && instanceIDPattern.MatchString(strings.TrimPrefix(table, "ts_")) {
+			tables = append(tables, table)
+		}
+	}
+	return tables, rows.Err()
+}
+
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()

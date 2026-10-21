@@ -1,1215 +1,853 @@
-# GridSim MCP 工具完整使用文档
+# GridSim MCP 使用指南
 
-> 版本: MCP Server 1.3.0 | 更新日期: 2026-06-10  
-> GridSim 版本: v3.0.0+
+> 适用版本：GridSim `3.2.1-dev+9.64e7f61`  
+> Git 提交：`64e7f61`  
+> 核对日期：2026-08-14  
+> MCP 工具数量：37
 
----
+本文说明 GridSim MCP 服务的安装、配置、工具参数、典型调用和当前限制。适用于通过 Kiro、Claude Desktop 或其他支持 MCP `stdio` 传输的客户端管理 GridSim 实例、读写测点、配置自动变化策略和调用接口测试工具。
 
-## 目录
+本文以当前源码和已部署二进制为准。旧文档中的 `./cmd/mcp-server/`、28 个工具、`upload_file`、`export_points_csv` 以及旧版 Proxy 工具名均已过期。
 
-1. [概述](#1-概述)
-2. [快速开始](#2-快速开始)
-3. [实例管理工具](#3-实例管理工具)
-4. [数据接口工具](#4-数据接口工具)
-5. [接口测试 (Proxy) 工具](#5-接口测试-proxy-工具)
-6. [全局工具](#6-全局工具)
-7. [自动变化策略详解](#7-自动变化策略详解)
-8. [完整使用场景](#8-完整使用场景)
-9. [故障排除](#9-故障排除)
+## 1. 工作方式
 
----
+GridSim MCP 不是独立的网络服务，不监听额外端口。MCP 客户端启动 `gridsim-mcp` 子进程，通过标准输入和标准输出交换 MCP 消息；`gridsim-mcp` 再通过 HTTP 调用 GridSim REST API。
 
-## 1. 概述
-
-MCP (Model Context Protocol) 服务器提供 GridSim 模拟器的程序化控制接口，使 AI 助手（如 Claude、GPT）可以直接操作模拟器。
-
-### 工具分类
-
-| 类别 | 工具数量 | 说明 |
-|------|----------|------|
-| 实例管理 | 9 个 | 创建/启停/删除/查询实例 |
-| 数据接口 | 15 个 | 测点读写、策略配置、CSV 回放 |
-| 接口测试 (Proxy) | 9 个 | HTTP 代理请求、集合/环境管理、配置导出 |
-| 全局工具 | 4 个 | 文件列表、协议查询、OpenAPI 规范、全局状态 |
-| **总计** | **37 个** | |
-
----
-
-## 2. 快速开始
-
-### 2.1 编译 MCP 程序
-
-```bash
-go build -o bin/mcp-server ./cmd/gridsim-mcp/
+```text
+Kiro / Claude Desktop / MCP Client
+                │
+                │ stdio
+                ▼
+          gridsim-mcp
+                │
+                │ HTTP REST API
+                ▼
+      GridSim（默认端口 8989）
 ```
 
-### 2.2 运行 MCP 服务器
+当前实现特征：
 
-```bash
-# stdio 模式（推荐，用于 Claude Desktop 等）
-./bin/mcp-server -simulator http://localhost:8989 -mode both
+- MCP 传输：仅支持 `stdio`。
+- 不支持：SSE、Streamable HTTP、独立 MCP 监听端口。
+- GridSim API 默认地址：`http://localhost:8989`。
+- MCP 客户端不附加 Token、Cookie 或 API Key。
+- 工具结果统一以 MCP 文本内容返回；JSON 会格式化后作为文本返回。
+- REST 请求失败时，工具通常返回以 `Error:` 开头的文本，而不是 MCP 协议级错误。
+
+## 2. 版本与文件位置
+
+### 2.1 发布包中的文件
+
+Linux 发布包：
+
+```text
+bin/gridsim
+bin/gridsim-mcp
+bin/VERSION
 ```
 
-### 2.3 启动参数
+Windows 发布包：
+
+```text
+bin/gridsim.exe
+bin/gridsim-mcp.exe
+bin/VERSION
+```
+
+当前编译服务器的部署路径：
+
+```text
+/home/envuser/IEC/gridsim/bin/gridsim-mcp
+```
+
+当前版本的构建产物：
+
+```text
+/root/IEC-SIM/iec104-sim-master/dist/gridsim-v3.2.1-dev-9.64e7f61-linux-amd64.tar.gz
+/root/IEC-SIM/iec104-sim-master/dist/gridsim-v3.2.1-dev-9.64e7f61-linux-arm64.tar.gz
+/root/IEC-SIM/iec104-sim-master/dist/gridsim-v3.2.1-dev-9.64e7f61-windows-amd64.zip
+```
+
+### 2.2 从源码构建
+
+```bash
+go build -o bin/gridsim-mcp ./cmd/gridsim-mcp/
+```
+
+查看启动参数：
+
+```bash
+./bin/gridsim-mcp -h
+```
+
+## 3. 启动参数与运行模式
+
+```bash
+./bin/gridsim-mcp \
+  -simulator http://localhost:8989 \
+  -mode both
+```
 
 | 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `-simulator` | `http://localhost:8989` | GridSim 模拟器 HTTP 地址 |
-| `-mode` | `both` | 运行模式：`instance`(实例管理) / `data`(数据接口) / `both`(全部) |
+|---|---|---|
+| `-simulator` | `http://localhost:8989` | GridSim REST API 基础地址，不要附加 `/api/v1` |
+| `-mode` | `both` | 工具模式：`instance`、`data`、`proxy` 或 `both` |
 
-### 2.4 在 Claude Desktop 中配置
+### 3.1 模式与工具数量
 
-编辑 `claude_desktop_config.json`：
+| 模式 | 工具数 | 内容 |
+|---|---:|---|
+| `instance` | 11 | 实例生命周期 9 个、点表文件查询、协议查询 |
+| `data` | 17 | 测点读写、自动变化、CSV 回放、QDS、OpenAPI、统一状态 |
+| `proxy` | 9 | HTTP 代理请求、请求集合和环境变量管理 |
+| `both` | 37 | 合并以上全部工具，推荐使用 |
+
+说明：当前 `-h` 输出中的模式说明遗漏了 `proxy`，但源码和已构建二进制支持 `-mode proxy`。
+
+### 3.2 GridSim 与 MCP 位于同一台 Linux 服务器
+
+```bash
+/home/envuser/IEC/gridsim/bin/gridsim-mcp \
+  -simulator http://127.0.0.1:8989 \
+  -mode both
+```
+
+### 3.3 MCP 在 Windows、GridSim 在远程服务器
+
+先从 Windows 发布包中取得 `gridsim-mcp.exe`，再指定远程 GridSim 地址：
+
+```powershell
+D:\GridSim\bin\gridsim-mcp.exe `
+  -simulator http://10.230.169.162:8989 `
+  -mode both
+```
+
+该方式要求 Windows 主机可以访问远程服务器的 8989 端口。
+
+## 4. Kiro 配置
+
+Kiro 工作区配置文件：
+
+```text
+.kiro/settings/mcp.json
+```
+
+用户级配置文件：
+
+```text
+~/.kiro/settings/mcp.json
+```
+
+### 4.1 Windows 本地 MCP 连接远程 GridSim
 
 ```json
 {
   "mcpServers": {
     "gridsim": {
-      "command": "/path/to/mcp-server",
-      "args": ["-simulator", "http://localhost:8989", "-mode", "both"]
+      "command": "D:\\GridSim\\bin\\gridsim-mcp.exe",
+      "args": [
+        "-simulator",
+        "http://10.230.169.162:8989",
+        "-mode",
+        "both"
+      ],
+      "disabled": false
     }
   }
 }
 ```
 
----
+### 4.2 Linux 本机配置
 
-## 3. 实例管理工具
-
-### 3.1 `list_instances`
-
-列出所有已配置的模拟器实例。
-
-**参数：** 无
-
-**返回示例：**
 ```json
 {
-  "instances": [
-    {
-      "id": "a1b2c3d4e5f6",
-      "name": "变电站A",
-      "iec104_port": 2404,
-      "xlsx_file": "samples/point.xlsx",
-      "status": "running",
-      "stats": { "uptime_seconds": 3600, "total_points": 7 }
+  "mcpServers": {
+    "gridsim": {
+      "command": "/home/envuser/IEC/gridsim/bin/gridsim-mcp",
+      "args": [
+        "-simulator",
+        "http://127.0.0.1:8989",
+        "-mode",
+        "both"
+      ],
+      "disabled": false
     }
-  ]
-}
-```
-
-### 3.2 `get_instance`
-
-获取单个实例的详细配置信息和运行状态。
-
-**参数：**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `instance_id` | string | 是 | 实例 ID |
-
-**返回示例：**
-```json
-{
-  "id": "a1b2c3d4e5f6",
-  "name": "变电站A",
-  "iec104_port": 2404,
-  "status": "running",
-  "stats": {
-    "uptime_seconds": 120,
-    "total_points": 7,
-    "client_connected": true,
-    "interrogations": 5,
-    "controls": 12,
-    "spontaneous": 88
   }
 }
 ```
 
-### 3.3 `create_instance`
+执行 MCP 进程的系统账号必须具有 `gridsim-mcp` 的执行权限。
 
-创建新的模拟器实例。
+### 4.3 通过 SSH 启动远程 MCP
 
-**参数：**
+当本地不保存 MCP 二进制时，可以通过 SSH 将 `stdio` 转发到远程服务器。此方式必须配置免交互 SSH 密钥，不能在 MCP 启动过程中等待密码输入。
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `config` | string | 是 | 实例配置 JSON 字符串 |
-
-**config JSON 字段：**
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `name` | string | 是 | 实例名称 |
-| `iec104_port` | int | 是 | IEC104 端口号 (1-65535) |
-| `xlsx_file` | string | 条件 | 点表文件名（microgrid 除外） |
-| `http_enabled` | bool | 否 | 是否启用实例级 HTTP |
-| `http_port` | int | 条件 | HTTP 端口 |
-| `protocol` | string | 否 | `iec104` / `modbus_tcp` / `microgrid` |
-
-**使用示例：**
-```python
-create_instance(
-    config='{"name": "变电站A", "iec104_port": 2404, "xlsx_file": "samples/point.xlsx"}'
-)
-```
-
-### 3.4 `update_instance`
-
-更新已有实例的配置。
-
-**参数：**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `instance_id` | string | 是 | 实例 ID |
-| `config` | string | 是 | 更新后的实例配置 JSON |
-
-> 如正在运行，会先停止再更新。
-
-**使用示例：**
-```python
-update_instance(
-    instance_id="a1b2c3d4e5f6",
-    config='{"name": "变电站A-修改", "iec104_port": 2405}'
-)
-```
-
-### 3.5 `delete_instance`
-
-删除实例（如运行中会先停止）。
-
-**参数：**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `instance_id` | string | 是 | 实例 ID |
-
-### 3.6 `start_instance`
-
-启动指定实例。
-
-**参数：**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `instance_id` | string | 是 | 实例 ID |
-
-### 3.7 `stop_instance`
-
-停止指定实例。
-
-**参数：**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `instance_id` | string | 是 | 实例 ID |
-
-### 3.8 `restart_instance`
-
-重启指定实例。如未运行则直接启动。
-
-**参数：**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `instance_id` | string | 是 | 实例 ID |
-
-### 3.9 `get_server_status`
-
-获取模拟器全局状态。
-
-**参数：** 无
-
-**返回示例：**
 ```json
 {
-  "version": "3.0.0",
-  "mode": "serve",
-  "configured": 5,
-  "running": 3,
-  "stopped": 2,
-  "max": 1000
-}
-```
-
----
-
-## 4. 数据接口工具
-
-### 4.1 `list_points`
-
-列出实例的所有测点及其当前值，按 AI 优先 + IOA 升序排列。
-
-**参数：**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `instance_id` | string | 是 | 实例 ID |
-
-**返回示例：**
-```json
-{
-  "points": [
-    {
-      "ioa": 16385,
-      "name": "母线电压",
-      "point_type": "AI",
-      "value": 100.5,
-      "bool_value": false,
-      "int_value": 0,
-      "updated_at": "2026-05-12T02:30:00.000Z"
+  "mcpServers": {
+    "gridsim-remote": {
+      "command": "C:\\Windows\\System32\\OpenSSH\\ssh.exe",
+      "args": [
+        "-T",
+        "root@10.230.169.162",
+        "/home/envuser/IEC/gridsim/bin/gridsim-mcp",
+        "-simulator",
+        "http://127.0.0.1:8989",
+        "-mode",
+        "both"
+      ],
+      "disabled": false
     }
-  ]
+  }
 }
 ```
 
-### 4.2 `read_point`
+配置保存后，在 Kiro 的 MCP Server 视图中重新连接服务。
 
-读取单个测点的当前值。
+## 5. Claude Desktop 配置
 
-**参数：**
+Windows 配置文件通常位于：
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `instance_id` | string | 是 | 实例 ID |
-| `ioa` | number | 是 | 信息体地址 |
-
-### 4.3 `read_points`
-
-批量读取多个测点的当前值。不传 `ioas` 则返回全部测点。
-
-**参数：**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `instance_id` | string | 是 | 实例 ID |
-| `ioas` | array[number] | 否 | 要读取的 IOA 列表，不传则返回全部 |
-
-**使用示例：**
-```python
-read_points(instance_id="a1b2c3d4e5f6", ioas=[16385, 16386, 16387])
+```text
+%APPDATA%\Claude\claude_desktop_config.json
 ```
 
-### 4.4 `write_point` ⭐
+配置示例：
 
-写入单个测点的值。
-
-**参数：**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `instance_id` | string | 是 | 实例 ID |
-| `ioa` | number | 是 | 信息体地址 |
-| `value` | number | 否 | 浮点数值（AI 遥测使用），DI 也可用（非零=true） |
-| `bool_value` | boolean | 否 | 布尔值（DI 遥信使用） |
-| `int_value` | number | 否 | 整数值（PI 遥脉使用） |
-
-> 根据测点类型选择对应字段。写入后触发 IEC104 变化上送 (COT=3)。
-
-**使用示例：**
-```python
-# 设置 AI 遥测值
-write_point(instance_id="a1b2c3d4e5f6", ioa=16385, value=235.5)
-
-# 设置 DI 遥信值
-write_point(instance_id="a1b2c3d4e5f6", ioa=5, bool_value=True)
-
-# 设置 PI 遥脉值
-write_point(instance_id="a1b2c3d4e5f6", ioa=10, int_value=42)
-```
-
-### 4.5 `write_points` ⭐ 核心
-
-**批量写入多个测点的值** — 这是自动化测试的关键接口。一次调用写入多个 IOA，模拟真实设备同一时刻上报数据。
-
-**参数：**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `instance_id` | string | 是 | 实例 ID |
-| `points` | array | 是 | 要写入的测点列表 |
-
-每个 point 元素：
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `ioa` | number | 是 | 信息体地址 |
-| `value` | number | 否 | 浮点数值 |
-| `bool_value` | boolean | 否 | 布尔值 |
-| `int_value` | number | 否 | 整数值 |
-
-**使用示例：**
-```python
-write_points(
-    instance_id="a1b2c3d4e5f6",
-    points=[
-        {"ioa": 16385, "value": 235.5},
-        {"ioa": 16386, "value": 236.0},
-        {"ioa": 16387, "bool_value": True}
-    ]
-)
-```
-
-**返回示例：**
 ```json
 {
-  "success": true,
-  "results": [
-    {"ioa": 16385, "success": true, "changed": true},
-    {"ioa": 16386, "success": true, "changed": true},
-    {"ioa": 16387, "success": true, "changed": true}
-  ],
-  "total": 3,
-  "succeeded": 3,
-  "failed": 0
-}
-```
-
-### 4.6 `config_auto_change` ⭐
-
-配置测点的自动变化策略。
-
-**参数：**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `instance_id` | string | 是 | 实例 ID |
-| `ioa` | number | 是 | 信息体地址 |
-| `strategy` | string | 是 | 策略类型（见下表） |
-| `enabled` | boolean | 是 | 是否启用 |
-| `params` | string | 否 | 策略参数 JSON 字符串 |
-
-**支持策略：**
-
-| 策略名 | 说明 | params 示例 |
-|--------|------|-------------|
-| `increment` | 递增 | `{"start_value":0,"step":1,"period_ms":1000,"max_value":100}` |
-| `random` | 随机 | `{"min_value":0,"max_value_r":100,"period_ms":1000,"decimal_places":2}` |
-| `csv` | CSV回放 | `{"csv_file":"data.csv","time_format":"relative","time_unit":"ms","csv_column_map":"{\"1\":16385}"}` |
-| `max` | 取大 | `{"para_a":"16385;16386"}` |
-| `min` | 取小 | `{"para_a":"16385;16386"}` |
-| `soc` | SOC计算 | `{"init_soc":50,"rated_cap":100,"power_ioa":16385,"integral_ms":1000}` |
-| `energy` | 电量统计 | `{"init_energy":0,"stat_type":0,"energy_power_ioa":16385,"energy_period_ms":1000}` |
-| `aofollow` | AO关联 | `{"follow_ao_ioa":10001}` |
-| `apiupdate` | 接口更新 | `{"api_init_value":0}` |
-| `manual` | 手动 | 无参数 |
-| `custom` | 自定义公式 | `{"custom_ioas":"16385,16386","custom_formula":"{0}+{1}","period_ms":1000}` |
-
-**使用示例：**
-```python
-# 递增策略
-config_auto_change(
-    instance_id="a1b2c3d4e5f6",
-    ioa=16385,
-    strategy="increment",
-    enabled=True,
-    params='{"start_value":0,"step":1,"period_ms":1000,"max_value":100}'
-)
-
-# 随机策略
-config_auto_change(
-    instance_id="a1b2c3d4e5f6",
-    ioa=16386,
-    strategy="random",
-    enabled=True,
-    params='{"min_value":200,"max_value_r":240,"period_ms":500,"decimal_places":1}'
-)
-
-# 手动策略（不自动计算，等待 API 置数）
-config_auto_change(
-    instance_id="a1b2c3d4e5f6",
-    ioa=16385,
-    strategy="manual",
-    enabled=True
-)
-```
-
-### 4.7 `batch_config_auto_change`
-
-批量配置多个测点的同一策略。
-
-**参数：**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `instance_id` | string | 是 | 实例 ID |
-| `ioas` | array[number] | 是 | IOA 列表 |
-| `strategy` | string | 是 | 策略类型 |
-| `enabled` | boolean | 是 | 是否启用 |
-| `params` | string | 否 | 策略参数 JSON |
-
-**使用示例：**
-```python
-batch_config_auto_change(
-    instance_id="a1b2c3d4e5f6",
-    ioas=[16385, 16386, 16387],
-    strategy="increment",
-    enabled=True,
-    params='{"start_value":0,"step":1,"period_ms":1000,"max_value":100}'
-)
-```
-
-### 4.8 `get_auto_change`
-
-查看测点的自动变化配置。
-
-**参数：**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `instance_id` | string | 是 | 实例 ID |
-| `ioa` | number | 是 | 信息体地址 |
-
-### 4.9 `delete_auto_change`
-
-删除测点的自动变化配置。
-
-**参数：**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `instance_id` | string | 是 | 实例 ID |
-| `ioa` | number | 是 | 信息体地址 |
-
-### 4.10 `export_auto_changes`
-
-导出实例所有自动变化配置为 CSV 表格。
-
-**参数：**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `instance_id` | string | 是 | 实例 ID |
-
-**返回：** CSV 内容字符串，包含策略代码和 A~G 参数列。
-
-### 4.11 `import_auto_changes`
-
-从 CSV 内容导入自动变化配置。
-
-**参数：**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `instance_id` | string | 是 | 实例 ID |
-| `csv_content` | string | 是 | CSV 内容 |
-
-**使用示例：**
-```python
-import_auto_changes(
-    instance_id="a1b2c3d4e5f6",
-    csv_content="信息体地址,测点名称,自动变化模式,A,B,C,D\n16385,母线电压,1,0,1,1000,100"
-)
-```
-
-### 4.12 `upload_csv`
-
-上传 CSV 时间序列文件，用于 CSV 回放策略。
-
-**参数：**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `instance_id` | string | 是 | 实例 ID |
-| `csv_content` | string | 是 | CSV 文件内容 |
-
-**使用示例：**
-```python
-upload_csv(
-    instance_id="a1b2c3d4e5f6",
-    csv_content="""time,母线电压,线路电流,有功功率
-0,220.0,5.2,1144.0
-1000,221.5,5.3,1173.9
-2000,219.8,5.1,1120.9"""
-)
-```
-
-### 4.13 `list_csv_files`
-
-列出实例可用的 CSV 回放文件（共享目录 + 实例私有目录）。
-
-**参数：**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `instance_id` | string | 是 | 实例 ID |
-
-### 4.14 `config_csv_replay` ⭐ 核心
-
-**配置 CSV 多测点同步回放** — 一键设置文件/时间/映射，自动为所有映射测点启用 CSV 回放策略。
-
-**参数：**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `instance_id` | string | 是 | 实例 ID |
-| `csv_file` | string | 是 | CSV 文件名（需提前上传） |
-| `time_format` | string | 否 | `relative`(默认) / `absolute` |
-| `time_unit` | string | 否 | `ms`(默认) / `s`，仅 relative 有效 |
-| `csv_loop` | boolean | 否 | 是否循环播放，默认 true |
-| `mappings` | array | 是 | 列到测点映射列表 |
-
-每个 mapping 元素：
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `column` | number | CSV 列序号（从 1 开始） |
-| `ioa` | number | 测点 IOA |
-
-> 最多 10 个映射。
-
-**使用示例：**
-```python
-config_csv_replay(
-    instance_id="a1b2c3d4e5f6",
-    csv_file="replay_data.csv",
-    time_format="relative",
-    time_unit="ms",
-    csv_loop=True,
-    mappings=[
-        {"column": 1, "ioa": 16385},
-        {"column": 2, "ioa": 16386},
-        {"column": 3, "ioa": 16387}
-    ]
-)
-```
-
-### 4.15 `update_qds`
-
-更新测点的品质描述 QDS（传统模式 API）。
-
-**参数：**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `ioa` | number | 是 | 信息体地址 |
-| `invalid` | boolean | 否 | 无效标志 |
-| `not_topical` | boolean | 否 | 非当前标志 |
-| `substituted` | boolean | 否 | 替代标志 |
-| `overflow` | boolean | 否 | 溢出标志 |
-| `blocked` | boolean | 否 | 闭锁标志 |
-
-**使用示例：**
-```python
-update_qds(ioa=16385, invalid=True, blocked=True)
-```
-
----
-
-## 5. 接口测试 (Proxy) 工具
-
-### 5.1 `proxy_request`
-
-发送 HTTP 代理请求，支持 GET/POST/PUT/DELETE/PATCH，可自定义 Headers 和 Body，变量会在发送前自动替换。
-
-**参数：**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `method` | string | 是 | HTTP 方法: GET/POST/PUT/DELETE/PATCH |
-| `url` | string | 是 | 目标 URL |
-| `headers` | string | 否 | Headers JSON 字符串 |
-| `body` | string | 否 | 请求体内容 |
-| `timeout` | number | 否 | 超时秒数，默认 30 |
-
-> URL 和 body 中的 `{{变量名}}` 会被当前激活的环境变量替换。
-
-**使用示例：**
-```python
-# GET 请求
-proxy_request(
-    method="GET",
-    url="https://api.example.com/data",
-    headers='{"Authorization": "Bearer token123"}',
-    timeout=30
-)
-
-# POST 请求
-proxy_request(
-    method="POST",
-    url="{{base_url}}/api/realtime",
-    headers='{"Content-Type": "application/json", "Authorization": "Bearer {{token}}"}',
-    body='{"device_id": "PV-001"}'
-)
-```
-
-**返回示例：**
-```json
-{
-  "status": 200,
-  "status_text": "OK",
-  "headers": {"Content-Type": "application/json"},
-  "body": "{\"data\": \"...\"}",
-  "time_ms": 123,
-  "size": 456
-}
-```
-
-### 5.2 `get_collections`
-
-获取接口测试中的所有请求集合和文件夹。
-
-**参数：** 无
-
-**返回示例：**
-```json
-{
-  "collections": [
-    {
-      "id": "req-xxx",
-      "name": "电力系统API",
-      "type": "folder",
-      "children": [
-        {
-          "id": "req-yyy",
-          "name": "获取实时数据",
-          "type": "request",
-          "method": "GET",
-          "url": "{{base_url}}/api/realtime",
-          "headers": {"Content-Type": "application/json"},
-          "body": "",
-          "pre_script": "",
-          "test_script": ""
-        }
+  "mcpServers": {
+    "gridsim": {
+      "command": "D:\\GridSim\\bin\\gridsim-mcp.exe",
+      "args": [
+        "-simulator",
+        "http://10.230.169.162:8989",
+        "-mode",
+        "both"
       ]
     }
+  }
+}
+```
+
+配置修改后需要完全退出并重新启动 Claude Desktop。
+
+## 6. 使用前检查
+
+先确认 GridSim API 正常：
+
+```bash
+curl http://10.230.169.162:8989/api/v1/status
+```
+
+预期返回类似：
+
+```json
+{
+  "configured": 6,
+  "git_commit": "64e7f61",
+  "mode": "serve",
+  "running": 3,
+  "stopped": 3,
+  "version": "3.2.1-dev+9.64e7f61"
+}
+```
+
+MCP 连接完成后，建议按以下顺序检查：
+
+1. 调用 `get_state` 获取统一状态。
+2. 调用 `list_instances` 获取实例 ID。
+3. 调用 `get_instance` 确认目标实例状态。
+4. 调用 `list_points` 获取实际 IOA 和点类型。
+5. 再执行写值、启停或配置修改。
+
+## 7. 工具总览
+
+### 7.1 实例管理模式：11 个工具
+
+| 工具 | 参数 | 用途 |
+|---|---|---|
+| `list_instances` | 无 | 列出所有实例及运行状态 |
+| `get_instance` | `instance_id` | 获取单个实例配置和统计信息 |
+| `create_instance` | `config` | 使用 JSON 字符串创建实例 |
+| `update_instance` | `instance_id`、`config` | 更新实例配置 |
+| `delete_instance` | `instance_id` | 删除实例 |
+| `start_instance` | `instance_id` | 启动实例 |
+| `stop_instance` | `instance_id` | 停止实例 |
+| `restart_instance` | `instance_id` | 重启实例 |
+| `get_server_status` | 无 | 获取 GridSim 全局状态 |
+| `list_files` | 无 | 列出配置目录中的 `.xlsx` 点表 |
+| `get_protocols` | 无 | 查询支持的协议类型 |
+
+### 7.2 数据模式：17 个工具
+
+| 工具 | 参数 | 用途 |
+|---|---|---|
+| `list_points` | `instance_id` | 列出实例全部测点和当前值 |
+| `read_point` | `instance_id`、`ioa` | 读取一个测点 |
+| `read_points` | `instance_id`、`ioas?` | 读取多个测点；不传 `ioas` 时返回全部 |
+| `write_point` | `instance_id`、`ioa`、值字段 | 写入一个 AI、DI 或 PI 点 |
+| `write_points` | `instance_id`、`points` | 批量写入多个 AI、DI 或 PI 点 |
+| `config_auto_change` | `instance_id`、`ioa`、`strategy`、`enabled`、`params?` | 配置一个测点的自动变化策略 |
+| `batch_config_auto_change` | `instance_id`、`ioas`、`strategy`、`enabled`、`params?` | 为多个测点配置相同策略 |
+| `get_auto_change` | `instance_id`、`ioa` | 查询自动变化配置 |
+| `delete_auto_change` | `instance_id`、`ioa` | 删除自动变化配置 |
+| `export_auto_changes` | `instance_id` | 导出自动变化配置 CSV |
+| `import_auto_changes` | `instance_id`、`csv_content` | 从 CSV 文本导入自动变化配置 |
+| `upload_csv` | `instance_id`、`csv_content` | 已注册，但当前版本存在上传格式兼容问题 |
+| `list_csv_files` | `instance_id` | 列出共享和实例私有 CSV 文件 |
+| `config_csv_replay` | `instance_id`、`csv_file`、时间参数、`mappings` | 配置多测点同步回放 |
+| `update_qds` | `ioa`、QDS 标志 | 通过传统接口更新点品质 |
+| `get_openapi_spec` | 无 | 获取 GridSim OpenAPI 3.0 文档 |
+| `get_state` | 无 | 一次获取全部实例状态概要 |
+
+### 7.3 Proxy 模式：9 个工具
+
+| 工具 | 参数 | 用途 |
+|---|---|---|
+| `proxy_request` | `method`、`url`、`headers?`、`body?`、`timeout?` | 通过 GridSim 发送 HTTP 请求 |
+| `get_collections` | 无 | 获取请求集合和文件夹 |
+| `save_collection` | `item` | 保存请求或文件夹 JSON |
+| `delete_collection` | `id` | 删除请求或文件夹 |
+| `get_environments` | 无 | 获取环境变量列表和当前环境 |
+| `save_environment` | `env` | 保存环境变量 JSON |
+| `delete_environment` | `id` | 删除环境 |
+| `activate_environment` | `id` | 激活环境 |
+| `export_proxy_config` | 无 | 导出请求集合和环境配置 |
+
+## 8. 实例管理示例
+
+MCP 客户端通常会以表单方式展示工具参数。以下示例仅展示参数 JSON，不代表需要手工发送 JSON-RPC。
+
+### 8.1 查询实例
+
+工具：`list_instances`
+
+```json
+{}
+```
+
+工具：`get_instance`
+
+```json
+{
+  "instance_id": "f2f210dd7027"
+}
+```
+
+### 8.2 创建 IEC 104 实例
+
+工具：`create_instance`
+
+`config` 参数本身是 JSON 字符串：
+
+```json
+{
+  "config": "{\"name\":\"IEC104-Test\",\"iec104_port\":2404,\"xlsx_file\":\"point.xlsx\",\"protocol\":\"iec104\"}"
+}
+```
+
+### 8.3 创建 Modbus TCP 实例
+
+```json
+{
+  "config": "{\"name\":\"Modbus-Test\",\"iec104_port\":5778,\"xlsx_file\":\"ModbusTC.xlsx\",\"protocol\":\"modbus_tcp\",\"modbus_config\":{\"port\":5778,\"byte_order\":\"CDAB\",\"slave_id\":1}}"
+}
+```
+
+说明：
+
+- `iec104_port` 是实例模型中的通用端口字段；Modbus TCP 实例仍需填写。
+- `modbus_config.port` 应与实例监听端口一致。
+- `byte_order` 支持 `ABCD`、`CDAB`、`BADC`、`DCBA`。
+- 创建前先调用 `list_files` 确认点表文件名。
+
+### 8.4 启停实例
+
+工具：`start_instance`
+
+```json
+{
+  "instance_id": "f2f210dd7027"
+}
+```
+
+`stop_instance` 和 `restart_instance` 使用相同参数结构。
+
+实例启停会改变运行状态。自动化流程执行前应先调用 `get_instance`，避免重复启动或误停其他测试实例。
+
+## 9. 测点读写示例
+
+### 9.1 获取全部点
+
+工具：`list_points`
+
+```json
+{
+  "instance_id": "f2f210dd7027"
+}
+```
+
+返回数据包含：
+
+- `ioa`：GridSim 内部信息体地址。
+- `name`：点名。
+- `point_type`：`AI`、`DI`、`PI`、`AO` 或 `DO`。
+- `value`：浮点值。
+- `bool_value`：布尔值。
+- `int_value`：整数值。
+- `updated_at`：最后更新时间。
+- Modbus 点还可能包含 `function_code` 和 `register_address`。
+
+### 9.2 批量读取指定点
+
+工具：`read_points`
+
+```json
+{
+  "instance_id": "f2f210dd7027",
+  "ioas": [1, 3, 7]
+}
+```
+
+### 9.3 写入单点
+
+AI：
+
+```json
+{
+  "instance_id": "inst-001",
+  "ioa": 16385,
+  "value": 235.5
+}
+```
+
+DI：
+
+```json
+{
+  "instance_id": "inst-001",
+  "ioa": 1,
+  "bool_value": true
+}
+```
+
+PI：
+
+```json
+{
+  "instance_id": "inst-001",
+  "ioa": 2,
+  "int_value": 42
+}
+```
+
+`write_point` 是模拟器置数接口，仅允许 AI、DI、PI。AO 和 DO 代表客户端控制输入，不能通过该工具置数，应由对应协议客户端发送控制命令。
+
+### 9.4 批量写入
+
+工具：`write_points`
+
+```json
+{
+  "instance_id": "inst-001",
+  "points": [
+    {"ioa": 16385, "value": 235.5},
+    {"ioa": 16386, "value": 236.0},
+    {"ioa": 1, "bool_value": true},
+    {"ioa": 2, "int_value": 42}
   ]
 }
 ```
 
-### 5.3 `save_collection`
+同一个点只填写与其类型对应的值字段。
 
-保存/更新一个请求或文件夹。
+当前限制：`write_points` 的 MCP 参数转换会把 IOA 0 判断为无效。IOA 0 应使用 `write_point` 单独写入，或等待后续版本修复批量校验。
 
-**参数：**
+## 10. 自动变化策略
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `item` | string | 是 | 请求/文件夹的 JSON 字符串 |
+### 10.1 支持的策略
 
-**item JSON 字段：**
+| 策略 | 用途 | 常用参数 |
+|---|---|---|
+| `increment` | 周期递增 | `start_value`、`step`、`period_ms`、`max_value` |
+| `random` | 范围内随机变化 | `min_value`、`max_value_r`、`period_ms`、`decimal_places` |
+| `csv` | CSV 时间序列回放 | `csv_file`、`time_format`、`time_unit`、映射配置 |
+| `max` | 取多个点的最大值 | `para_a` |
+| `min` | 取多个点的最小值 | `para_a` |
+| `soc` | SOC 积分计算 | `init_soc`、`rated_cap`、`power_ioa`、`integral_ms` |
+| `energy` | 电量积分 | `init_energy`、`stat_type`、`energy_power_ioa` |
+| `aofollow` | 跟随 AO 控制值 | `follow_ao_ioa` |
+| `apiupdate` | 仅通过接口更新 | `api_init_value` |
+| `manual` | 保持手动值 | 无 |
+| `custom` | 自定义公式计算 | `custom_ioas`、`custom_formula`、`period_ms` |
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `id` | string | 唯一标识 |
-| `name` | string | 名称 |
-| `type` | string | `request` 或 `folder` |
-| `method` | string | HTTP 方法（request 类型） |
-| `url` | string | URL（request 类型） |
-| `headers` | object | 请求头 |
-| `body` | string | 请求体 |
-| `pre_script` | string | 前置脚本 |
-| `test_script` | string | 后置脚本 |
-| `children` | array | 子项列表（folder 类型） |
+AO 和 DO 不支持自动变化策略。
 
-**使用示例：**
-```python
-# 创建文件夹
-save_collection(
-    item='{"id":"req-001","name":"电力系统API","type":"folder","children":[]}'
-)
+### 10.2 配置单点递增
 
-# 创建请求
-save_collection(
-    item='{"id":"req-002","name":"获取实时数据","type":"request","method":"GET","url":"{{base_url}}/api/realtime","headers":{"Content-Type":"application/json"},"body":"","pre_script":"","test_script":""}'
-)
-```
+工具：`config_auto_change`
 
-### 5.4 `delete_collection`
+`params` 是 JSON 字符串：
 
-删除一个请求或文件夹。
-
-**参数：**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `id` | string | 是 | 请求或文件夹的 ID |
-
-### 5.5 `get_environments`
-
-获取所有环境变量环境和当前活跃环境。
-
-**参数：** 无
-
-**返回示例：**
 ```json
 {
-  "environments": [
-    {
-      "id": "env-xxx",
-      "name": "测试环境",
-      "variables": {
-        "base_url": "http://localhost:8989",
-        "token": "dev-token"
-      }
-    }
-  ],
-  "active_id": "env-xxx"
+  "instance_id": "inst-001",
+  "ioa": 16385,
+  "strategy": "increment",
+  "enabled": true,
+  "params": "{\"start_value\":0,\"step\":1,\"period_ms\":1000,\"max_value\":100}"
 }
 ```
 
-### 5.6 `save_environment`
+### 10.3 批量配置随机变化
 
-保存/更新一个环境变量环境。
-
-**参数：**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `env` | string | 是 | 环境的 JSON 字符串 |
-
-**使用示例：**
-```python
-save_environment(
-    env='{"id":"env-001","name":"测试环境","variables":{"base_url":"http://10.65.99.13:8989","token":"dev-token-abc"}}'
-)
-```
-
-### 5.7 `activate_environment`
-
-激活一个环境变量环境，使其成为当前使用的环境。后续请求中的 `{{变量名}}` 会自动替换。
-
-**参数：**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `id` | string | 是 | 环境的 ID |
-
-### 5.8 `delete_environment`
-
-删除一个环境变量环境。
-
-**参数：**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `id` | string | 是 | 环境的 ID |
-
-### 5.9 `export_proxy_config`
-
-导出全部接口测试配置（请求集合 + 环境变量）为 JSON 格式。
-
-**参数：** 无
-
-**返回示例：**
 ```json
 {
-  "version": "gridsim-proxy-export-v1",
-  "exported_at": "2026-06-10T10:00:00Z",
-  "collections": [...],
-  "environments": [...],
-  "active_env_id": "env-xxx"
+  "instance_id": "inst-001",
+  "ioas": [16385, 16386, 16387],
+  "strategy": "random",
+  "enabled": true,
+  "params": "{\"min_value\":200,\"max_value_r\":240,\"period_ms\":1000,\"decimal_places\":1}"
 }
 ```
 
----
+建议先调用 `get_auto_change` 保存原配置，再执行修改；测试结束后调用 `delete_auto_change` 或恢复原配置。
 
-## 6. 全局工具
+## 11. CSV 回放
 
-### 6.1 `list_files`
+推荐流程：
 
-列出 config 目录下所有 `.xlsx` 点表文件。
+1. 调用 `list_csv_files` 确认文件是否存在。
+2. 调用 `config_csv_replay` 配置时间格式和列映射。
+3. 调用 `list_points` 观察回放值。
+4. 测试结束后删除或禁用对应自动变化配置。
 
-**参数：** 无
-
-**返回示例：**
-```json
-{
-  "files": [
-    {"name": "point.xlsx", "size": 12345, "modtime": "2026-05-12T10:30:00Z"}
-  ]
-}
-```
-
-### 6.2 `get_protocols`
-
-查询模拟器支持的协议类型。
-
-**参数：** 无
-
-**返回示例：**
-```json
-{
-  "protocols": ["iec104", "modbus_tcp", "microgrid"]
-}
-```
-
-### 6.3 `get_openapi_spec` (v3.0.1 新增)
-
-获取 GridSim REST API 的 OpenAPI 3.0 规范。AI Agent 可据此自动发现和理解所有接口、请求参数、响应格式。
-
-**参数：** 无
-
-**返回示例：**
-```json
-{
-  "openapi": "3.0.0",
-  "info": { "title": "GridSim API", "version": "3.0.1" },
-  "paths": { ... },
-  "components": { "schemas": { ... } }
-}
-```
-
-### 6.4 `get_state` (v3.0.1 新增)
-
-获取全局统一状态快照。一次调用返回全部实例的运行状态和测点概要，避免多次轮询。
-
-**参数：** 无
-
-**返回示例：**
-```json
-{
-  "instances": [
-    {
-      "id": "inst-001",
-      "name": "变电站A",
-      "status": "running",
-      "port": 2404,
-      "protocol": "iec104",
-      "point_count": 100,
-      "client_connected": true
-    }
-  ],
-  "total_instances": 1,
-  "running_instances": 1
-}
-```
-
----
-
-## 7. 自动变化策略详解
-
-### 策略类型速查
-
-| 代码 | 策略名 | 说明 | 适用测点 |
-|------|--------|------|----------|
-| 1 | `increment` | 递增 | AI/PI |
-| 2 | `random` | 随机 | AI |
-| 3 | `csv` | CSV 回放 | AI/DI/PI |
-| 4 | `max` | 取大 | AI |
-| 5 | `min` | 取小 | AI |
-| 6 | `soc` | SOC 计算 | AI |
-| 7 | `energy` | 电量统计 | AI |
-| 8 | `aofollow` | AO 关联 | AI |
-| 9 | `apiupdate` | 接口更新 | AI/DI/PI |
-| 10 | `manual` | 手动 | AI/DI/PI |
-| 11 | `custom` | 自定义公式 | AI |
-
-> AO/DO 类型不支持自动变化。
-
-### 策略参数详解
-
-#### increment（递增）
-
-从 `start_value` 开始，每 `period_ms` 毫秒增加 `step`，达到 `max_value` 后回到 `start_value`。
+工具：`config_csv_replay`
 
 ```json
 {
-  "start_value": 0,
-  "step": 1,
-  "period_ms": 1000,
-  "max_value": 100
-}
-```
-
-#### random（随机）
-
-在 `[min_value, max_value_r]` 范围内每 `period_ms` 毫秒产生随机值，保留 `decimal_places` 位小数。
-
-```json
-{
-  "min_value": 200,
-  "max_value_r": 240,
-  "period_ms": 500,
-  "decimal_places": 1
-}
-```
-
-#### csv（CSV 回放）
-
-按 CSV 文件定义的时间序列播放。`csv_column_map` 指定列到测点的映射。
-
-```json
-{
+  "instance_id": "inst-001",
   "csv_file": "replay_data.csv",
   "time_format": "relative",
   "time_unit": "ms",
-  "csv_column_map": "{\"1\":16385}",
-  "csv_loop": true
+  "csv_loop": true,
+  "mappings": [
+    {"column": 1, "ioa": 16385},
+    {"column": 2, "ioa": 16386},
+    {"column": 3, "ioa": 16387}
+  ]
 }
 ```
 
-> 推荐使用 `config_csv_replay` 工具替代直接配置，更方便。
+参数说明：
 
-#### max/min（取大/取小）
+| 参数 | 必填 | 说明 |
+|---|---|---|
+| `csv_file` | 是 | 已存在的 CSV 文件名 |
+| `time_format` | 否 | `relative` 或 `absolute`，默认 `relative` |
+| `time_unit` | 否 | `ms` 或 `s`，默认 `ms` |
+| `csv_loop` | 否 | 是否循环，默认 `true` |
+| `mappings` | 是 | CSV 数据列到 IOA 的映射；列序号从 1 开始 |
 
-从多个 IOA 中取最大/最小值。
+当前版本的 `upload_csv` 工具存在接口格式不一致：MCP 客户端发送 `text/csv`，后端上传接口要求 `multipart/form-data`。该工具会返回类似 `no file provided` 的错误。当前应通过 Web 页面或 REST multipart 接口上传文件，再使用 `list_csv_files` 和 `config_csv_replay`。
+
+REST 上传示例：
+
+```bash
+curl -X POST \
+  -F "file=@replay_data.csv" \
+  http://10.230.169.162:8989/api/v1/instances/inst-001/upload-csv
+```
+
+## 12. QDS 品质设置
+
+工具：`update_qds`
 
 ```json
 {
-  "para_a": "16385;16386;16387",
-  "para_b": "16385"
+  "ioa": 16385,
+  "invalid": true,
+  "not_topical": false,
+  "substituted": false,
+  "overflow": false,
+  "blocked": true
 }
 ```
 
-#### soc（SOC 计算）
+可选标志：
 
-基于功率积分计算电池荷电状态。
+- `invalid`：无效。
+- `not_topical`：非当前。
+- `substituted`：替代。
+- `overflow`：溢出。
+- `blocked`：闭锁。
+
+该工具调用传统接口 `/api/points/{ioa}/qds`，参数中没有 `instance_id`。多实例环境使用前应确认传统接口对应的实例上下文；无法确认时，优先使用明确包含实例 ID 的 REST 接口。
+
+## 13. OpenAPI 与统一状态
+
+### 13.1 获取 OpenAPI 文档
+
+工具：`get_openapi_spec`
+
+```json
+{}
+```
+
+等价 REST 地址：
+
+```text
+http://10.230.169.162:8989/openapi.json
+```
+
+### 13.2 获取统一状态
+
+工具：`get_state`
+
+```json
+{}
+```
+
+该工具适合会话开始时调用，一次返回实例状态、协议、端口、点数、客户端连接和运行时间等概要，减少多次查询。
+
+## 14. Proxy 接口测试
+
+Proxy 工具由 GridSim 服务端发出目标 HTTP 请求。目标地址必须是 GridSim 服务器能够访问的地址，而不是 MCP 客户端本机能够访问的地址。
+
+### 14.1 直接发送请求
+
+工具：`proxy_request`
 
 ```json
 {
-  "init_soc": 50,
-  "rated_cap": 100,
-  "power_ioa": 16385,
-  "integral_ms": 1000
+  "method": "GET",
+  "url": "http://127.0.0.1:8989/api/v1/status",
+  "headers": "{\"Accept\":\"application/json\"}",
+  "timeout": 30
 }
 ```
 
-#### energy（电量统计）
-
-基于功率积分计算累计电量。
+POST 示例：
 
 ```json
 {
-  "init_energy": 0,
-  "stat_type": 0,
-  "energy_power_ioa": 16385,
-  "energy_period_ms": 1000
+  "method": "POST",
+  "url": "{{base_url}}/api/example",
+  "headers": "{\"Content-Type\":\"application/json\",\"Authorization\":\"Bearer {{token}}\"}",
+  "body": "{\"device_id\":\"PV-001\"}",
+  "timeout": 30
 }
 ```
 
-- `stat_type`: 0=充电电量，1=放电电量
+### 14.2 保存并激活环境
 
-#### aofollow（AO 关联）
-
-跟随指定 AO 点的遥控值变化。
+工具：`save_environment`
 
 ```json
 {
-  "follow_ao_ioa": 10001
+  "env": "{\"id\":\"env-test\",\"name\":\"测试环境\",\"variables\":{\"base_url\":\"http://127.0.0.1:8989\",\"token\":\"example-token\"}}"
 }
 ```
 
-#### apiupdate（接口更新）
-
-仅允许 HTTP API 写入，引擎不做自动计算。设置初始值。
+工具：`activate_environment`
 
 ```json
 {
-  "api_init_value": 0
+  "id": "env-test"
 }
 ```
 
-#### manual（手动）
+激活后，Proxy 请求中的 `{{base_url}}`、`{{token}}` 等变量由 GridSim Proxy 模块替换。
 
-不自动计算，需通过 API 置数。适用于外部系统联调场景。无参数。
+### 14.3 保存请求集合
 
-#### custom（自定义公式）
-
-支持四则运算公式，2~50 个关联测点。
+工具：`save_collection`
 
 ```json
 {
-  "custom_ioas": "16385,16386,16387",
-  "custom_formula": "{0}+{1}*{2}",
-  "period_ms": 1000
+  "item": "{\"id\":\"req-status\",\"name\":\"获取 GridSim 状态\",\"type\":\"request\",\"method\":\"GET\",\"url\":\"{{base_url}}/api/v1/status\",\"headers\":{},\"body\":\"\",\"pre_script\":\"\",\"test_script\":\"\"}"
 }
 ```
 
-- `custom_ioas`: 关联测点 IOA 列表，逗号分隔
-- `custom_formula`: 公式，用 `{0}`, `{1}`, ... 引用关联测点的值
-- `period_ms`: 计算周期（≥100ms）
-- 至少 2 个关联测点，最多 50 个
+`item` 和 `env` 都是 JSON 字符串，不是直接嵌套对象。
 
----
+## 15. 返回值与错误处理
 
-## 8. 完整使用场景
+### 15.1 正常返回
 
-### 场景 1: 从零创建并启动一个仿真实例
+REST API 返回的 JSON 会作为格式化文本放在 MCP `content` 中。MCP 客户端通常会直接展示为 JSON 文本。
 
-```python
-# 1. 查看可用文件
-list_files()
+### 15.2 错误返回
 
-# 2. 创建实例
-result = create_instance(
-    config='{"name":"变电站A","iec104_port":2404,"xlsx_file":"samples/point.xlsx"}'
-)
-# 记下返回的 instance_id
+常见格式：
 
-# 3. 启动实例
-start_instance(instance_id="a1b2c3d4e5f6")
-
-# 4. 查看运行状态
-get_instance(instance_id="a1b2c3d4e5f6")
-
-# 5. 查看所有测点
-list_points(instance_id="a1b2c3d4e5f6")
+```text
+Error: HTTP 404: [NOT_FOUND] instance not found
 ```
 
-### 场景 2: 模拟数据变化并验证
+或：
 
-```python
-# 1. 配置自动变化策略
-config_auto_change(
-    instance_id="a1b2c3d4e5f6",
-    ioa=16385,
-    strategy="increment",
-    enabled=True,
-    params='{"start_value":0,"step":1,"period_ms":1000,"max_value":100}'
-)
-
-# 2. 批量写入测试数据
-write_points(
-    instance_id="a1b2c3d4e5f6",
-    points=[
-        {"ioa": 16385, "value": 235.5},
-        {"ioa": 16386, "value": 236.0},
-        {"ioa": 5, "bool_value": True}
-    ]
-)
-
-# 3. 读取验证
-read_point(instance_id="a1b2c3d4e5f6", ioa=16385)
+```text
+Error: GET /api/v1/status: dial tcp 10.230.169.162:8989: connect: connection refused
 ```
 
-### 场景 3: CSV 多测点同步回放
+当前工具处理器不会把这类错误标记为 MCP 协议级 `isError=true`。自动化 Agent 应检查返回文本是否以 `Error:` 开头，不能只依据工具调用本身是否完成。
 
-```python
-# 1. 上传 CSV 文件
-upload_csv(
-    instance_id="a1b2c3d4e5f6",
-    csv_content="""time,voltage,current,power
-0,220.0,5.2,1144.0
-1000,221.5,5.3,1173.9
-2000,219.8,5.1,1120.9"""
-)
+当 REST API 返回结构化错误时，MCP 会尽量保留：
 
-# 2. 一键配置回放
-config_csv_replay(
-    instance_id="a1b2c3d4e5f6",
-    csv_file="replay_data.csv",
-    time_format="relative",
-    time_unit="ms",
-    mappings=[
-        {"column": 1, "ioa": 16385},
-        {"column": 2, "ioa": 16386},
-        {"column": 3, "ioa": 16387}
-    ]
-)
+- 错误代码 `code`。
+- 错误说明 `message`。
+- 修复提示 `hint`。
+- 候选项 `candidates`。
 
-# 3. 观察数据变化
-list_points(instance_id="a1b2c3d4e5f6")
+## 16. 安全建议
+
+- `start_instance`、`stop_instance`、`restart_instance`、`delete_instance` 和配置修改会影响正在运行的测试。
+- `proxy_request` 可以由 GridSim 服务器向其他 HTTP 地址发起请求，只应在可信网络和受控账号下启用。
+- 当前 MCP REST 客户端不支持认证头注入。需要认证的 GridSim 部署无法直接使用实例和数据工具。
+- 不要在 MCP 配置文件中保存明文生产 Token。Proxy 环境变量同样应按敏感配置管理。
+- 建议默认使用 `instance` 或 `data` 最小权限模式；确实需要接口测试时再启用 `proxy` 或 `both`。
+- 对删除、停止、批量写值和批量策略配置操作，应先查询当前状态并保留原配置。
+
+## 17. 当前版本限制
+
+| 项目 | 当前行为 | 建议 |
+|---|---|---|
+| MCP 传输 | 仅 `stdio` | 由 MCP 客户端直接启动进程 |
+| SSE / Streamable HTTP | 未实现 | 不要配置 MCP URL |
+| MCP 自报版本 | 代码中固定为 `1.0.0` | 以 `bin/VERSION` 和 GridSim Git 提交识别发布版本 |
+| `-h` 模式说明 | 未列出 `proxy` | 实际可使用 `-mode proxy` |
+| REST 认证 | 不支持 Token、Cookie、API Key | 仅连接无需认证的可信 GridSim API |
+| REST 全局超时 | 未设置 | 避免连接不可达地址；必要时由进程管理器控制超时 |
+| `upload_csv` | 与后端 multipart 要求不匹配 | 使用 Web 页面或 REST multipart 上传 |
+| `write_points` + IOA 0 | IOA 0 被判断为无效 | 使用 `write_point` 单独写入 |
+| `update_qds` | 无 `instance_id` | 多实例环境谨慎使用 |
+| `upload_file` | 客户端代码存在，但未注册为 MCP 工具 | 使用 Web 页面或 REST API 上传点表 |
+| `export_points_csv` | 客户端代码存在，但未注册为 MCP 工具 | 使用 REST API 或 Web 页面导出 |
+
+## 18. 故障排查
+
+### 18.1 MCP 服务未出现
+
+1. 检查 `command` 是否为 MCP 客户端所在机器上的绝对路径。
+2. 在终端运行 `gridsim-mcp -h`，确认二进制可执行。
+3. 检查操作系统架构是否匹配：Windows amd64、Linux amd64 或 Linux arm64。
+4. 检查 Kiro 或 Claude Desktop 日志中的进程启动错误。
+5. 修改配置后重新连接 MCP 服务或重启客户端。
+
+### 18.2 工具存在但全部调用失败
+
+检查 GridSim API：
+
+```bash
+curl http://10.230.169.162:8989/api/v1/status
 ```
 
-### 场景 4: 接口测试 — 发送 HTTP 请求
+检查 `-simulator`：
 
-```python
-# 1. 查看环境变量
-get_environments()
+- 不要附加 `/api/v1`。
+- 远程连接不要写 `localhost`，除非 MCP 进程也在 GridSim 服务器上。
+- 确认防火墙允许访问 8989 端口。
 
-# 2. 激活环境
-activate_environment(id="env-xxx")
+### 18.3 实例启动失败
 
-# 3. 发送请求
-proxy_request(
-    method="GET",
-    url="{{base_url}}/api/v1/status",
-    headers='{"Authorization": "Bearer {{token}}"}'
-)
+1. 调用 `get_instance` 查看配置。
+2. 调用 `list_files` 确认点表存在。
+3. 检查协议端口是否已被占用。
+4. 检查点表功能码、寄存器地址和数据类型。
+5. 读取工具返回文本中的 `message`、`hint` 和 `candidates`。
+
+### 18.4 测点写入没有变化
+
+1. 用 `list_points` 确认 IOA 和 `point_type`。
+2. AI 使用 `value`，DI 使用 `bool_value`，PI 使用 `int_value`。
+3. AO、DO 不允许通过置数接口写入。
+4. 检查测点是否启用了禁止 API 写入的自动变化策略。
+5. 再次调用 `read_point` 核对结果。
+
+### 18.5 工具数量不是 37
+
+检查 `-mode`：
+
+```text
+instance：11
+数据模式：17
+proxy：9
+both：37
 ```
 
-### 场景 5: 接口测试 — 创建和管理 API 集合
+如果配置为 `both` 仍不是 37，检查是否使用了旧版 `mcp-server` 或旧安装包。
 
-```python
-# 1. 创建文件夹
-save_collection(
-    item='{"id":"folder-001","name":"GridSim API 测试","type":"folder","children":[]}'
-)
+## 19. 推荐调用顺序
 
-# 2. 在文件夹下创建接口
-save_collection(
-    item='{"id":"req-001","name":"获取全局状态","type":"request","method":"GET","url":"{{base_url}}/api/v1/status","headers":{},"body":"","pre_script":"","test_script":"pm.response.to.have.status(200)"}'
-)
+### 19.1 只读检查
 
-# 3. 查看所有集合
-get_collections()
-
-# 4. 执行请求
-proxy_request(method="GET", url="{{base_url}}/api/v1/status")
-
-# 5. 清理
-delete_collection(id="req-001")
+```text
+get_state
+→ list_instances
+→ get_instance
+→ list_points
+→ read_points
 ```
 
----
+### 19.2 创建并启动实例
 
-## 9. 故障排除
-
-### 连接失败
-
-```
-错误: dial tcp connection refused
-```
-
-**排查步骤：**
-1. 确认 GridSim 模拟器已启动：`./bin/gridsim serve --http :8989`
-2. 检查 `-simulator` 参数地址是否正确
-3. 测试连通性：`curl http://localhost:8989/api/v1/status`
-
-### 测点写入失败
-
-```
-错误: IOA xxx not found / point not found
+```text
+list_files
+→ get_protocols
+→ create_instance
+→ start_instance
+→ get_instance
+→ list_points
 ```
 
-**排查步骤：**
-1. 确认实例已启动（`get_instance` 查看状态为 `running`）
-2. 用 `list_points` 查看实际 IOA 列表
-3. 检查点表 xlsx 是否正确加载
+### 19.3 自动化数据注入
 
-### 自动变化配置失败
-
-```
-错误: AO/DO does not support auto-change
-```
-
-AO/DO 类型测点不支持自动变化策略。只能为 AI、DI、PI 类型配置。
-
-```
-错误: period_ms must be >= 100
+```text
+get_instance
+→ list_points
+→ get_auto_change
+→ write_points / config_auto_change
+→ read_points
+→ 恢复原配置
 ```
 
-策略计算周期最小 100ms。
+### 19.4 CSV 回放
 
-```
-错误: custom formula requires at least 2 associated IOAs
-```
-
-自定义公式策略至少需要关联 2 个测点。
-
-### MCP 工具无响应
-
-1. 检查 GridSim 模拟器日志
-2. 确认点表文件已正确加载
-3. 验证实例状态为 `running`（使用 `get_instance` 或 `get_server_status`）
-4. 检查 MCP 服务器是否正常运行
-
-### 实例启动端口冲突
-
-```
-错误: port 2404 already in use by instance xxx
+```text
+通过 Web 或 REST multipart 上传 CSV
+→ list_csv_files
+→ config_csv_replay
+→ list_points
+→ 删除或恢复自动变化配置
 ```
 
-使用 `list_instances` 查看已使用的端口，更换端口或先停止占用端口的实例。
+## 20. 维护说明
 
----
+MCP 工具注册的事实来源：
 
-## 版本信息
+```text
+internal/mcp/server.go
+```
 
-| 组件 | 版本 |
-|------|------|
-| GridSim | 3.0.1+ |
-| MCP Server | 1.4.0 |
-| 工具总数 | 37 (实例管理 9 + 数据接口 15 + 接口测试 9 + 全局 4) |
+MCP 到 REST API 的映射来源：
+
+```text
+internal/mcp/client.go
+```
+
+命令行入口：
+
+```text
+cmd/gridsim-mcp/main.go
+```
+
+构建与发布文件名：
+
+```text
+build.sh
+docs/PACKAGING.md
+```
+
+当工具数量、参数或 REST 路由变化时，应优先更新本文件，避免继续引用根目录 `MCP.md`、旧版 `manuals/mcp-manual.md` 或知识库中的历史工具清单。

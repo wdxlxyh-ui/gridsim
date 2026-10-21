@@ -275,3 +275,12 @@ func cloneTemplate(input Template) Template {
 	}
 	return result
 }
+
+
+// Clear removes all templates and persists an empty versioned document.
+func (s *Store) Clear() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.templates = make([]Template, 0)
+	return s.saveLocked()
+}

@@ -1,6 +1,7 @@
 package store
 
 import (
+	"os"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
@@ -254,5 +255,41 @@ func TestDeleteHistoryRemovesOnlySelectedPoints(t *testing.T) {
 	}
 	if len(remaining) != 1 || len(remaining[0].Samples) != 1 || remaining[0].Samples[0][1] != 3 {
 		t.Fatalf("unselected point history=%+v, want one unchanged sample", remaining)
+	}
+}
+
+
+func TestBackupAndClearAll(t *testing.T) {
+	s := newTestService(t, 60, time.Second)
+	const id = "abc123def456"
+	if err := s.EnsureInstance(id); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.insertBatch(id, []Sample{{IOA: 1, Timestamp: time.Now().UnixMilli(), Name: "AI", PointType: "AI", Value: 1.5}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	backup := filepath.Join(t.TempDir(), "backup.db")
+	if err := s.BackupTo(backup); err != nil {
+		t.Fatal(err)
+	}
+	if info, err := os.Stat(backup); err != nil || info.Size() == 0 {
+		t.Fatalf("backup stat: info=%v err=%v", info, err)
+	}
+	deleted, err := s.ClearAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if deleted != 1 {
+		t.Fatalf("deleted=%d, want 1", deleted)
+	}
+	var count int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='ts_abc123def456'`).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("instance table count=%d, want 0", count)
 	}
 }

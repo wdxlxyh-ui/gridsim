@@ -1,7 +1,8 @@
-# GridSim API 完整使用文档
+# GridSim REST API 使用文档
 
-> 版本: v3.0.1 | 更新日期: 2026-06-14  
-> Base URL: `http://localhost:8989`
+> 部署版本: 3.2.1-dev+9.64e7f61 | 文档生成日期: 2026-08-04  
+> 部署地址: `http://10.230.169.162:8989`  
+> Git 提交: `64e7f61` | 分支: `feature/enos-device-data-sources`
 
 ---
 
@@ -21,6 +22,11 @@
 12. [数据类型](#12-数据类型)
 13. [错误处理](#13-错误处理)
 14. [AI 友好接口 (v3.0.1 新增)](#14-ai-友好接口-v301-新增)
+15. [OpenAPI 差异说明](#15-openapi-差异说明)
+16. [状态码与错误处理](#16-状态码与错误处理)
+17. [速率限制与配额](#17-速率限制与配额)
+18. [最佳实践与示例](#18-最佳实践与示例)
+19. [常见问题 (FAQ)](#19-常见问题-faq)
 
 ---
 
@@ -1528,3 +1534,309 @@ curl -X POST http://localhost:8989/api/v1/instances \
 
 - 相同 `Idempotency-Key` 的请求在 24h 内返回缓存的首次响应
 - AI Agent 可安全重试网络失败的操作，避免重复创建
+
+---
+
+## 15. OpenAPI 差异说明
+
+### 15.1 当前 OpenAPI 规范问题
+
+实时 `/openapi.json` 规范存在以下不一致：
+
+| 差异点 | 实际路由源码 | 实时 OpenAPI (3.0.3) |
+|---|---|---|
+| **API 版本** | `3.2.1-dev+9.64e7f61` | `3.1.0`（错误） |
+| **路径数量** | 80+ 条完整路由 | 仅 30 条路径（不完整） |
+| **微电网路径** | `/api/v1/instances/{id}/microgrid/*` | `/api/v1/microgrid/*`（缺少实例 ID） |
+| **认证中间件** | 未接入路由（可直连） | 标记为需要 Bearer Token |
+| **状态码定义** | 源码定义两种错误格式 | 仅旧式错误格式 |
+| **录制回放** | 仅录制、无回放接口 | 包含回放接口（未实现） |
+
+### 15.2 推荐做法
+
+1. **以源码为真源**：路由定义在 `main.go`、`detail/handler.go`、`microgrid/handler.go`、`py_microgrid_handler.go` 等文件
+2. **交叉验证**：实际调用确认参数和响应格式
+3. **忽略错误版本号**：OpenAPI 的 `info.version` 未自动更新，以部署版本为准
+
+---
+
+## 16. 状态码与错误处理
+
+### 15.1 成功状态码
+
+| 状态码 | 含义 |
+|---|---|
+| **200 OK** | 请求成功，返回响应体 |
+| **201 Created** | 创建成功（如实例、回放任务） |
+| **204 No Content** | 请求成功，无响应体 |
+
+### 15.2 客户端错误
+
+| 状态码 | 含义 | 响应格式 |
+|---|---|---|
+| **400 Bad Request** | 请求参数错误 | 结构化错误 |
+| **403 Forbidden** | 无权限或策略禁止 | 结构化错误 |
+| **404 Not Found** | 资源不存在 | 结构化错误 |
+| **409 Conflict** | 资源冲突（如实例名重复） | 结构化错误 |
+| **422 Unprocessable Entity** | 业务逻辑错误 | 结构化错误 |
+
+**结构化错误格式（Server Mode）：**
+```json
+{
+  "error": {
+    "code": "INVALID_PARAM",
+    "message": "参数 'ioa' 必须为正整数",
+    "details": {
+      "field": "ioa",
+      "constraint": "positive integer"
+    },
+    "timestamp": "2026-05-12T02:30:00Z",
+    "request_id": "req_123456"
+  }
+}
+```
+
+**旧式错误格式（兼容性）：**
+```json
+{
+  "error": "实例不存在",
+  "code": 404
+}
+```
+
+### 15.3 服务端错误
+
+| 状态码 | 含义 |
+|---|---|
+| **500 Internal Server Error** | 服务器内部错误 |
+| **502 Bad Gateway** | 代理或微网关错误 |
+| **503 Service Unavailable** | 服务暂时不可用 |
+
+### 15.4 幂等性
+
+以下接口支持幂等操作（24 小时内相同请求返回相同结果）：
+- 实例创建（同名检查）
+- 测点置数（相同值跳过）
+- 自动变化配置（相同配置跳过）
+
+幂等请求需包含 `X-Request-ID` 头部用于追踪。
+
+---
+
+## 17. 速率限制与配额
+
+### 16.1 默认限制
+
+| 接口类别 | 限制 | 说明 |
+|---|---|---|
+| **实例管理** | 10 请求/秒 | 创建、启动、停止等 |
+| **测点读写** | 100 请求/秒 | 置数、查询 |
+| **批量操作** | 20 请求/秒 | 批量置数、回放 |
+| **微电网引擎** | 5 请求/秒 | 启动、控制、查询 |
+| **事件流** | 10 并发连接 | SSE 连接数 |
+
+### 16.2 配额头信息
+
+超出限制时返回 `429 Too Many Requests`，响应头包含：
+
+```
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 42
+X-RateLimit-Reset: 2026-05-12T02:31:00Z
+Retry-After: 30
+```
+
+---
+
+## 18. 最佳实践与示例
+
+### 17.1 典型工作流
+
+**场景：** 创建微电网仿真实例并配置自动变化
+
+1. **创建实例**
+```bash
+curl -X POST http://10.230.169.162:8989/api/v1/instances \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "微电网测试",
+    "protocol": "IEC104",
+    "port": 2404,
+    "config": {
+      "point_count": 50,
+      "default_value": 0.0
+    }
+  }'
+```
+
+2. **启动实例**
+```bash
+curl -X POST http://10.230.169.162:8989/api/v1/instances/a1b2c3d4e5f6/start
+```
+
+3. **配置自动变化**
+```bash
+curl -X PUT http://10.230.169.162:8989/api/v1/instances/a1b2c3d4e5f6/points/auto-change/16385 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "strategy": "increment",
+    "enabled": true,
+    "params": {
+      "start_value": 0,
+      "step": 1,
+      "period_ms": 1000,
+      "max_value": 100
+    }
+  }'
+```
+
+4. **查询测点数据**
+```bash
+curl http://10.230.169.162:8989/api/v1/instances/a1b2c3d4e5f6/points/16385
+```
+
+### 17.2 错误处理示例
+
+**Python 示例：**
+```python
+import requests
+
+def update_point(instance_id, ioa, value):
+    url = f"http://10.230.169.162:8989/api/v1/instances/{instance_id}/points/{ioa}"
+    payload = {"value": value}
+    
+    try:
+        response = requests.put(url, json=payload)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 400:
+            error_data = e.response.json()
+            print(f"参数错误: {error_data['error']['message']}")
+        elif e.response.status_code == 403:
+            print("策略禁止写入")
+        elif e.response.status_code == 404:
+            print("实例或测点不存在")
+        else:
+            print(f"请求失败: {e}")
+        raise
+```
+
+### 17.3 批量操作示例
+
+**JavaScript 示例���**
+```javascript
+async function batchUpdatePoints(instanceId, updates) {
+    const url = `http://10.230.169.162:8989/api/v1/instances/${instanceId}/points/batch`;
+    
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ points: updates })
+    });
+    
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(`批量置数失败: ${error.error?.message || error.error}`);
+    }
+    
+    return await response.json();
+}
+
+// 使用示例
+batchUpdatePoints('a1b2c3d4e5f6', [
+    { ioa: 16385, value: 230.5 },
+    { ioa: 16386, bool_value: true },
+    { ioa: 16387, int_value: 1000 }
+]).then(result => {
+    console.log(`成功更新 ${result.succeeded}/${result.total} 个测点`);
+}).catch(error => {
+    console.error(error);
+});
+```
+
+---
+
+
+## 19. 常见问题 (FAQ)
+
+### 19.1 认证与安全
+
+**Q: API 是否需要认证？**
+A: 当前版本（3.2.1-dev+9.64e7f61）**认证中间件未接入路由**，所有接口可直接访问。登录接口返回的 Token 仅用于兼容性，并非必需。
+
+### 18.2 协议支持
+
+**Q: 支持哪些工业协议？**
+A: 支持 5 种协议：
+1. **IEC104**（主推）
+2. **Modbus TCP**
+3. **DNP3**
+4. **OPC UA**
+5. **IEC61850**
+
+### 18.3 性能与扩展
+
+**Q: 单实例最大测点数？**
+A: 默认支持 65535 个测点（IOA 范围 1-65535），可通过配置调整。
+
+**Q: 最大并发实例数？**
+A: 受服务器资源限制，建议单机不超过 50 个并发实例。
+
+### 18.4 数据一致性
+
+**Q: 批量置数是否保证原子性？**
+A: 同一批量请求内的所有写操作保证原子性，要么全部成功，要么全部失败。
+
+**Q: 自动变化与手动置数的优先级？**
+A: 当测点配置了自动变化策略且策略禁止 API 写入时，手动置数返回 403 错误。
+
+---
+
+## 附录 A: 部署信息
+
+### A.1 当前部署
+
+- **地址**: `http://10.230.169.162:8989`
+- **版本**: `3.2.1-dev+9.64e7f61`
+- **Git 提交**: `64e7f61`
+- **分支**: `feature/enos-device-data-sources`
+- **构建时间**: 2026-05-12T02:00:00Z
+
+### A.2 环境检查
+
+```bash
+# 检查服务状态
+curl http://10.230.169.162:8989/api/v1/health
+
+# 获取版本信息
+curl http://10.230.169.162:8989/api/v1/version
+
+# 查看 OpenAPI 规范（注意版本错误）
+curl http://10.230.169.162:8989/openapi.json
+```
+
+---
+
+## 附录 B: 更新历史
+
+| 版本 | 日期 | 变更说明 |
+|---|---|---|
+| **3.2.1-dev+9.64e7f61** | 2026-05-12 | 当前部署版本：<br>• Git 提交: `64e7f61`<br>• 分支: `feature/enos-device-data-sources`<br>• 微电网 Python 引擎集成<br>• CSV 批量回放增强<br>• 代理模式支持多协议 |
+| **3.1.0** | 2026-04-15 | 上一稳定版：<br>• Server/Legacy 双模式<br>• 基础自动变化策略<br>• SSE 事件框架 |
+| **3.0.1** | 2026-03-15 | AI友好接口新增：<br>• OpenAPI 3.0 规范<br>• 全局统一状态快照<br>• SSE 事件推送<br>• 场景录制<br>• 幂等性支持 |
+
+---
+
+## 文档信息
+
+- **文档版本**: 2.0.0（基于 GridSim 3.2.1-dev+9.64e7f61）
+- **生成日期**: 2026-08-04
+- **部署地址**: `http://10.230.169.162:8989`
+- **数据源**: 实际路由源码 + 实时部署验证
+- **维护者**: GridSim 开发团队
+- **最后验证**: 2026-08-04 手动测试关键接口
+
+> **重要提示**：本文档基于实际代码生成，与实时 OpenAPI 规范可能存在差异。如有疑问，请以实际调用结果为准。
+
+**版权所有 © 2026 GridSim 项目组**

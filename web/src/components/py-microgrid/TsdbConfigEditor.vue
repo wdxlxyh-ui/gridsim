@@ -154,7 +154,7 @@
         <el-collapse-item name="mapping">
           <template #title>设备映射（{{ mappingRows.length }}）</template>
           <div class="hint" style="margin-bottom:8px">
-            把负荷、风机设备的数据源切换为 TSDB，并选择对应的资产与测点（写入设备配置的 mode / replay_* 字段）。其他设备类型暂不支持 TSDB 回放。
+            将设备数据源切换为 TSDB 回放，选择对应的资产与测点（写入设备配置的 mode / replay_* 字段）。支持负荷、风机、光伏、储能、充电桩、电表等设备类型。
           </div>
           <el-table v-if="mappingRows.length" :data="mappingRows" size="small" border>
             <el-table-column label="类型" width="70" prop="type" />
@@ -189,30 +189,27 @@
             <el-table-column label="测点" min-width="250">
               <template #default="{ row }">
                 <template v-if="row.dev.mode === 2">
-                  <el-select
-                    v-if="row.type === 'Load'"
-                    v-model="row.dev.replay_point_id"
-                    size="small"
-                    filterable
-                    placeholder="有功功率测点"
-                    :disabled="disabled || !canEdit"
-                  >
-                    <el-option v-for="p in pointOptions(row.dev.replay_asset_id)" :key="p" :value="p" :label="p" />
-                  </el-select>
-                  <div v-else style="display:flex;flex-direction:column;gap:4px">
-                    <el-select v-model="row.dev.replay_point_theory" size="small" filterable clearable placeholder="理论功率（默认 WNAC.TheoryActivePW）" :disabled="disabled || !canEdit">
-                      <el-option v-for="p in pointOptions(row.dev.replay_asset_id)" :key="p" :value="p" :label="p" />
-                    </el-select>
-                    <el-select v-model="row.dev.replay_point_wind_speed" size="small" filterable clearable placeholder="风速（默认 WNAC.WindSpeed）" :disabled="disabled || !canEdit">
-                      <el-option v-for="p in pointOptions(row.dev.replay_asset_id)" :key="p" :value="p" :label="p" />
-                    </el-select>
+                  <!-- 根据设备类型动态渲染测点选择 -->
+                  <div style="display:flex;flex-direction:column;gap:4px">
+                    <template v-for="(pointKey, pidx) in getPointKeys(row.type)" :key="pointKey">
+                      <el-select
+                        v-model="row.dev[pointKey]"
+                        size="small"
+                        filterable
+                        clearable
+                        :placeholder="getPointLabel(row.type, pidx)"
+                        :disabled="disabled || !canEdit"
+                      >
+                        <el-option v-for="p in pointOptions(row.dev.replay_asset_id)" :key="p" :value="p" :label="p" />
+                      </el-select>
+                    </template>
                   </div>
                 </template>
                 <span v-else class="hint">—</span>
               </template>
             </el-table-column>
           </el-table>
-          <div v-else class="empty">当前配置中没有负荷或风机设备</div>
+          <div v-else class="empty">当前配置中没有支持回放的设备</div>
         </el-collapse-item>
       </el-collapse>
 
@@ -244,7 +241,18 @@ const props = defineProps<{
 
 const emit = defineEmits<{ (e: 'saved'): void }>()
 
-const REPLAY_TYPES = ['Load', 'Wind']
+// 所有支持 TSDB 回放的设备类型
+const REPLAY_TYPES = ['Load', 'Wind', 'PV', 'BESS', 'EV', 'Meter']
+
+// 设备类型的测点配置
+const DEVICE_POINT_CONFIG: Record<string, { points: string[], labels: string[] }> = {
+  Load: { points: ['replay_point_id'], labels: ['有功功率测点'] },
+  Wind: { points: ['replay_point_theory', 'replay_point_wind_speed'], labels: ['理论功率测点', '风速测点'] },
+  PV: { points: ['replay_point_power'], labels: ['功率测点'] },
+  BESS: { points: ['replay_point_power', 'replay_point_soc'], labels: ['功率测点', 'SOC测点'] },
+  EV: { points: ['replay_point_power'], labels: ['功率测点'] },
+  Meter: { points: ['replay_point_power'], labels: ['功率测点'] },
+}
 
 const activeCollapse = ref(['enos', 'replay', 'assets', 'mapping'])
 const showSecret = ref(false)
@@ -295,6 +303,14 @@ const assetOptions = computed(() =>
 function pointOptions(assetId?: string): string[] {
   const a = localConfig.value.replay.assets.find(x => x.asset_id.trim() === assetId)
   return a ? a.point_ids : []
+}
+
+function getPointKeys(type: string): string[] {
+  return DEVICE_POINT_CONFIG[type]?.points ?? ['replay_point_id']
+}
+
+function getPointLabel(type: string, idx: number): string {
+  return DEVICE_POINT_CONFIG[type]?.labels?.[idx] ?? `测点 ${idx + 1}`
 }
 
 function cloneDevice() {
@@ -369,7 +385,10 @@ function validateMapping(): string {
     const name = dev.DeviceKey || `#${dev.slave_id}`
     if (!dev.replay_asset_id) return `${type} 设备 ${name} 选择了 TSDB 回放，但未选择资产`
     if (!subscribed.has(dev.replay_asset_id)) return `${type} 设备 ${name} 使用的资产 ${dev.replay_asset_id} 不在订阅列表中`
-    if (type === 'Load' && !dev.replay_point_id) return `负荷设备 ${name} 未选择测点`
+    // 检查是否有至少一个测点配置
+    const pointKeys = getPointKeys(type)
+    const hasPoint = pointKeys.some(k => dev[k])
+    if (!hasPoint) return `${type} 设备 ${name} 未选择任何测点`
   }
   return ''
 }
@@ -378,8 +397,9 @@ async function handleSave() {
   const bad = validateMapping()
   if (bad) { ElMessage.error(bad); return }
   // Drop empty optional keys so device.json stays clean.
-  for (const { dev } of mappingRows.value) {
-    for (const k of ['replay_point_theory', 'replay_point_wind_speed', 'replay_point_id']) {
+  for (const { type, dev } of mappingRows.value) {
+    const pointKeys = getPointKeys(type)
+    for (const k of pointKeys) {
       if (dev[k] === '' || dev[k] === undefined || dev[k] === null) delete dev[k]
     }
   }

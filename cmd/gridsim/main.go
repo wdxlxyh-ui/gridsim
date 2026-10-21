@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -126,10 +127,13 @@ func runLegacyMode() {
 // ─── Server Mode (web management) ──────────────────────────────────────────
 
 type webServer struct {
-	mgr          *manager.Manager
-	httpSrv      *http.Server
-	cfgDir       string
-	userConfig   *model.UserConfig
+	mgr            *manager.Manager
+	httpSrv        *http.Server
+	cfgDir         string
+	userConfigPath string
+	dbPath         string
+	userMu         sync.RWMutex
+	userConfig     *model.UserConfig
 	proxyStore   *api.ProxyStore
 	proxyHandler *api.ProxyHandler
 	eventBus     *events.Bus
@@ -171,6 +175,9 @@ func runServerMode() {
 	}
 
 	mgr := manager.NewWithLogDir(cfgStore, configDir, logDir)
+	if dbPath == "" {
+		dbPath = filepath.Join(configDir, "db", "gridsim.db")
+	}
 	dataStore := openDataStore(dbMode, dbPath, configDir, dbRetentionMinutes, dbSampleIntervalMs)
 	if dataStore != nil {
 		mgr.SetDataStore(dataStore)
@@ -196,8 +203,13 @@ func runServerMode() {
 
 	// Build HTTP mux
 	mux := http.NewServeMux()
+	userConfigPath := filepath.Join(configDir, "users.json")
 	userCfg := loadUserConfig(configDir)
-	ws := &webServer{mgr: mgr, cfgDir: configDir, userConfig: userCfg, proxyStore: proxyStore, trendStore: trendStore, eventBus: events.NewBus(), recorder: recording.NewRecorder(filepath.Join(configDir, "recordings"))}
+	ws := &webServer{
+		mgr: mgr, cfgDir: configDir, userConfigPath: userConfigPath, dbPath: dbPath,
+		userConfig: userCfg, proxyStore: proxyStore, trendStore: trendStore,
+		eventBus: events.NewBus(), recorder: recording.NewRecorder(filepath.Join(configDir, "recordings")),
+	}
 	ws.registerRoutes(mux, configDir, httpAddr)
 
 	if p := parsePort(httpAddr); p > 0 {
@@ -282,6 +294,12 @@ func (ws *webServer) registerRoutes(mux *http.ServeMux, configDir string, httpAd
 	// Resolve web/dist relative to executable path.
 	exePath, _ := os.Executable()
 	webDir := filepath.Join(filepath.Dir(exePath), "..", "web", "dist")
+
+	// High-risk administration routes are protected independently because the
+	// legacy management API remains backward-compatible and is not globally wrapped.
+	// High-risk administration routes are protected independently because the
+	// legacy management API remains backward-compatible and is not globally wrapped.
+	mux.Handle("/api/v1/admin/", middleware.AdminMiddleware(http.HandlerFunc(ws.handleAdmin)))
 
 	// 公开路由（无需认证）
 	mux.HandleFunc("/api/v1/auth/login", ws.handleAuthLogin)
@@ -1588,20 +1606,25 @@ func (ws *webServer) handleAuthLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ws.userMu.RLock()
 	if ws.userConfig == nil {
+		ws.userMu.RUnlock()
 		writeError(w, http.StatusInternalServerError, "user config not loaded")
 		return
 	}
 
-	var matchedUser *model.User
+	var matchedUser model.User
+	found := false
 	for i := range ws.userConfig.Users {
 		if ws.userConfig.Users[i].Username == req.Username {
-			matchedUser = &ws.userConfig.Users[i]
+			matchedUser = ws.userConfig.Users[i]
+			found = true
 			break
 		}
 	}
+	ws.userMu.RUnlock()
 
-	if matchedUser == nil {
+	if !found {
 		writeError(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
@@ -1611,7 +1634,7 @@ func (ws *webServer) handleAuthLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := middleware.GenerateToken(matchedUser)
+	token, err := middleware.GenerateToken(&matchedUser)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to generate token")
 		return
