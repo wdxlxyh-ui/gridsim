@@ -12,6 +12,7 @@ import (
 // typeChinese maps ComponentType to Chinese prefix used in point names
 var typeChinese = map[ComponentType]string{
 	CompPV:      "光伏",
+	CompWind:    "风电",
 	CompBattery: "储能",
 	CompLoad:    "负荷",
 	CompCharger: "充电桩",
@@ -73,13 +74,32 @@ func (t *Topology) ExpandPoints() []*config.Point {
 
 		switch dev.Type {
 		case CompPV: // INV.*
+			pvSet := 0.0
+			if dev.isLimitMode() {
+				pvSet = dev.Params.RatedPowerKW
+			}
 			points = append(points,
 				mkAI(baseAI, "_有功功率", "INV.GenActivePW|kW", 0),
 				mkAI(baseAI+1, "_日发电量", "INV.APProductionKWH|kWh", 0),
 				mkDI(baseDI, "_运行状态", "INV.State", 1),
 				mkDI(baseDI+1, "_开关状态", "INV.CtrlState", swVal),
-				mkAO(baseAO, "_功率设定", "INV.SysAPSetPoint|kW", 0),
+				mkAO(baseAO, "_功率设定", "INV.SysAPSetPoint|kW", pvSet),
 				mkDO(baseDO, "_远程启机", "INV.Start", swVal),
+			)
+			if dev.isLimitMode() {
+				points = append(points, mkAI(baseAI+2, "_理论功率", "INV.TheoryActivePW|kW", dev.Params.RatedPowerKW))
+			}
+		case CompWind: // WGEN.* / WNAC.* / WTUR.*
+			points = append(points,
+				mkAI(baseAI, "_有功功率", "WGEN.GenActivePW|kW", 0),
+				mkAI(baseAI+1, "_日发电量", "PUB_WT.APProductionKWH|kWh", 0),
+				mkAI(baseAI+2, "_理论功率", "WNAC.TheoryActivePW|kW", 0),
+				mkAI(baseAI+3, "_风速", "WNAC.WindSpeed|m/s", 10),
+				mkDI(baseDI, "_运行状态", "WTUR.State", 1),
+				mkDI(baseDI+1, "_开关状态", "WTUR.CtrlState", swVal),
+				mkDI(baseDI+2, "_通讯状态", "WTUR.AllConnectionSts", 1),
+				mkAO(baseAO, "_功率设定", "WGEN.SysAPSetPoint|kW", dev.Params.RatedPowerKW),
+				mkDO(baseDO, "_远程启机", "WTUR.Start", swVal),
 			)
 		case CompBattery: // BS.*
 			points = append(points,
@@ -90,6 +110,16 @@ func (t *Topology) ExpandPoints() []*config.Point {
 				mkAO(baseAO, "_功率设定", "BS.SysAPSetPoint|kW", 0),
 				mkDO(baseDO, "_远程启机", "BS.Start", swVal),
 			)
+			if dev.Params.SOCProtection {
+				ratedB := dev.Params.RatedPowerKW_B
+				if ratedB <= 0 {
+					ratedB = 50
+				}
+				points = append(points,
+					mkAI(baseAI+2, "_最大可充功率", "BS.MaxChargePower|kW", ratedB),
+					mkAI(baseAI+3, "_最大可放功率", "BS.MaxDischargePower|kW", ratedB),
+				)
+			}
 		case CompLoad: // LOAD.*
 			points = append(points,
 				mkAI(baseAI, "_有功功率", "LOAD.ActivePW|kW", 0),
@@ -146,6 +176,11 @@ var internalSuffixes = map[string]string{
 	"_远程启机":   "_SwCtrl",
 	"_遥控分合":   "_SwCtrl",
 	"_功率设定":   "_Setpoint",
+	"_理论功率":   "_Theory",
+	"_风速":     "_WindSpeed",
+	"_最大可充功率": "_MaxCharge",
+	"_最大可放功率": "_MaxDischarge",
+	"_通讯状态":   "_Comm",
 }
 
 // itoa converts int to string without importing strconv in hot path
@@ -248,6 +283,8 @@ func (t *Topology) Validate() error {
 	for _, d := range t.Devices {
 		switch d.Type {
 		case CompPV:
+			if d.Params.RatedPowerKW <= 0 { return fmt.Errorf("设备 %s 额定功率未设置", d.Name) }
+		case CompWind:
 			if d.Params.RatedPowerKW <= 0 { return fmt.Errorf("设备 %s 额定功率未设置", d.Name) }
 		case CompBattery:
 			if d.Params.CapacityKWH <= 0 { return fmt.Errorf("设备 %s 额定容量未设置", d.Name) }

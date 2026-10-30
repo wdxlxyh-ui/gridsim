@@ -278,7 +278,7 @@ func HandleMicrogridPoints(mgr ManagerBridge) http.HandlerFunc {
 				for idx, dev := range topo.Devices {
 					prefix := typeChinese[dev.Type] + itoa(idx+1)
 					switch dev.Type {
-					case CompPV:
+					case CompPV, CompWind:
 						canToggle[prefix+"_有功功率"] = true
 					case CompBattery:
 						canToggle[prefix+"_充放电功率"] = true

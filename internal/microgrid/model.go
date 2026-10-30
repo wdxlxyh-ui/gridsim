@@ -7,6 +7,7 @@ type ComponentType string
 
 const (
 	CompPV      ComponentType = "pv"
+	CompWind    ComponentType = "wind"
 	CompBattery ComponentType = "battery"
 	CompLoad    ComponentType = "load"
 	CompCharger ComponentType = "charger"
@@ -25,6 +26,23 @@ type DeviceParams struct {
 	// PV
 	RatedPowerKW float64 `json:"rated_power_kw,omitempty"`
 	Efficiency   float64 `json:"efficiency,omitempty"`
+
+	// Wind (额定功率复用 RatedPowerKW; 风速单位 m/s, 零值取 3/12/25)
+	CutInMS  float64 `json:"cut_in_ms,omitempty"`
+	RatedMS  float64 `json:"rated_ms,omitempty"`
+	CutOutMS float64 `json:"cut_out_ms,omitempty"`
+
+	// 动态特性 (全部零值 = 旧行为: 指令瞬时生效)
+	// 爬坡率 kW/s: Up 为功率数值上升方向(储能即向充电), Down 为下降方向; 只配一个时两个方向共用
+	RampUpKWPerS    float64 `json:"ramp_up_kw_per_s,omitempty"`
+	RampDownKWPerS  float64 `json:"ramp_down_kw_per_s,omitempty"`
+	ResponseDelayMs int     `json:"response_delay_ms,omitempty"`
+	// AvailableMode="limit": 光伏出力 = min(设定值, 理论功率测点); 风电恒为 limit
+	AvailableMode string `json:"available_mode,omitempty"`
+	// 储能 SOC 保护: 到限值时在功率层禁止继续充/放
+	SOCProtection bool `json:"soc_protection,omitempty"`
+	// 远方模式下设定值 0 作为真实 0 指令(默认 0 沿用"置数"语义: 读取 _Power)
+	ZeroIsCommand bool `json:"zero_is_command,omitempty"`
 
 	// Battery
 	CapacityKWH    float64 `json:"capacity_kwh,omitempty"`
@@ -120,4 +138,24 @@ type SimSnapshot struct {
 // FromJSON 从 JSON 字符串解析拓扑
 func (t *Topology) FromJSON(jsonStr string) error {
 	return json.Unmarshal([]byte(jsonStr), t)
+}
+
+// isLimitMode 光伏/风电是否按"设定值与理论功率取小"运行
+func (d Device) isLimitMode() bool {
+	return d.Type == CompWind || (d.Type == CompPV && d.Params.AvailableMode == "limit")
+}
+
+// windCurve 返回风速参数(零值取默认 3/12/25 m/s)
+func (p DeviceParams) windCurve() (cutIn, rated, cutOut float64) {
+	cutIn, rated, cutOut = p.CutInMS, p.RatedMS, p.CutOutMS
+	if cutIn <= 0 {
+		cutIn = 3
+	}
+	if rated <= cutIn {
+		rated = 12
+	}
+	if cutOut <= rated {
+		cutOut = 25
+	}
+	return
 }

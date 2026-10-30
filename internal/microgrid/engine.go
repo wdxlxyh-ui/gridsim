@@ -40,6 +40,11 @@ type Engine struct {
 	batPower  map[string]float64 // device_id → battery power
 	gridPower float64
 
+	// 动态特性状态: 仿真时钟(ms)、延迟指令队列、引擎上次写入的设备功率(用于识别置数)
+	simMs     int64
+	dyn       map[string][]delayedCmd
+	lastPower map[string]float64
+
 	// IOA 索引: name → IOA (由 buildPointIndex 构建)
 	pointIOA map[string]uint32
 
@@ -185,7 +190,7 @@ func (e *Engine) ensureGridFormula() {
 		if tc == "" { continue }
 		prefix := tc + itoa(idx+1)
 		switch dev.Type {
-		case CompPV:
+		case CompPV, CompWind:
 			genTerms = append(genTerms, "{"+prefix+"_有功功率}")
 		case CompLoad:
 			loadTerms = append(loadTerms, "{"+prefix+"_有功功率}")
@@ -336,6 +341,7 @@ func (e *Engine) Dashboard() map[string]interface{} {
 
 	// 从 store 读取各设备功率
 	pvPowers := make([]map[string]interface{}, 0)
+	windPowers := make([]map[string]interface{}, 0)
 	batPowers := make([]map[string]interface{}, 0)
 	loadPowers := make([]map[string]interface{}, 0)
 	chargerPowers := make([]map[string]interface{}, 0)
@@ -343,6 +349,7 @@ func (e *Engine) Dashboard() map[string]interface{} {
 	totalGen := 0.0
 	totalLoad := 0.0
 	totalPV := 0.0
+	totalWind := 0.0
 	totalBat := 0.0
 	totalLoadKW := 0.0
 	totalCharger := 0.0
@@ -359,6 +366,16 @@ func (e *Engine) Dashboard() map[string]interface{} {
 			})
 			if dev.Switch.Closed {
 				totalPV += power
+				totalGen += power
+			}
+		case CompWind:
+			windPowers = append(windPowers, map[string]interface{}{
+				"id": dev.ID, "name": dev.Name, "power_kw": math.Round(power*10)/10,
+				"closed": dev.Switch.Closed, "mode": dev.ControlMode,
+				"theory_kw": math.Round(e.readPt(dev.ID+"_Theory")*10) / 10,
+			})
+			if dev.Switch.Closed {
+				totalWind += power
 				totalGen += power
 			}
 		case CompBattery:
@@ -403,7 +420,7 @@ func (e *Engine) Dashboard() map[string]interface{} {
 		}
 	}
 
-	gridPower := totalLoadKW + totalCharger + totalBat - totalPV
+	gridPower := totalLoadKW + totalCharger + totalBat - totalPV - totalWind
 	avgSOC := 0.0
 	if batCnt > 0 {
 		avgSOC = batSOCSum / float64(batCnt)
@@ -412,6 +429,8 @@ func (e *Engine) Dashboard() map[string]interface{} {
 	return map[string]interface{}{
 		"grid_power_kw":    math.Round(gridPower*10) / 10,
 		"pv":               pvPowers,
+		"wind":             windPowers,
+		"total_wind_kw":    math.Round(totalWind*10) / 10,
 		"battery":          batPowers,
 		"load":             loadPowers,
 		"charger":          chargerPowers,
@@ -443,107 +462,31 @@ func (e *Engine) tick() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	// 1. Calculate PV power: AO setpoint only (no irradiance)
+	dt := e.tickSeconds()
+	e.simMs += int64(dt * 1000)
+	e.detectManualSetLocked()
+
+	// 1. PV / wind power
 	for _, dev := range e.topology.Devices {
-		if dev.Type != CompPV {
-			continue
+		if dev.Type == CompPV || dev.Type == CompWind {
+			e.pvPower[dev.ID] = e.calcRenewableLocked(dev, dt)
 		}
-		if !dev.Switch.Closed {
-			e.pvPower[dev.ID] = 0
-			continue
-		}
-		ratedP := dev.Params.RatedPowerKW
-		if ratedP <= 0 { ratedP = 100 }
-		// Remote: always follow AO setpoint (including 0 = output off)
-		// Local: keep current store value (strategy-driven)
-		if dev.ControlMode != ModeLocal {
-			setpoint := e.readPt(dev.ID + "_Setpoint")
-			if setpoint < 0 {
-				setpoint = 0
-			}
-			if setpoint > ratedP {
-				setpoint = ratedP
-			}
-			e.pvPower[dev.ID] = setpoint
-			continue
-		}
-		// Local mode: keep current value (no random irradiance)
-		e.pvPower[dev.ID] = e.readPt(dev.ID + "_Power")
 	}
 
-	// 2. Calculate load/charger power: remote → follow AO setpoint; local → keep store value
+	// 2. Load / charger power
 	for _, dev := range e.topology.Devices {
 		switch dev.Type {
 		case CompLoad:
-			if !dev.Switch.Closed {
-				e.loadPower[dev.ID] = 0
-				continue
-			}
-			if dev.ControlMode != ModeLocal {
-				setpoint := e.readPt(dev.ID + "_Setpoint")
-				if setpoint != 0 {
-					rated := dev.Params.LoadRatedKW
-					if rated <= 0 {
-						rated = 100
-					}
-					if setpoint > rated {
-						setpoint = rated
-					}
-					if setpoint < 0 {
-						setpoint = 0
-					}
-					e.loadPower[dev.ID] = setpoint
-					continue
-				}
-			}
-			e.loadPower[dev.ID] = e.readPt(dev.ID + "_Power")
+			e.loadPower[dev.ID] = e.calcLoadLocked(dev, dev.Params.LoadRatedKW, dt)
 		case CompCharger:
-			if !dev.Switch.Closed {
-				e.loadPower[dev.ID] = 0
-				continue
-			}
-			if dev.ControlMode != ModeLocal {
-				setpoint := e.readPt(dev.ID + "_Setpoint")
-				if setpoint != 0 {
-					rated := dev.Params.ChargerRatedKW
-					if rated <= 0 {
-						rated = 100
-					}
-					if setpoint > rated {
-						setpoint = rated
-					}
-					if setpoint < 0 {
-						setpoint = 0
-					}
-					e.loadPower[dev.ID] = setpoint
-					continue
-				}
-			}
-			e.loadPower[dev.ID] = e.readPt(dev.ID + "_Power")
+			e.loadPower[dev.ID] = e.calcLoadLocked(dev, dev.Params.ChargerRatedKW, dt)
 		}
 	}
 
-	// 3. Calculate battery power: AO setpoint only (no time dispatch)
+	// 3. Battery power
 	for _, dev := range e.topology.Devices {
 		if dev.Type == CompBattery {
-			if !dev.Switch.Closed {
-				e.batPower[dev.ID] = 0
-				continue
-			}
-			if dev.ControlMode != ModeLocal {
-				setpoint := e.readPt(dev.ID + "_Setpoint")
-				slog.Debug("battery setpoint", "dev", dev.ID, "setpoint", setpoint)
-				if setpoint != 0 {
-					ratedP := dev.Params.RatedPowerKW_B
-					if ratedP <= 0 { ratedP = 50 }
-					if setpoint > ratedP { setpoint = ratedP } else if setpoint < -ratedP { setpoint = -ratedP }
-					e.batPower[dev.ID] = setpoint
-					slog.Debug("battery power from setpoint", "dev", dev.ID, "power", setpoint)
-					continue
-				}
-			}
-			e.batPower[dev.ID] = e.readPt(dev.ID + "_Power")
-			slog.Debug("battery power fallback", "dev", dev.ID, "power", e.batPower[dev.ID])
+			e.batPower[dev.ID] = e.calcBatteryLocked(dev, dt)
 		}
 	}
 
@@ -564,6 +507,8 @@ func (e *Engine) tick() {
 	// 5.5 Evaluate user-defined formulas (override store values)
 	e.evaluateFormulasLocked()
 
+	e.recordLastPowerLocked()
+
 	// 6. Record snapshot
 	snap := SimSnapshot{
 		Timestamp: time.Now().UnixMilli(),
@@ -571,7 +516,7 @@ func (e *Engine) tick() {
 	}
 	for _, dev := range e.topology.Devices {
 		switch dev.Type {
-		case CompPV:
+		case CompPV, CompWind:
 			snap.Values[dev.ID] = e.pvPower[dev.ID]
 		case CompBattery:
 			snap.Values[dev.ID] = e.batPower[dev.ID]
@@ -584,6 +529,118 @@ func (e *Engine) tick() {
 	}
 	snap.Values["_grid"] = result.GridPowerKW
 	e.history.Push(snap)
+}
+
+// detectManualSetLocked 识别"置数": store 中的设备功率与引擎上次写入值不同,
+// 说明被外部直接改写, 此时丢弃尚未生效的延迟指令, 避免延迟到期后把置数值冲掉。
+func (e *Engine) detectManualSetLocked() {
+	for _, dev := range e.topology.Devices {
+		last, ok := e.lastPower[dev.ID]
+		if !ok {
+			continue
+		}
+		if math.Abs(e.readPt(dev.ID+"_Power")-last) > 1e-9 {
+			e.resetDyn(dev.ID)
+		}
+	}
+}
+
+func (e *Engine) recordLastPowerLocked() {
+	if e.lastPower == nil {
+		e.lastPower = make(map[string]float64)
+	}
+	for _, dev := range e.topology.Devices {
+		if dev.Type == CompPV || dev.Type == CompWind || dev.Type == CompBattery ||
+			dev.Type == CompLoad || dev.Type == CompCharger {
+			e.lastPower[dev.ID] = e.readPt(dev.ID + "_Power")
+		}
+	}
+}
+
+// calcRenewableLocked 光伏/风电出力。远方: 跟随 AO 设定值(0 即停机), 限功率模式下再与理论功率取小;
+// 本地: 保持 store 值(策略驱动)。风电每个 tick 先由风速刷新理论功率。
+func (e *Engine) calcRenewableLocked(dev Device, dt float64) float64 {
+	if dev.Type == CompWind {
+		e.writePt(dev.ID+"_Theory", windTheoryPower(e.readPt(dev.ID+"_WindSpeed"), dev.Params))
+	}
+	if !dev.Switch.Closed {
+		e.resetDyn(dev.ID)
+		return 0
+	}
+	if dev.ControlMode == ModeLocal {
+		return e.readPt(dev.ID + "_Power")
+	}
+	ratedP := dev.Params.RatedPowerKW
+	if ratedP <= 0 {
+		ratedP = 100
+	}
+	setpoint := e.readPt(dev.ID + "_Setpoint")
+	if setpoint < 0 {
+		setpoint = 0
+	}
+	if setpoint > ratedP {
+		setpoint = ratedP
+	}
+	if dev.isLimitMode() {
+		if th := e.readPt(dev.ID + "_Theory"); th < setpoint {
+			setpoint = math.Max(th, 0)
+		}
+	}
+	return e.shape(dev, e.readPt(dev.ID+"_Power"), setpoint, dt)
+}
+
+// calcLoadLocked 负荷/充电桩。远方且设定值非 0: 跟随设定值; 否则保持 store 值(置数)。
+func (e *Engine) calcLoadLocked(dev Device, rated, dt float64) float64 {
+	if !dev.Switch.Closed {
+		e.resetDyn(dev.ID)
+		return 0
+	}
+	cur := e.readPt(dev.ID + "_Power")
+	if dev.ControlMode != ModeLocal {
+		setpoint := e.readPt(dev.ID + "_Setpoint")
+		if setpoint != 0 || dev.Params.ZeroIsCommand {
+			if rated <= 0 {
+				rated = 100
+			}
+			if setpoint > rated {
+				setpoint = rated
+			}
+			if setpoint < 0 {
+				setpoint = 0
+			}
+			return e.shape(dev, cur, setpoint, dt)
+		}
+	}
+	return cur
+}
+
+// calcBatteryLocked 储能功率(+充 -放)。设定值规则同负荷; 启用 SOC 保护时在功率层限幅。
+func (e *Engine) calcBatteryLocked(dev Device, dt float64) float64 {
+	if !dev.Switch.Closed {
+		e.resetDyn(dev.ID)
+		return 0
+	}
+	p := e.readPt(dev.ID + "_Power")
+	if dev.ControlMode != ModeLocal {
+		setpoint := e.readPt(dev.ID + "_Setpoint")
+		if setpoint != 0 || dev.Params.ZeroIsCommand {
+			ratedP := dev.Params.RatedPowerKW_B
+			if ratedP <= 0 {
+				ratedP = 50
+			}
+			if setpoint > ratedP {
+				setpoint = ratedP
+			} else if setpoint < -ratedP {
+				setpoint = -ratedP
+			}
+			p = e.shape(dev, p, setpoint, dt)
+		}
+	}
+	if dev.Params.SOCProtection {
+		maxC, maxD := e.batteryLimits(dev)
+		p = math.Max(-maxD, math.Min(maxC, p))
+	}
+	return p
 }
 
 // calcBatteryPowerLocked 计算电池功率 (+充电, -放电)
@@ -650,10 +707,15 @@ func (e *Engine) syncStoreLocked() {
 	}
 	for _, dev := range e.topology.Devices {
 		switch dev.Type {
-		case CompPV:
+		case CompPV, CompWind:
 			e.writePt(dev.ID+"_Power", e.pvPower[dev.ID])
 		case CompBattery:
 			e.writePt(dev.ID+"_Power", e.batPower[dev.ID])
+			if dev.Params.SOCProtection {
+				maxC, maxD := e.batteryLimits(dev)
+				e.writePt(dev.ID+"_MaxCharge", maxC)
+				e.writePt(dev.ID+"_MaxDischarge", maxD)
+			}
 			slog.Debug("syncStore battery power", "dev", dev.ID, "power", e.batPower[dev.ID])
 		case CompLoad:
 			e.writePt(dev.ID+"_Power", e.loadPower[dev.ID])
@@ -841,7 +903,7 @@ func (e *Engine) calcPowerBalanceLocked() *PowerBalanceResult {
 			continue
 		}
 		switch dev.Type {
-		case CompPV:
+		case CompPV, CompWind:
 			totalGen += e.pvPower[dev.ID]
 		case CompBattery:
 			p := e.batPower[dev.ID]
