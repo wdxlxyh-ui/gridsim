@@ -153,16 +153,16 @@ const swY = BUS_Y + 36
 const boxTop = BUS_Y + 70
 
 const COLORS: Record<string, string> = {
-  pv: '#16a34a', battery: '#2563eb', load: '#d97706', charger: '#6b7280',
+  pv: '#16a34a', wind: '#0ea5e9', battery: '#2563eb', load: '#d97706', charger: '#6b7280', ems: '#dc2626',
 }
 const BG_COLORS: Record<string, string> = {
-  pv: '#f0fdf4', battery: '#eff6ff', load: '#fffbeb', charger: '#f9fafb',
+  pv: '#f0fdf4', wind: '#f0f9ff', battery: '#eff6ff', load: '#fffbeb', charger: '#f9fafb', ems: '#fef2f2',
 }
 const ICONS: Record<string, string> = {
-  pv: '☀️', battery: '🔋', load: '💡', charger: '🔌',
+  pv: '☀️', wind: '🌀', battery: '🔋', load: '💡', charger: '🔌', ems: '🎛️',
 }
 const LABELS: Record<string, string> = {
-  pv: '光伏', battery: '储能', load: '负荷', charger: '充电桩',
+  pv: '光伏', wind: '风电', battery: '储能', load: '负荷', charger: '充电桩', ems: 'EMS',
 }
 
 // ─── Computed layout ───
@@ -195,7 +195,7 @@ function devX(idx: number): number {
 // ─── Power data ───
 const powerMap = computed(() => {
   const map = new Map<string, number>()
-  for (const arr of [props.dash.pv, props.dash.battery, props.dash.load, props.dash.charger]) {
+  for (const arr of [props.dash.pv, props.dash.wind, props.dash.ems, props.dash.battery, props.dash.load, props.dash.charger]) {
     if (!arr) continue
     for (const d of arr) map.set(d.id, d.power_kw ?? 0)
   }
@@ -241,7 +241,8 @@ function cardHeight(dev: MicrogridDevice): number {
 function devFlowClass(dev: MicrogridDevice): string {
   if (!dev.switch.closed) return 'fl-idle'
   const p = powerMap.value.get(dev.id) ?? 0
-  if (dev.type === 'pv') return p > 0.1 ? 'fl-up' : 'fl-idle'
+  if (dev.type === 'pv' || dev.type === 'wind') return p > 0.1 ? 'fl-up' : 'fl-idle'
+  if (dev.type === 'ems') return 'fl-idle'
   if (dev.type === 'battery') return p > 0.1 ? 'fl-dn' : (p < -0.1 ? 'fl-up' : 'fl-idle')
   // load/charger: consuming → fl-dn
   return p > 0.1 ? 'fl-dn' : 'fl-idle'

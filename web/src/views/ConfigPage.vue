@@ -224,6 +224,22 @@
               微电网实例在创建后，需要进入微电网编辑器配置拓扑结构和设备参数。
             </div>
           </el-form-item>
+          <template v-if="form.protocol === 'microgrid'">
+            <el-form-item label="同时提供 Modbus">
+              <el-switch v-model="mgModbusEnabled" />
+              <span style="margin-left:8px;font-size:12px;color:var(--el-text-color-secondary)">与 IEC104 共用同一份测点，调度可任选协议</span>
+            </el-form-item>
+            <template v-if="mgModbusEnabled">
+              <el-form-item label="Modbus 端口"><el-input-number v-model="mgModbusPort" :min="1" :max="65535" style="width: 100%" /></el-form-item>
+              <el-form-item label="从站 ID"><el-input-number v-model="mgModbusSlaveId" :min="1" :max="247" style="width: 100%" /></el-form-item>
+              <el-form-item label="字节序">
+                <el-select v-model="mgModbusByteOrder" style="width: 100%">
+                  <el-option value="ABCD" label="ABCD (Big-Endian)" /><el-option value="CDAB" label="CDAB (Little-Endian Word Swap)" />
+                  <el-option value="BADC" label="BADC" /><el-option value="DCBA" label="DCBA" />
+                </el-select>
+              </el-form-item>
+            </template>
+          </template>
           <el-form-item v-if="form.protocol === 'modbus_bridge'" label="Python仿真">
             <div style="color: var(--el-text-color-secondary); font-size: 13px;">
               Python 微电网实例使用内置设备配置（PV/BESS/EV/Load/Meter），创建后可通过详情页查看实时数据。
@@ -522,6 +538,10 @@ const form = ref<InstanceConfig>({
 })
 
 const modbusSlaveId = ref(1)
+const mgModbusEnabled = ref(false)
+const mgModbusPort = ref(1502)
+const mgModbusSlaveId = ref(1)
+const mgModbusByteOrder = ref('ABCD')
 const modbusByteOrder = ref('ABCD')
 
 const rules = {
@@ -685,6 +705,11 @@ function handleEdit(row: InstanceState) {
   } else {
     bridgeConfig.value = defaultBridgeConfig()
   }
+  const mg = row.protocol === 'microgrid' ? row.microgrid_config : undefined
+  mgModbusEnabled.value = !!(mg && mg.modbus_port)
+  mgModbusPort.value = mg?.modbus_port || 1502
+  mgModbusSlaveId.value = mg?.modbus_slave_id || 1
+  mgModbusByteOrder.value = mg?.byte_order || 'ABCD'
   if (row.protocol === 'modbus_tcp' && row.modbus_config) {
     modbusSlaveId.value = row.modbus_config.slave_id ?? 1
     modbusByteOrder.value = row.modbus_config.byte_order || 'ABCD'
@@ -708,6 +733,16 @@ async function handleSave() {
         port: data.iec104_port,
         slave_id: modbusSlaveId.value,
         byte_order: modbusByteOrder.value,
+      }
+    }
+    if (data.protocol === 'microgrid') {
+      // 保留既有拓扑/点表, 只覆盖 Modbus 相关字段
+      const prev = (editing.value ? instances.value.find(i => i.id === data.id)?.microgrid_config : undefined) || {}
+      data.microgrid_config = {
+        ...prev,
+        modbus_port: mgModbusEnabled.value ? mgModbusPort.value : 0,
+        modbus_slave_id: mgModbusSlaveId.value,
+        byte_order: mgModbusByteOrder.value,
       }
     }
     if (data.protocol === 'iec104_client') {
@@ -838,6 +873,10 @@ function resetForm() {
   clientConfig.value = defaultClientConfig()
   modbusSlaveId.value = 1
   modbusByteOrder.value = 'ABCD'
+  mgModbusEnabled.value = false
+  mgModbusPort.value = 1502
+  mgModbusSlaveId.value = 1
+  mgModbusByteOrder.value = 'ABCD'
   selectedFile.value = null
 }
 

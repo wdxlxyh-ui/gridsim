@@ -5,6 +5,8 @@
       <el-form-item label="设备类型">
         <el-radio-group v-model="newDeviceType" @change="updateAddPreview">
           <el-radio-button value="pv">光伏</el-radio-button>
+          <el-radio-button value="wind">风电</el-radio-button>
+          <el-radio-button value="ems">EMS</el-radio-button>
           <el-radio-button value="battery">储能</el-radio-button>
           <el-radio-button value="load">负荷</el-radio-button>
           <el-radio-button value="charger">充电桩</el-radio-button>
@@ -24,6 +26,24 @@
           </div>
         </div>
       </el-form-item>
+      <template v-if="newDeviceType === 'wind'">
+        <el-form-item label="额定功率"><el-input-number v-model="newDeviceParams.rated_power_kw" :min="0" :max="99999" style="width:100%" /> kW</el-form-item>
+        <el-form-item label="风速(m/s)">
+          <el-input-number v-model="newDeviceParams.cut_in_ms" :min="0" :max="50" :step="0.5" style="width:30%" placeholder="切入3" />
+          <el-input-number v-model="newDeviceParams.rated_ms" :min="0" :max="50" :step="0.5" style="width:30%" placeholder="额定12" />
+          <el-input-number v-model="newDeviceParams.cut_out_ms" :min="0" :max="80" :step="0.5" style="width:30%" placeholder="切出25" />
+        </el-form-item>
+      </template>
+      <template v-if="newDeviceType === 'ems'">
+        <el-form-item label="EMS 类型">
+          <el-radio-group v-model="newDeviceParams.ems_kind">
+            <el-radio-button value="wind">风电 EMS</el-radio-button>
+            <el-radio-button value="pv">光伏 EMS</el-radio-button>
+            <el-radio-button value="storage">储能 EMS</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="说明"><span style="font-size:12px;color:#909399">默认管理拓扑内全部同类设备；站级有功设定按可用功率(风/光)或可充放余量(储能)分配</span></el-form-item>
+      </template>
       <template v-if="newDeviceType === 'pv'">
         <el-form-item label="额定功率"><el-input-number v-model="newDeviceParams.rated_power_kw" :min="0" :max="99999" style="width:100%" /> kW</el-form-item>
         <el-form-item label="效率"><el-input-number v-model="newDeviceParams.efficiency" :min="0" :max="1" :step="0.05" style="width:100%" /></el-form-item>
@@ -44,6 +64,16 @@
       <template v-if="newDeviceType === 'charger'">
         <el-form-item label="额定功率"><el-input-number v-model="newDeviceParams.charger_rated_kw" :min="0" :max="99999" style="width:100%" /> kW</el-form-item>
         <el-form-item label="效率"><el-input-number v-model="newDeviceParams.charger_eff" :min="0" :max="1" :step="0.05" style="width:100%" /></el-form-item>
+      </template>
+      <template v-if="['pv','wind','battery','load','charger'].includes(newDeviceType)">
+        <el-divider style="margin:6px 0;font-size:12px;color:#909399">动态特性（留空 = 指令瞬时生效）</el-divider>
+        <el-form-item label="爬坡率"><el-input-number v-model="newDeviceParams.ramp_up_kw_per_s" :min="0" :max="99999" style="width:45%" /> ↑ <el-input-number v-model="newDeviceParams.ramp_down_kw_per_s" :min="0" :max="99999" style="width:45%" /> ↓ kW/s</el-form-item>
+        <el-form-item label="响应延迟"><el-input-number v-model="newDeviceParams.response_delay_ms" :min="0" :max="600000" :step="100" style="width:100%" /> ms</el-form-item>
+        <el-form-item v-if="newDeviceType === 'pv'" label="可用功率">
+          <el-switch :model-value="newDeviceParams.available_mode === 'limit'" active-text="限功率(设定值与理论功率取小)" @update:model-value="(v: boolean) => (newDeviceParams.available_mode = v ? 'limit' : '')" />
+        </el-form-item>
+        <el-form-item v-if="newDeviceType === 'battery'" label="SOC 保护"><el-switch v-model="newDeviceParams.soc_protection" active-text="到限值禁止继续充/放" /></el-form-item>
+        <el-form-item v-if="newDeviceType !== 'pv' && newDeviceType !== 'wind'" label="下发 0"><el-switch v-model="newDeviceParams.zero_is_command" active-text="视为真实 0 指令（关=置数语义）" /></el-form-item>
       </template>
     </el-form>
     <el-divider style="margin:8px 0;font-size:12px;color:#909399">自定义测点</el-divider>
@@ -84,6 +114,24 @@
           <el-radio value="local">本地(策略)</el-radio>
         </el-radio-group>
       </el-form-item>
+      <template v-if="editingDevice?.type === 'wind'">
+        <el-form-item label="额定功率"><el-input-number v-model="editingDeviceParams.rated_power_kw" :min="0" :max="99999" style="width:100%" /> kW</el-form-item>
+        <el-form-item label="风速(m/s)">
+          <el-input-number v-model="editingDeviceParams.cut_in_ms" :min="0" :max="50" :step="0.5" style="width:30%" placeholder="切入3" />
+          <el-input-number v-model="editingDeviceParams.rated_ms" :min="0" :max="50" :step="0.5" style="width:30%" placeholder="额定12" />
+          <el-input-number v-model="editingDeviceParams.cut_out_ms" :min="0" :max="80" :step="0.5" style="width:30%" placeholder="切出25" />
+        </el-form-item>
+      </template>
+      <template v-if="editingDevice?.type === 'ems'">
+        <el-form-item label="EMS 类型">
+          <el-radio-group v-model="editingDeviceParams.ems_kind">
+            <el-radio-button value="wind">风电 EMS</el-radio-button>
+            <el-radio-button value="pv">光伏 EMS</el-radio-button>
+            <el-radio-button value="storage">储能 EMS</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="说明"><span style="font-size:12px;color:#909399">默认管理拓扑内全部同类设备；站级有功设定按可用功率(风/光)或可充放余量(储能)分配</span></el-form-item>
+      </template>
       <template v-if="editingDevice?.type === 'pv'">
         <el-form-item label="额定功率"><el-input-number v-model="editingDeviceParams.rated_power_kw" :min="0" :max="99999" style="width:100%" /> kW</el-form-item>
         <el-form-item label="效率"><el-input-number v-model="editingDeviceParams.efficiency" :min="0" :max="1" :step="0.05" style="width:100%" /></el-form-item>
@@ -104,6 +152,16 @@
       <template v-if="editingDevice?.type === 'charger'">
         <el-form-item label="额定功率"><el-input-number v-model="editingDeviceParams.charger_rated_kw" :min="0" :max="99999" style="width:100%" /> kW</el-form-item>
         <el-form-item label="效率"><el-input-number v-model="editingDeviceParams.charger_eff" :min="0" :max="1" :step="0.05" style="width:100%" /></el-form-item>
+      </template>
+      <template v-if="['pv','wind','battery','load','charger'].includes(editingDevice?.type || '')">
+        <el-divider style="margin:6px 0;font-size:12px;color:#909399">动态特性（留空 = 指令瞬时生效）</el-divider>
+        <el-form-item label="爬坡率"><el-input-number v-model="editingDeviceParams.ramp_up_kw_per_s" :min="0" :max="99999" style="width:45%" /> ↑ <el-input-number v-model="editingDeviceParams.ramp_down_kw_per_s" :min="0" :max="99999" style="width:45%" /> ↓ kW/s</el-form-item>
+        <el-form-item label="响应延迟"><el-input-number v-model="editingDeviceParams.response_delay_ms" :min="0" :max="600000" :step="100" style="width:100%" /> ms</el-form-item>
+        <el-form-item v-if="editingDevice?.type === 'pv'" label="可用功率">
+          <el-switch :model-value="editingDeviceParams.available_mode === 'limit'" active-text="限功率(设定值与理论功率取小)" @update:model-value="(v: boolean) => (editingDeviceParams.available_mode = v ? 'limit' : '')" />
+        </el-form-item>
+        <el-form-item v-if="editingDevice?.type === 'battery'" label="SOC 保护"><el-switch v-model="editingDeviceParams.soc_protection" active-text="到限值禁止继续充/放" /></el-form-item>
+        <el-form-item v-if="editingDevice?.type !== 'pv' && editingDevice?.type !== 'wind'" label="下发 0"><el-switch v-model="editingDeviceParams.zero_is_command" active-text="视为真实 0 指令（关=置数语义）" /></el-form-item>
       </template>
     </el-form>
     <template #footer>
@@ -215,7 +273,7 @@ const showAddDevice = computed({ get: () => props.showAddDevice, set: (v) => emi
 const showEditDevice = computed({ get: () => props.showEditDevice, set: (v) => emit('update:showEditDevice', v) })
 const showStrategyDialog = computed({ get: () => props.showStrategyDialog, set: (v) => emit('update:showStrategyDialog', v) })
 
-const newDeviceType = ref<'pv' | 'battery' | 'load' | 'charger'>('pv')
+const newDeviceType = ref<'pv' | 'wind' | 'battery' | 'load' | 'charger' | 'ems'>('pv')
 const newDeviceName = ref('')
 const newDeviceParams = ref<MicrogridDeviceParams>({})
 const newCustomPoints = ref<MicrogridCustomPoint[]>([])
@@ -236,6 +294,18 @@ const strategyForm = ref<any>({
 })
 
 const STDOFF: Record<string, { off: number; name: string; type: string }[]> = {
+  wind: [
+    { off: 0, name: '有功功率', type: 'AI' }, { off: 1, name: '日发电量', type: 'AI' },
+    { off: 2, name: '理论功率', type: 'AI' }, { off: 3, name: '风速', type: 'AI' },
+    { off: 10, name: '运行状态', type: 'DI' }, { off: 11, name: '开关状态', type: 'DI' }, { off: 12, name: '通讯状态', type: 'DI' },
+    { off: 20, name: '功率设定', type: 'AO' }, { off: 30, name: '远程启机', type: 'DO' },
+  ],
+  ems: [
+    { off: 0, name: '有功功率', type: 'AI' }, { off: 1, name: '总额定功率', type: 'AI' },
+    { off: 2, name: '可调上限', type: 'AI' }, { off: 3, name: '可调下限', type: 'AI' }, { off: 4, name: '加权SOC(储能EMS)', type: 'AI' },
+    { off: 10, name: '运行状态', type: 'DI' }, { off: 11, name: '远方状态', type: 'DI' }, { off: 12, name: '通讯状态', type: 'DI' },
+    { off: 20, name: '功率设定', type: 'AO' }, { off: 30, name: '远方控制', type: 'DO' },
+  ],
   pv: [
     { off: 0, name: '有功功率', type: 'AI' }, { off: 1, name: '日发电量', type: 'AI' },
     { off: 10, name: '运行状态', type: 'DI' }, { off: 11, name: '开关状态', type: 'DI' },
@@ -261,6 +331,7 @@ const STDOFF: Record<string, { off: number; name: string; type: string }[]> = {
 function nextAvailableIOABase(): number {
   const occupied = new Set<number>()
   for (let i = 1; i <= 100; i++) occupied.add(i)
+  for (let i = 1001; i <= 1050; i++) occupied.add(i)
   for (const d of props.devices) {
     const base = d.ioa_base || 0
     if (base === 0) continue
@@ -295,7 +366,7 @@ function updateAddPreview() {
 function resetNewDevice() {
   newDeviceType.value = 'pv'
   newDeviceName.value = ''
-  newDeviceParams.value = {}
+  newDeviceParams.value = { ems_kind: 'wind' }
   newCustomPoints.value = []
 }
 </script>

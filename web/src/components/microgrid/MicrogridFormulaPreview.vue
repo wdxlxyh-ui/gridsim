@@ -21,7 +21,7 @@ const props = defineProps<{
 const autoFormulas = computed(() => {
   const result: { label: string; expr: string }[] = []
   const active = (d: any) => d.switch.closed
-  const pvs = props.devices.filter(d => d.type === 'pv')
+  const pvs = props.devices.filter(d => d.type === 'pv' || d.type === 'wind')
   const bats = props.devices.filter(d => d.type === 'battery')
   const loads = props.devices.filter(d => d.type === 'load')
   const chargers = props.devices.filter(d => d.type === 'charger')
@@ -32,7 +32,7 @@ const autoFormulas = computed(() => {
 
   if (pvs.length) {
     const a = pvs.filter(active)
-    result.push({ label: '光伏总功率', expr: a.length ? activeRef(pvs) : '0 (全部断开)' })
+    result.push({ label: '光伏/风电总功率', expr: a.length ? activeRef(pvs) : '0 (全部断开)' })
     for (const d of pvs) result.push({ label: `  ${activeName(d)}`, expr: active(d) ? `${mkRef(d)} = SETPOINT ∈ [0, ${d.params.rated_power_kw || '?'}]` : '0 (断路)' })
   }
   if (bats.length) {

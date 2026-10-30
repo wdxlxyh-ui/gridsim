@@ -20,7 +20,8 @@
         </el-tag>
       </div>
       <div class="device-params" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <template v-if="dev.type === 'pv'">{{ dev.params.rated_power_kw || '-' }} kW</template>
+        <template v-if="dev.type === 'pv' || dev.type === 'wind'">{{ dev.params.rated_power_kw || '-' }} kW</template>
+        <template v-else-if="dev.type === 'ems'">{{ emsKindLabel(dev.params.ems_kind) }} · 站级有功设定</template>
         <template v-else-if="dev.type === 'battery'">
           {{ dev.params.capacity_kwh || '-' }} kWh / {{ dev.params.rated_power_kw_b || '-' }} kW
         </template>
@@ -56,13 +57,17 @@ defineEmits<{
 }>()
 
 function devTypeLabel(type: string): string {
-  const map: Record<string, string> = { pv: '光伏', battery: '储能', load: '负荷', charger: '充电桩' }
+  const map: Record<string, string> = { pv: '光伏', wind: '风电', battery: '储能', load: '负荷', charger: '充电桩', ems: 'EMS' }
   return map[type] || type
 }
 
 function devTypeTag(type: string): 'success' | 'primary' | 'warning' | 'info' {
-  const map: Record<string, any> = { pv: 'success', battery: 'primary', load: 'warning', charger: 'info' }
+  const map: Record<string, any> = { pv: 'success', wind: 'success', battery: 'primary', load: 'warning', charger: 'info', ems: 'danger' }
   return map[type] || 'info'
+}
+
+function emsKindLabel(kind?: string): string {
+  return ({ wind: '风电 EMS', pv: '光伏 EMS', storage: '储能 EMS' } as Record<string, string>)[kind || ''] || 'EMS'
 }
 
 function deviceHasConflict(dev: MicrogridDevice): boolean {

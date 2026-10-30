@@ -151,7 +151,7 @@ const topologyChanged = ref(false)
 
 const busName = ref('10kV 母线')
 const busVoltage = ref(10)
-const gridMeter = ref({ rated_capacity_kw: 500, island_mode: false })
+const gridMeter = ref<{ rated_capacity_kw: number; island_mode: boolean; import_limit_kw?: number; export_limit_kw?: number; breaker_points?: boolean }>({ rated_capacity_kw: 500, island_mode: false })
 watch([gridMeter, busVoltage, busName], () => { topologyChanged.value = true }, { deep: true, flush: 'sync' })
 const devices = ref<MicrogridDevice[]>([])
 const dash = ref<MicrogridDashboard>({ grid_power_kw: 0, total_pv_kw: 0, total_bat_kw: 0, total_load_kw: 0, total_charger_kw: 0 })
@@ -184,7 +184,7 @@ const snapshots = ref<Array<{
   timestamp: string
   bus_name: string
   bus_voltage_kv: number
-  grid_meter: { rated_capacity_kw: number; island_mode: boolean }
+  grid_meter: { rated_capacity_kw: number; island_mode: boolean; import_limit_kw?: number; export_limit_kw?: number; breaker_points?: boolean }
   devices: any[]
 }>>([])
 

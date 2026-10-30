@@ -148,6 +148,7 @@ export interface InstanceConfig {
   http_port?: number
   protocol?: string
   modbus_config?: ModbusConfig
+  microgrid_config?: { topology_json?: string; points_json?: string; tick_ms?: number; speed_factor?: number; modbus_port?: number; modbus_slave_id?: number; byte_order?: string }
   iec104_client_config?: IEC104ClientConfig
   modbus_bridge_config?: ModbusBridgeConfig
 }
@@ -176,6 +177,7 @@ export interface InstanceState {
   iec104_client_config?: IEC104ClientConfig
   modbus_config?: ModbusConfig
   modbus_bridge_config?: ModbusBridgeConfig
+  microgrid_config?: InstanceConfig['microgrid_config']
 }
 
 export interface GlobalStatus {
@@ -451,6 +453,20 @@ export interface MicrogridDeviceParams {
   power_factor?: number
   charger_rated_kw?: number
   charger_eff?: number
+  // 风电
+  cut_in_ms?: number
+  rated_ms?: number
+  cut_out_ms?: number
+  // EMS
+  ems_kind?: 'wind' | 'pv' | 'storage'
+  ems_members?: string[]
+  // 动态特性 (零值 = 瞬时响应)
+  ramp_up_kw_per_s?: number
+  ramp_down_kw_per_s?: number
+  response_delay_ms?: number
+  available_mode?: '' | 'limit'
+  soc_protection?: boolean
+  zero_is_command?: boolean
 }
 
 export interface MicrogridCustomPoint {
@@ -467,7 +483,7 @@ export interface MicrogridStrategyConfig {
 
 export interface MicrogridDevice {
   id: string
-  type: 'pv' | 'battery' | 'load' | 'charger'
+  type: 'pv' | 'wind' | 'battery' | 'load' | 'charger' | 'ems'
   name: string
   switch: MicrogridDeviceSwitch
   params: MicrogridDeviceParams
@@ -482,6 +498,9 @@ export interface MicrogridDevice {
 export interface GridMeterConfig {
   rated_capacity_kw: number
   island_mode: boolean
+  import_limit_kw?: number
+  export_limit_kw?: number
+  breaker_points?: boolean
 }
 
 export interface MicrogridTopology {
@@ -498,8 +517,11 @@ export interface MicrogridDashboard {
   total_bat_kw: number
   total_load_kw: number
   total_charger_kw: number
+  total_wind_kw?: number
   battery_soc?: number
   pv?: { id: string; name: string; power_kw: number; closed: boolean; mode?: string }[]
+  wind?: { id: string; name: string; power_kw: number; closed: boolean; theory_kw?: number; mode?: string }[]
+  ems?: { id: string; name: string; kind: string; power_kw: number; setpoint_kw: number; upper_kw: number; lower_kw: number; remote: boolean; comm_ok: boolean }[]
   battery?: { id: string; name: string; power_kw: number; closed: boolean; soc?: number; mode?: string }[]
   load?: { id: string; name: string; power_kw: number; closed: boolean; mode?: string }[]
   charger?: { id: string; name: string; power_kw: number; closed: boolean; mode?: string }[]
