@@ -38,6 +38,8 @@
               </el-dropdown-menu>
             </template>
           </el-dropdown>
+          <span class="header-divider"></span>
+          <AppLogo />
         </div>
       </header>
       <el-container style="height: calc(100vh - var(--header-height))">
@@ -85,6 +87,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { Grid, Setting, Monitor, DataLine, Fold, ArrowDown, Connection, Search, Lock } from '@element-plus/icons-vue'
 import { getStatus, clearToken, type GlobalStatus } from './api'
 import OnboardingGuide from './components/OnboardingGuide.vue'
+import AppLogo from './components/AppLogo.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -271,6 +274,12 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Ro
 }
 
 .header-status-tag { font-size: 12px; }
+
+.header-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border-color);
+}
 
 .count-up {
   display: inline-block;
