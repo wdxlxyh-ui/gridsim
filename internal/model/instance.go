@@ -35,6 +35,11 @@ type MicrogridInstanceConfig struct {
 	PointsJSON   string  `json:"points_json,omitempty"`
 	TickMs       int     `json:"tick_ms,omitempty"`
 	SpeedFactor  float64 `json:"speed_factor,omitempty"`
+
+	// 可选: 在 IEC104 之外同时提供 Modbus TCP(共用同一个点表)。ModbusPort=0 表示不启用。
+	ModbusPort    int    `json:"modbus_port,omitempty"`
+	ModbusSlaveID uint8  `json:"modbus_slave_id,omitempty"`
+	ByteOrder     string `json:"byte_order,omitempty"` // ABCD(默认)/BADC/CDAB/DCBA
 }
 
 type ModbusInstanceConfig struct {

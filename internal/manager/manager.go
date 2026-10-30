@@ -23,6 +23,7 @@ import (
 	"gridsim/pkg/firewall"
 	"gridsim/pkg/library"
 	"gridsim/pkg/protocol"
+	"gridsim/pkg/protocol/modbus"
 	"gridsim/pkg/protocol/modbus_bridge"
 )
 
@@ -52,6 +53,7 @@ type Instance struct {
 	AutoEngine             *detail.Engine
 	Logger                 *InstanceLogger
 	Microgrid              *microgrid.Engine // non-nil only for microgrid instances
+	ModbusAux              protocol.Protocol // microgrid 实例可选的 Modbus TCP 监听
 	persistenceUnsubscribe func()
 }
 
@@ -246,6 +248,18 @@ func (m *Manager) CreateConfig(cfg model.InstanceConfig) (model.InstanceConfig, 
 		}
 		if cfg.HttpEnabled && existing.HttpEnabled && existing.HttpPort == cfg.HttpPort {
 			return model.InstanceConfig{}, fmt.Errorf("http port %d already configured for instance %s", cfg.HttpPort, existing.ID)
+		}
+		// 微电网实例附带的 Modbus 端口不得与其它实例的协议/HTTP/Modbus 端口冲突
+		if cfg.MicrogridConfig != nil && cfg.MicrogridConfig.ModbusPort > 0 {
+			mp := cfg.MicrogridConfig.ModbusPort
+			if (usesProtocolServerPort(existing) && instanceProtocolPort(existing) == mp) ||
+				(existing.HttpEnabled && existing.HttpPort == mp) ||
+				(existing.MicrogridConfig != nil && existing.MicrogridConfig.ModbusPort == mp) {
+				return model.InstanceConfig{}, fmt.Errorf("modbus port %d already configured for instance %s", mp, existing.ID)
+			}
+			if mp == cfgPort || (cfg.HttpEnabled && mp == cfg.HttpPort) {
+				return model.InstanceConfig{}, fmt.Errorf("modbus port %d conflicts with this instance's other ports", mp)
+			}
 		}
 		// Check Modbus bridge port collision
 		if cfg.Protocol == "modbus_bridge" && existing.Protocol == "modbus_bridge" &&
@@ -524,6 +538,9 @@ func (m *Manager) StopInstance(id string) error {
 		inst.Microgrid.Stop()
 	}
 	inst.Protocol.Stop()
+	if inst.ModbusAux != nil {
+		inst.ModbusAux.Stop()
+	}
 	if inst.AutoEngine != nil {
 		inst.AutoEngine.StopAll()
 	}
@@ -719,6 +736,9 @@ func (m *Manager) StopAll() {
 			inst.Microgrid.Stop()
 		}
 		inst.Protocol.Stop()
+		if inst.ModbusAux != nil {
+			inst.ModbusAux.Stop()
+		}
 		if inst.AutoEngine != nil {
 			inst.AutoEngine.StopAll()
 		}
@@ -767,7 +787,28 @@ func (m *Manager) startMicrogrid(id string) error {
 	}
 	ln.Close()
 
+	mc := cfg.MicrogridConfig
+	if mc.ModbusPort > 0 {
+		if mc.ModbusPort == cfg.IEC104Port || (cfg.HttpEnabled && mc.ModbusPort == cfg.HttpPort) {
+			return fmt.Errorf("modbus port %d conflicts with this instance's other ports", mc.ModbusPort)
+		}
+		for _, inst := range m.instances {
+			if instanceProtocolPort(inst.Config) == mc.ModbusPort ||
+				(inst.Config.MicrogridConfig != nil && inst.Config.MicrogridConfig.ModbusPort == mc.ModbusPort) {
+				return fmt.Errorf("modbus port %d already in use by instance %s", mc.ModbusPort, inst.Config.ID)
+			}
+		}
+		ln, err := net.Listen("tcp", fmt.Sprintf(":%d", mc.ModbusPort))
+		if err != nil {
+			return fmt.Errorf("modbus port %d not available: %w", mc.ModbusPort, err)
+		}
+		ln.Close()
+	}
+
 	store := topo.StoreFromTopology()
+	if mc.ModbusPort > 0 {
+		microgrid.AssignModbusMap(store)
+	}
 	proto, err := protocol.New(cfg)
 	if err != nil {
 		return fmt.Errorf("create protocol: %w", err)
@@ -775,6 +816,24 @@ func (m *Manager) startMicrogrid(id string) error {
 	proto.SetStore(store)
 	if err := proto.Start(); err != nil {
 		return fmt.Errorf("start protocol: %w", err)
+	}
+
+	var modbusAux protocol.Protocol
+	if mc.ModbusPort > 0 {
+		slave := mc.ModbusSlaveID
+		if slave == 0 {
+			slave = 1
+		}
+		order := mc.ByteOrder
+		if order == "" {
+			order = "ABCD"
+		}
+		modbusAux = modbus.NewTCPServer(mc.ModbusPort, slave, order)
+		modbusAux.SetStore(store)
+		if err := modbusAux.Start(); err != nil {
+			proto.Stop()
+			return fmt.Errorf("start modbus: %w", err)
+		}
 	}
 
 	tickMs := 1000
@@ -795,6 +854,9 @@ func (m *Manager) startMicrogrid(id string) error {
 	eng.SetPublisher(proto)
 	if err := eng.Start(); err != nil {
 		proto.Stop()
+		if modbusAux != nil {
+			modbusAux.Stop()
+		}
 		return fmt.Errorf("start microgrid engine: %w", err)
 	}
 
@@ -810,6 +872,7 @@ func (m *Manager) startMicrogrid(id string) error {
 		Protocol:   proto,
 		Store:      store,
 		Microgrid:  eng,
+		ModbusAux:  modbusAux,
 		AutoEngine: autoEng,
 	}
 
@@ -817,6 +880,9 @@ func (m *Manager) startMicrogrid(id string) error {
 		ln, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.HttpPort))
 		if err != nil {
 			proto.Stop()
+			if modbusAux != nil {
+				modbusAux.Stop()
+			}
 			eng.Stop()
 			return fmt.Errorf("http port %d not available: %w", cfg.HttpPort, err)
 		}
@@ -840,6 +906,9 @@ func (m *Manager) startMicrogrid(id string) error {
 	m.instances[id] = inst
 	m.startPersistence(id, store)
 	firewall.EnsurePort(cfg.IEC104Port, "gridsim-microgrid")
+	if modbusAux != nil {
+		firewall.EnsurePort(mc.ModbusPort, "gridsim-microgrid-modbus")
+	}
 	slog.Info("微电网实例已启动", "id", id, "devices", len(topo.Devices))
 	return nil
 }

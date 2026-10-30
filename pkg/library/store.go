@@ -69,6 +69,13 @@ func NewStore(points []*config.Point) *Store {
 	return s
 }
 
+// ReindexModbus 在点的 FunctionCode/RegisterAddress 被修改后重建其 Modbus 索引。
+func (s *Store) ReindexModbus(p *config.Point) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.indexModbusPoint(p)
+}
+
 func (s *Store) Get(ioa uint32) (*config.Point, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
