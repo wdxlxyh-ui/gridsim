@@ -276,7 +276,7 @@ func HandleMicrogridPoints(mgr ManagerBridge) http.HandlerFunc {
 				var topo Topology
 				json.Unmarshal([]byte(cfg.MicrogridConfig.TopologyJSON), &topo)
 				for idx, dev := range topo.Devices {
-					prefix := typeChinese[dev.Type] + itoa(idx+1)
+					prefix := devPrefix(dev, idx)
 					switch dev.Type {
 					case CompPV, CompWind:
 						canToggle[prefix+"_有功功率"] = true

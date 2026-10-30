@@ -8,6 +8,7 @@ type ComponentType string
 const (
 	CompPV      ComponentType = "pv"
 	CompWind    ComponentType = "wind"
+	CompEMS     ComponentType = "ems"
 	CompBattery ComponentType = "battery"
 	CompLoad    ComponentType = "load"
 	CompCharger ComponentType = "charger"
@@ -31,6 +32,10 @@ type DeviceParams struct {
 	CutInMS  float64 `json:"cut_in_ms,omitempty"`
 	RatedMS  float64 `json:"rated_ms,omitempty"`
 	CutOutMS float64 `json:"cut_out_ms,omitempty"`
+
+	// EMS: Kind = wind | pv | storage, 管理同类设备; Members 为空时管理全部同类设备
+	EMSKind    string   `json:"ems_kind,omitempty"`
+	EMSMembers []string `json:"ems_members,omitempty"`
 
 	// 动态特性 (全部零值 = 旧行为: 指令瞬时生效)
 	// 爬坡率 kW/s: Up 为功率数值上升方向(储能即向充电), Down 为下降方向; 只配一个时两个方向共用

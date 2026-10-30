@@ -44,6 +44,7 @@ type Engine struct {
 	simMs     int64
 	dyn       map[string][]delayedCmd
 	lastPower map[string]float64
+	emsCmd    map[string]bool // 本 tick 被 EMS 下发了指令的单元(其设定值 0 视为真实指令)
 
 	// IOA 索引: name → IOA (由 buildPointIndex 构建)
 	pointIOA map[string]uint32
@@ -78,7 +79,7 @@ func (e *Engine) buildPointIndex() {
 
 	// Add dev.ID aliases so engine can use internal names
 	for idx, dev := range e.topology.Devices {
-		prefix := typeChinese[dev.Type] + itoa(idx+1)
+		prefix := devPrefix(dev, idx)
 		suffixMap := internalSuffixes
 		for cnSuffix, engSuffix := range suffixMap {
 			cnName := prefix + cnSuffix
@@ -186,9 +187,8 @@ func (e *Engine) ensureGridFormula() {
 	// Build formula: GRID_P = (load + charger + battery(charge)) - (pv + battery(discharge))
 	var loadTerms, genTerms []string
 	for idx, dev := range e.topology.Devices {
-		tc := typeChinese[dev.Type]
-		if tc == "" { continue }
-		prefix := tc + itoa(idx+1)
+		if typeChinese[dev.Type] == "" { continue }
+		prefix := devPrefix(dev, idx)
 		switch dev.Type {
 		case CompPV, CompWind:
 			genTerms = append(genTerms, "{"+prefix+"_有功功率}")
@@ -284,7 +284,7 @@ func (e *Engine) ReloadTopology(topo *Topology) {
 
 		// 2) Try reading current SOC from store by Chinese point name
 		if !found && e.store != nil {
-			prefix := typeChinese[dev.Type] + itoa(idx+1)
+			prefix := devPrefix(dev, idx)
 			for _, p := range e.store.GetAll() {
 				if p.Name == prefix+"_电池SOC" {
 					socVal = p.Value
@@ -342,6 +342,7 @@ func (e *Engine) Dashboard() map[string]interface{} {
 	// 从 store 读取各设备功率
 	pvPowers := make([]map[string]interface{}, 0)
 	windPowers := make([]map[string]interface{}, 0)
+	emsList := make([]map[string]interface{}, 0)
 	batPowers := make([]map[string]interface{}, 0)
 	loadPowers := make([]map[string]interface{}, 0)
 	chargerPowers := make([]map[string]interface{}, 0)
@@ -368,6 +369,16 @@ func (e *Engine) Dashboard() map[string]interface{} {
 				totalPV += power
 				totalGen += power
 			}
+		case CompEMS:
+			emsList = append(emsList, map[string]interface{}{
+				"id": dev.ID, "name": dev.Name, "kind": dev.Params.EMSKind,
+				"power_kw":    math.Round(power*10) / 10,
+				"setpoint_kw": math.Round(e.readPt(dev.ID+"_Setpoint")*10) / 10,
+				"upper_kw":    math.Round(e.readPt(dev.ID+"_UpLimit")*10) / 10,
+				"lower_kw":    math.Round(e.readPt(dev.ID+"_LowLimit")*10) / 10,
+				"remote":      e.readPt(dev.ID+"_RemoteCtl") >= 0.5,
+				"comm_ok":     e.readPt(dev.ID+"_Comm") >= 0.5,
+			})
 		case CompWind:
 			windPowers = append(windPowers, map[string]interface{}{
 				"id": dev.ID, "name": dev.Name, "power_kw": math.Round(power*10)/10,
@@ -430,6 +441,7 @@ func (e *Engine) Dashboard() map[string]interface{} {
 		"grid_power_kw":    math.Round(gridPower*10) / 10,
 		"pv":               pvPowers,
 		"wind":             windPowers,
+		"ems":              emsList,
 		"total_wind_kw":    math.Round(totalWind*10) / 10,
 		"battery":          batPowers,
 		"load":             loadPowers,
@@ -465,6 +477,7 @@ func (e *Engine) tick() {
 	dt := e.tickSeconds()
 	e.simMs += int64(dt * 1000)
 	e.detectManualSetLocked()
+	e.dispatchEMSLocked()
 
 	// 1. PV / wind power
 	for _, dev := range e.topology.Devices {
@@ -598,7 +611,7 @@ func (e *Engine) calcLoadLocked(dev Device, rated, dt float64) float64 {
 	cur := e.readPt(dev.ID + "_Power")
 	if dev.ControlMode != ModeLocal {
 		setpoint := e.readPt(dev.ID + "_Setpoint")
-		if setpoint != 0 || dev.Params.ZeroIsCommand {
+		if setpoint != 0 || dev.Params.ZeroIsCommand || e.emsCmd[dev.ID] {
 			if rated <= 0 {
 				rated = 100
 			}
@@ -623,7 +636,7 @@ func (e *Engine) calcBatteryLocked(dev Device, dt float64) float64 {
 	p := e.readPt(dev.ID + "_Power")
 	if dev.ControlMode != ModeLocal {
 		setpoint := e.readPt(dev.ID + "_Setpoint")
-		if setpoint != 0 || dev.Params.ZeroIsCommand {
+		if setpoint != 0 || dev.Params.ZeroIsCommand || e.emsCmd[dev.ID] {
 			ratedP := dev.Params.RatedPowerKW_B
 			if ratedP <= 0 {
 				ratedP = 50
@@ -706,6 +719,10 @@ func (e *Engine) syncStoreLocked() {
 		return
 	}
 	for _, dev := range e.topology.Devices {
+		if dev.Type == CompEMS {
+			e.syncEMSLocked(dev)
+			continue
+		}
 		switch dev.Type {
 		case CompPV, CompWind:
 			e.writePt(dev.ID+"_Power", e.pvPower[dev.ID])

@@ -13,6 +13,7 @@ import (
 var typeChinese = map[ComponentType]string{
 	CompPV:      "光伏",
 	CompWind:    "风电",
+	CompEMS:     "EMS",
 	CompBattery: "储能",
 	CompLoad:    "负荷",
 	CompCharger: "充电桩",
@@ -46,8 +47,7 @@ func (t *Topology) ExpandPoints() []*config.Point {
 	// ── Per-device points ──
 	// IOA 分配基于设备自声明的 IOABase，与设备在数组中的位置无关
 	for idx, dev := range t.Devices {
-		n := idx + 1
-		prefix := typeChinese[dev.Type] + itoa(n)
+		prefix := devPrefix(dev, idx)
 
 		// 使用设备声明的 IOABase，而非位置推导
 		base := int(dev.IOABase)
@@ -101,6 +101,36 @@ func (t *Topology) ExpandPoints() []*config.Point {
 				mkAO(baseAO, "_功率设定", "WGEN.SysAPSetPoint|kW", dev.Params.RatedPowerKW),
 				mkDO(baseDO, "_远程启机", "WTUR.Start", swVal),
 			)
+		case CompEMS: // EMS.*
+			ratedSum, remote := 0.0, 1.0
+			if dev.ControlMode == ModeLocal {
+				remote = 0
+			}
+			for _, u := range t.emsUnits(dev) {
+				if u.Type == CompBattery {
+					ratedSum += u.Params.RatedPowerKW_B
+				} else {
+					ratedSum += u.Params.RatedPowerKW
+				}
+			}
+			setInit := ratedSum // 风/光 EMS 默认不限发; 储能 EMS 默认 0
+			if dev.Params.EMSKind == "storage" {
+				setInit = 0
+			}
+			points = append(points,
+				mkAI(baseAI, "_有功功率", "EMS.ActivePW|kW", 0),
+				mkAI(baseAI+1, "_总额定功率", "EMS.RatedPW|kW", ratedSum),
+				mkAI(baseAI+2, "_可调上限", "EMS.UpperLimitPW|kW", ratedSum),
+				mkAI(baseAI+3, "_可调下限", "EMS.LowerLimitPW|kW", 0),
+				mkDI(baseDI, "_运行状态", "EMS.State", 1),
+				mkDI(baseDI+1, "_远方状态", "EMS.RemoteSts", remote),
+				mkDI(baseDI+2, "_通讯状态", "EMS.CommSts", 1),
+				mkAO(baseAO, "_功率设定", "EMS.SysAPSetPoint|kW", setInit),
+				mkDO(baseDO, "_远方控制", "EMS.RemoteCtrl", remote),
+			)
+			if dev.Params.EMSKind == "storage" {
+				points = append(points, mkAI(baseAI+4, "_加权SOC", "EMS.Soc|%", 50))
+			}
 		case CompBattery: // BS.*
 			points = append(points,
 				mkAI(baseAI, "_电池SOC", "BS.Soc|%", initSOC),
@@ -181,6 +211,12 @@ var internalSuffixes = map[string]string{
 	"_最大可充功率": "_MaxCharge",
 	"_最大可放功率": "_MaxDischarge",
 	"_通讯状态":   "_Comm",
+	"_总额定功率":  "_Rated",
+	"_可调上限":   "_UpLimit",
+	"_可调下限":   "_LowLimit",
+	"_加权SOC":  "_SOC",
+	"_远方状态":   "_RemoteSts",
+	"_远方控制":   "_RemoteCtl",
 }
 
 // itoa converts int to string without importing strconv in hot path
@@ -245,7 +281,35 @@ func validateIOAUnique(topo *Topology) error {
 
 // StoreFromTopology 从拓扑创建 Store
 func (t *Topology) StoreFromTopology() *library.Store {
-	return library.NewStore(t.ExpandPoints())
+	pts := t.ExpandPoints()
+	// 只对新功能涉及的设备应用点表初始值(风速、EMS 设定值、理论功率等需要非零初值);
+	// 其余设备保持"启动时全 0、由首个 tick 写入"的既有行为。
+	var prefixes []string
+	for idx, dev := range t.Devices {
+		if dev.Type == CompWind || dev.Type == CompEMS || dev.isLimitMode() || dev.Params.SOCProtection {
+			prefixes = append(prefixes, devPrefix(dev, idx)+"_")
+		}
+	}
+	for _, p := range pts {
+		for _, pre := range prefixes {
+			if strings.HasPrefix(p.Name, pre) {
+				applyInitialValue(p)
+				break
+			}
+		}
+	}
+	return library.NewStore(pts)
+}
+
+// applyInitialValue 把点表初始值(BaseValue)写入当前值; library.NewStore 本身不做这一步。
+func applyInitialValue(p *config.Point) {
+	switch p.PointType {
+	case config.TypeAI, config.TypeAO:
+		p.Value = p.BaseValue * p.Efficient
+	case config.TypeDI, config.TypeDO:
+		p.Value = p.BaseValue
+		p.BoolValue = p.BaseValue != 0
+	}
 }
 
 // FormatPointTable 格式化点表
@@ -286,6 +350,10 @@ func (t *Topology) Validate() error {
 			if d.Params.RatedPowerKW <= 0 { return fmt.Errorf("设备 %s 额定功率未设置", d.Name) }
 		case CompWind:
 			if d.Params.RatedPowerKW <= 0 { return fmt.Errorf("设备 %s 额定功率未设置", d.Name) }
+		case CompEMS:
+			if _, ok := emsUnitType[d.Params.EMSKind]; !ok {
+				return fmt.Errorf("设备 %s 的 EMS 类型 %q 无效(wind/pv/storage)", d.Name, d.Params.EMSKind)
+			}
 		case CompBattery:
 			if d.Params.CapacityKWH <= 0 { return fmt.Errorf("设备 %s 额定容量未设置", d.Name) }
 		case CompLoad:

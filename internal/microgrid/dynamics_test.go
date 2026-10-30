@@ -222,6 +222,8 @@ func TestBattery_SOCProtection_StopsChargeAtMax(t *testing.T) {
 	topo.Devices[2].Params.InitSOC = 89.9
 	eng := newDispatchEngine(topo)
 	eng.soc["bat1"] = 89.9
+	eng.set("风电1_功率设定", 0) // 风/光默认按可用功率发电, 本用例只看储能
+	eng.set("光伏2_功率设定", 0)
 	eng.set("储能3_功率设定", 100)
 
 	for i := 0; i < 600; i++ {
