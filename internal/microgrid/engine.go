@@ -754,8 +754,13 @@ func (e *Engine) syncStoreLocked() {
 	e.writePt("关口表_有功功率", e.gridPower)
 	e.writePt("关口表_无功功率", e.gridPower*0.15)
 	e.writePt("关口表_运行状态", 1)
-	if e.topology.GridMeter.IslandMode {
+	island := e.islandLocked()
+	if island {
 		e.writePt("关口表_运行状态", 0)
+	}
+	e.writePt("关口表_孤岛状态", boolF(island))
+	if _, ok := e.pointIOA["关口表_并网开关状态"]; ok {
+		e.writePt("关口表_并网开关状态", boolF(!e.breakerOpenLocked()))
 	}
 }
 
@@ -937,22 +942,30 @@ func (e *Engine) calcPowerBalanceLocked() *PowerBalanceResult {
 		}
 	}
 
-	island := e.topology.GridMeter.IslandMode
+	island := e.islandLocked()
 	grossLoad := totalLoad
 	grossGen := totalGen
 	gridPower := 0.0
 
 	if !island {
-		cap := e.topology.GridMeter.RatedCapacityKW
+		gm := e.topology.GridMeter
+		cap := gm.RatedCapacityKW
 		if cap <= 0 {
 			cap = 10000
 		}
+		impLim, expLim := cap, cap
+		if gm.ImportLimitKW > 0 {
+			impLim = gm.ImportLimitKW
+		}
+		if gm.ExportLimitKW > 0 {
+			expLim = gm.ExportLimitKW
+		}
 		// GRID > 0 = 从电网用电, GRID < 0 = 向电网送电
 		raw := grossLoad - grossGen
-		if raw > cap {
-			gridPower = cap
-		} else if raw < -cap {
-			gridPower = -cap
+		if raw > impLim {
+			gridPower = impLim
+		} else if raw < -expLim {
+			gridPower = -expLim
 		} else {
 			gridPower = raw
 		}
@@ -986,6 +999,7 @@ func (e *Engine) syncStoreWithTopology() {
 	expanded := e.topology.ExpandPoints()
 	for _, p := range expanded {
 		if _, found := e.store.Get(p.IOA); !found {
+			applyInitialValue(p)
 			if err := e.store.AddPoint(p); err != nil {
 				slog.Warn("syncStoreWithTopology: AddPoint failed", "ioa", p.IOA, "name", p.Name, "error", err)
 			} else {
@@ -997,3 +1011,23 @@ func (e *Engine) syncStoreWithTopology() {
 
 // ─── Store helpers ───
 
+
+// breakerOpenLocked 并网开关是否断开: 由 DO 点"关口表_并网开关遥控"控制(0=分); 点不存在时视为合闸。
+func (e *Engine) breakerOpenLocked() bool {
+	if _, ok := e.pointIOA["关口表_并网开关遥控"]; !ok {
+		return false
+	}
+	return e.readPt("关口表_并网开关遥控") < 0.5
+}
+
+// islandLocked 拓扑配置孤岛, 或并网开关断开, 均按孤岛处理(关口功率为 0)。
+func (e *Engine) islandLocked() bool {
+	return e.topology.GridMeter.IslandMode || e.breakerOpenLocked()
+}
+
+func boolF(b bool) float64 {
+	if b {
+		return 1
+	}
+	return 0
+}

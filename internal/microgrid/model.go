@@ -122,6 +122,11 @@ type Topology struct {
 // GridMeterConfig 关口表配置
 type GridMeterConfig struct {
 	RatedCapacityKW float64 `json:"rated_capacity_kw"`
+	// 进口/出口功率限值(kW, 正数); 0 表示沿用 RatedCapacityKW
+	ImportLimitKW float64 `json:"import_limit_kw,omitempty"`
+	ExportLimitKW float64 `json:"export_limit_kw,omitempty"`
+	// 启用可遥控的并网开关点(关口表_并网开关状态/遥控); 默认关闭以保持既有点表不变
+	BreakerPoints bool `json:"breaker_points,omitempty"`
 	IslandMode      bool    `json:"island_mode"`
 }
 

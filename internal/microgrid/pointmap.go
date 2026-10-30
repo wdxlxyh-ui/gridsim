@@ -37,10 +37,33 @@ func (t *Topology) ExpandPoints() []*config.Point {
 		{"关口表_运行状态", config.TypeDI, 1001, "METER.OemState"},
 		{"关口表_孤岛状态", config.TypeDI, 1002, "METER.Island"},
 	}
+	if t.GridMeter.BreakerPoints {
+		gridDefs = append(gridDefs,
+			struct {
+				name  string
+				ptype config.PointType
+				ioa   int
+				alias string
+			}{"关口表_并网开关状态", config.TypeDI, 1003, "METER.BreakerSts"},
+			struct {
+				name  string
+				ptype config.PointType
+				ioa   int
+				alias string
+			}{"关口表_并网开关遥控", config.TypeDO, 1011, "METER.BreakerCtrl"},
+		)
+	}
 	for _, gd := range gridDefs {
+		vt, bv := config.VTFloat, 0.0
+		if gd.ptype == config.TypeDI || gd.ptype == config.TypeDO {
+			vt = config.VTBit
+		}
+		if gd.name == "关口表_并网开关状态" || gd.name == "关口表_并网开关遥控" {
+			bv = 1 // 默认并网合闸
+		}
 		points = append(points, &config.Point{
-			IOA: uint32(gd.ioa), Name: gd.name, ValueType: config.VTFloat,
-			PointType: gd.ptype, Efficient: 1.0, BaseValue: 0, Alias: gd.alias,
+			IOA: uint32(gd.ioa), Name: gd.name, ValueType: vt,
+			PointType: gd.ptype, Efficient: 1.0, BaseValue: bv, Alias: gd.alias,
 		})
 	}
 
@@ -230,6 +253,10 @@ func nextAvailableIOABase(devices []Device) uint32 {
 	for ioa := uint32(1); ioa <= 100; ioa++ {
 		occupied[ioa] = true
 	}
+	// 关口表遥信/遥控点占用 1001~1050
+	for ioa := uint32(1001); ioa <= 1050; ioa++ {
+		occupied[ioa] = true
+	}
 	// 已有设备占用的 IOA 范围
 	for _, d := range devices {
 		for off := uint32(0); off < 50; off++ {
@@ -284,7 +311,7 @@ func (t *Topology) StoreFromTopology() *library.Store {
 	pts := t.ExpandPoints()
 	// 只对新功能涉及的设备应用点表初始值(风速、EMS 设定值、理论功率等需要非零初值);
 	// 其余设备保持"启动时全 0、由首个 tick 写入"的既有行为。
-	var prefixes []string
+	prefixes := []string{"关口表_"}
 	for idx, dev := range t.Devices {
 		if dev.Type == CompWind || dev.Type == CompEMS || dev.isLimitMode() || dev.Params.SOCProtection {
 			prefixes = append(prefixes, devPrefix(dev, idx)+"_")
